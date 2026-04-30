@@ -66,6 +66,18 @@ yarn-error.log
 # testing
 /coverage
 
+# [ADDED] Environment & secrets
+.env
+.env.*
+!.env.example
+
+# [ADDED] Logs
+*.log
+
+# [ADDED] Docusaurus
+/docs-site/build
+/docs-site/.docusaurus
+
 # Yarn
 .yarn/*
 !.yarn/patches

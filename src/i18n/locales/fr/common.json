@@ -1,0 +1,10 @@
+{
+  "appName": "MidPoint",
+  "actions": {
+    "continue": "Continuer",
+    "cancel": "Annuler",
+    "save": "Sauvegarder",
+    "close": "Fermer",
+    "back": "Retour"
+  }
+}

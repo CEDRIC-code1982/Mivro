@@ -3,7 +3,8 @@
  */
 
 import { AppRegistry } from 'react-native';
-import App from './App';
+// [MODIFIED] App moved to src/presentation/ (Clean Architecture)
+import App from './src/presentation/App';
 import { name as appName } from './app.json';
 
 AppRegistry.registerComponent(appName, () => App);

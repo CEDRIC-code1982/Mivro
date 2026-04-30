@@ -1,4 +1,5 @@
-package com.midpoint
+// [MODIFIED] Package aligned with bundle ID com.cedricpineau.midpoint
+package com.cedricpineau.midpoint
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
