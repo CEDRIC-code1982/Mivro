@@ -1,42 +1,38 @@
 /**
- * Sample React Native App
- * https://github.com/facebook/react-native
+ * @file App.tsx
+ * @description Point d'entrée de l'application MidPoint.
+ *              MidPoint application entry point.
  *
- * @format
+ * @module presentation/App
  */
 
-// [ADDED] i18n initialization — must be imported before any component using useTranslation
+// [MODIFIED] i18n initialization — must be imported before any component using useTranslation
 import '@/i18n';
 
-import { NewAppScreen } from '@react-native/new-app-screen';
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+// [MODIFIED] Replaced RN template with navigation stack
+import { NavigationContainer } from '@react-navigation/native';
+import React from 'react';
+import { StatusBar, useColorScheme } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import RootNavigator from '@presentation/navigation/RootNavigator';
 
-function App() {
+/**
+ * Composant racine de l'application MidPoint.
+ * MidPoint root application component.
+ *
+ * @returns Composant App / App component
+ */
+const App: React.FC = () => {
   const isDarkMode = useColorScheme() === 'dark';
 
   return (
     <SafeAreaProvider>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppContent />
+      <NavigationContainer>
+        <RootNavigator />
+      </NavigationContainer>
     </SafeAreaProvider>
   );
-}
-
-function AppContent() {
-  const safeAreaInsets = useSafeAreaInsets();
-
-  return (
-    <View style={styles.container}>
-      <NewAppScreen templateFileName="App.tsx" safeAreaInsets={safeAreaInsets} />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
+};
 
 export default App;

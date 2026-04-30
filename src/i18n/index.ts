@@ -3,15 +3,35 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { getLocales } from 'react-native-localize';
 import commonEn from './locales/en/common.json';
+import createEn from './locales/en/create.json';
+import mapEn from './locales/en/map.json';
+import navigationEn from './locales/en/navigation.json';
+import profileEn from './locales/en/profile.json';
+import sessionsEn from './locales/en/sessions.json';
 import commonFr from './locales/fr/common.json';
+import createFr from './locales/fr/create.json';
+import mapFr from './locales/fr/map.json';
+import navigationFr from './locales/fr/navigation.json';
+import profileFr from './locales/fr/profile.json';
+import sessionsFr from './locales/fr/sessions.json';
 
-// [ADDED] Namespace definitions per CLAUDE.md
+// [MODIFIED] Namespace definitions per CLAUDE.md — added navigation, map, sessions, create, profile
 const resources = {
   fr: {
     common: commonFr,
+    create: createFr,
+    map: mapFr,
+    navigation: navigationFr,
+    profile: profileFr,
+    sessions: sessionsFr,
   },
   en: {
     common: commonEn,
+    create: createEn,
+    map: mapEn,
+    navigation: navigationEn,
+    profile: profileEn,
+    sessions: sessionsEn,
   },
 } as const;
 
@@ -36,7 +56,8 @@ i18n.use(initReactI18next).init({
   resources,
   lng: getDeviceLanguage(),
   fallbackLng: 'fr',
-  ns: ['common', 'auth', 'map', 'poi', 'profile', 'realtime'],
+  // [MODIFIED] Added navigation, sessions, create namespaces
+  ns: ['common', 'auth', 'create', 'map', 'navigation', 'poi', 'profile', 'realtime', 'sessions'],
   defaultNS: 'common',
   interpolation: {
     // [ADDED] React already escapes output
