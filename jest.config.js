@@ -10,6 +10,11 @@ module.exports = {
     '^@presentation/(.*)$': '<rootDir>/src/presentation/$1',
   },
 
+  // [ADDED] Transform ESM packages that Jest cannot parse out of the box
+  transformIgnorePatterns: [
+    'node_modules/(?!(react-native|@react-native|@react-navigation|react-native-.*|uuid|@react-native-community)/)',
+  ],
+
   // [ADDED] Setup file for RNTL matchers and global mocks
   // [MODIFIED] setupFilesAfterEnv — expect must be available for jest-native matchers
   setupFilesAfterEnv: ['./jest.setup.js'],

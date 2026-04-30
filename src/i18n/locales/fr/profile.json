@@ -1,4 +1,23 @@
 {
   "title": "Profil",
-  "placeholder": "Gère ton avatar, ton nom et tes préférences."
+  "placeholder": "Gère ton avatar, ton nom et tes préférences.",
+  "notSignedIn": "Pas encore connecté",
+  "signedInAs": "Connecté en tant que {{name}}",
+  "guestBadge": "Invité",
+  "currentTheme": "Thème : {{mode}}",
+  "themeLabels": {
+    "system": "Système",
+    "light": "Clair",
+    "dark": "Sombre"
+  },
+  "actions": {
+    "signInGuest": "Continuer en invité",
+    "signOut": "Se déconnecter",
+    "cycleTheme": "Changer de thème"
+  },
+  "hints": {
+    "signInGuest": "Crée un profil invité pour utiliser l'app",
+    "signOut": "Supprime ta session et tes données locales",
+    "cycleTheme": "Alterne entre système, clair et sombre"
+  }
 }

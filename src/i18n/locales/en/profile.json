@@ -1,4 +1,23 @@
 {
   "title": "Profile",
-  "placeholder": "Manage your avatar, name and preferences."
+  "placeholder": "Manage your avatar, name and preferences.",
+  "notSignedIn": "Not signed in yet",
+  "signedInAs": "Signed in as {{name}}",
+  "guestBadge": "Guest",
+  "currentTheme": "Theme: {{mode}}",
+  "themeLabels": {
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "actions": {
+    "signInGuest": "Continue as guest",
+    "signOut": "Sign out",
+    "cycleTheme": "Change theme"
+  },
+  "hints": {
+    "signInGuest": "Creates a guest profile to use the app",
+    "signOut": "Clears your session and local data",
+    "cycleTheme": "Cycles between system, light and dark"
+  }
 }

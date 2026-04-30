@@ -2,6 +2,10 @@
  * @format
  */
 
+// [ADDED] Polyfill crypto.getRandomValues pour uuid sur React Native
+// Doit être importé AVANT toute utilisation de uuid
+import 'react-native-get-random-values';
+
 import { AppRegistry } from 'react-native';
 // [MODIFIED] App moved to src/presentation/ (Clean Architecture)
 import App from './src/presentation/App';
