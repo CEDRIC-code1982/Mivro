@@ -80,8 +80,9 @@ export const useAuthStore = create<AuthStore>()(
       ...initialState,
 
       signInAsGuest: (displayName) => {
-        const { createGuestUserUseCase } = getContainer();
+        const { createGuestUserUseCase, crashReporter } = getContainer(); // [MODIFIED]
         const guest = createGuestUserUseCase.execute({ displayName });
+        crashReporter.setUser({ id: guest.id, type: 'guest' }); // [ADDED]
         set({ user: guest, isAuthenticated: true });
         console.log(
           `[INFO][useAuthStore][signInAsGuest][?][${new Date().toISOString().slice(11, 19)}] ` +
@@ -100,6 +101,8 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       signOut: () => {
+        const { crashReporter } = getContainer(); // [ADDED]
+        crashReporter.setUser(null); // [ADDED]
         console.log(
           `[INFO][useAuthStore][signOut][?][${new Date().toISOString().slice(11, 19)}] ` +
             'User signed out',

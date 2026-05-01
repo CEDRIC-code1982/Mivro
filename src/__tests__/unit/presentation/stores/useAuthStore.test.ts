@@ -17,6 +17,7 @@ jest.mock('uuid', () => ({
 
 // Mock DI container avec storage in-memory + CreateGuestUserUseCase réel
 const mockStorage = new Map<string, string>();
+const mockSetUser = jest.fn(); // [ADDED]
 
 jest.mock('@/di/container', () => {
   const { CreateGuestUserUseCase } = require('@core/usecases/CreateGuestUserUseCase');
@@ -32,6 +33,16 @@ jest.mock('@/di/container', () => {
         },
       },
       createGuestUserUseCase: new CreateGuestUserUseCase(),
+      // [ADDED] Mock crashReporter pour les tests auth → Sentry
+      crashReporter: {
+        setUser: mockSetUser,
+        captureException: jest.fn(),
+        captureMessage: jest.fn(),
+        setTag: jest.fn(),
+        addBreadcrumb: jest.fn(),
+        init: jest.fn(),
+        flush: jest.fn().mockResolvedValue(true),
+      },
     }),
   };
 });
@@ -41,6 +52,7 @@ import { useAuthStore } from '@presentation/stores/useAuthStore';
 describe('useAuthStore', () => {
   beforeEach(() => {
     mockStorage.clear();
+    mockSetUser.mockClear(); // [ADDED]
     // Reset store to initial state between tests
     useAuthStore.setState({
       user: null,
@@ -82,6 +94,16 @@ describe('useAuthStore', () => {
       // Avec le mock uuid, le fallback est "Invité-" + 4 premiers chars du UUID
       expect(useAuthStore.getState().user?.displayName).toMatch(/^Invité-[A-F0-9]{4}$/);
     });
+
+    // [ADDED] Test liaison auth → crashReporter
+    it('sets crashReporter user on signInAsGuest', () => {
+      useAuthStore.getState().signInAsGuest('Test');
+
+      expect(mockSetUser).toHaveBeenCalledWith({
+        id: mockUuid,
+        type: 'guest',
+      });
+    });
   });
 
   // ─── signOut ──────────────────────────────────────────────
@@ -97,6 +119,16 @@ describe('useAuthStore', () => {
       const state = useAuthStore.getState();
       expect(state.user).toBeNull();
       expect(state.isAuthenticated).toBe(false);
+    });
+
+    // [ADDED] Test liaison auth → crashReporter
+    it('clears crashReporter user on signOut', () => {
+      useAuthStore.getState().signInAsGuest('Test');
+      mockSetUser.mockClear();
+
+      useAuthStore.getState().signOut();
+
+      expect(mockSetUser).toHaveBeenCalledWith(null);
     });
   });
 

@@ -29,6 +29,7 @@ describe('DI Container', () => {
     expect(container.storage).toBeDefined();
     expect(container.zustandStorage).toBeDefined();
     expect(container.createGuestUserUseCase).toBeDefined();
+    expect(container.crashReporter).toBeDefined(); // [ADDED]
   });
 
   it('getContainer returns the container after initialization', () => {

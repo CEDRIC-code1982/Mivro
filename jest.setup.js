@@ -48,6 +48,39 @@ jest.mock('react-native-keychain', () => ({
   },
 }));
 
+// [ADDED] Mock react-native-config (native module unavailable in Jest)
+jest.mock('react-native-config', () => ({
+  SENTRY_DSN: '',
+  SENTRY_ENVIRONMENT: 'test',
+  SENTRY_RELEASE: '',
+}));
+
+// [ADDED] Mock @sentry/react-native (native module unavailable in Jest)
+jest.mock('@sentry/react-native', () => {
+  const createMockScope = () => ({
+    setLevel: jest.fn(),
+    setTags: jest.fn(),
+    setExtras: jest.fn(),
+    setTag: jest.fn(),
+    setExtra: jest.fn(),
+    setUser: jest.fn(),
+  });
+
+  return {
+    init: jest.fn(),
+    captureException: jest.fn(),
+    captureMessage: jest.fn(),
+    setUser: jest.fn(),
+    setTag: jest.fn(),
+    setTags: jest.fn(),
+    addBreadcrumb: jest.fn(),
+    flush: jest.fn().mockResolvedValue(true),
+    wrap: jest.fn((component) => component),
+    withScope: jest.fn((callback) => callback(createMockScope())),
+    Scope: jest.fn(() => createMockScope()),
+  };
+});
+
 // [ADDED] Mock react-native-localize (native module unavailable in Jest)
 jest.mock('react-native-localize', () => ({
   getLocales: () => [{ languageCode: 'fr', countryCode: 'FR', languageTag: 'fr-FR', isRTL: false }],

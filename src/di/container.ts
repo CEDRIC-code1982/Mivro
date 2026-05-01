@@ -14,8 +14,10 @@
 
 // [ADDED] DI Container — wire-up des dépendances
 import { createMMKV } from 'react-native-mmkv';
+import type { ICrashReporter } from '@core/ports/ICrashReporter'; // [ADDED]
 import type { IStorageService } from '@core/ports/IStorageService';
 import { CreateGuestUserUseCase } from '@core/usecases/CreateGuestUserUseCase';
+import { SentryCrashReporter } from '@infrastructure/crash/SentryCrashReporter'; // [ADDED]
 import { MMKVStorageService } from '@infrastructure/storage/MMKVStorageService';
 import { createZustandMMKVAdapter } from '@infrastructure/storage/zustand-mmkv-adapter';
 
@@ -30,6 +32,8 @@ export interface Container {
   zustandStorage: ReturnType<typeof createZustandMMKVAdapter>;
   /** Use case de création de guest user */
   createGuestUserUseCase: CreateGuestUserUseCase;
+  /** Crash reporter (Sentry) / Crash reporter service */ // [ADDED]
+  crashReporter: ICrashReporter; // [ADDED]
 }
 
 let containerInstance: Container | null = null;
@@ -57,10 +61,15 @@ export const initContainer = (encryptionKey: string): Container => {
   const storage = new MMKVStorageService(mmkv);
   const zustandStorage = createZustandMMKVAdapter(storage);
 
+  // [ADDED] Sentry crash reporter — init AVANT le reste du container
+  const crashReporter = new SentryCrashReporter();
+  crashReporter.init();
+
   containerInstance = {
     storage,
     zustandStorage,
     createGuestUserUseCase: new CreateGuestUserUseCase(),
+    crashReporter, // [ADDED]
   };
 
   console.log(

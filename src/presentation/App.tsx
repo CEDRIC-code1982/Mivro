@@ -19,6 +19,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initContainer } from '@/di/container';
 import { useTheme } from '@core/theme';
 import { getEncryptionKey } from '@infrastructure/storage/getEncryptionKey';
+import { AppErrorBoundary } from '@presentation/components/templates/AppErrorBoundary'; // [ADDED]
 import RootNavigator from '@presentation/navigation/RootNavigator';
 
 /**
@@ -67,9 +68,12 @@ const App: React.FC = () => {
   return (
     <SafeAreaProvider>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <NavigationContainer>
-        <RootNavigator />
-      </NavigationContainer>
+      {/* [ADDED] ErrorBoundary global — capture les erreurs React non gérées */}
+      <AppErrorBoundary>
+        <NavigationContainer>
+          <RootNavigator />
+        </NavigationContainer>
+      </AppErrorBoundary>
     </SafeAreaProvider>
   );
 };

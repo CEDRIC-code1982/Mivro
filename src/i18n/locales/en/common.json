@@ -6,5 +6,13 @@
     "save": "Save",
     "close": "Close",
     "back": "Back"
+  },
+  "errors": {
+    "boundary": {
+      "title": "Oops, something went wrong",
+      "message": "An unexpected error occurred. You can try to continue.",
+      "retry": "Retry",
+      "retryHint": "Attempts to reload the screen"
+    }
   }
 }
