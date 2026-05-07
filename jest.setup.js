@@ -81,6 +81,21 @@ jest.mock('@sentry/react-native', () => {
   };
 });
 
+// [ADDED] Mock @react-native-community/geolocation (native module unavailable in Jest)
+// The lib exports { __esModule: true, default: { setRNConfiguration, getCurrentPosition, ... } }
+// Babel's interopRequireDefault picks up .default when __esModule is true
+jest.mock('@react-native-community/geolocation', () => {
+  const mockGeolocation = {
+    setRNConfiguration: jest.fn(),
+    getCurrentPosition: jest.fn(),
+    watchPosition: jest.fn(),
+    clearWatch: jest.fn(),
+    stopObserving: jest.fn(),
+    requestAuthorization: jest.fn(),
+  };
+  return { __esModule: true, default: mockGeolocation };
+});
+
 // [ADDED] Mock react-native-localize (native module unavailable in Jest)
 jest.mock('react-native-localize', () => ({
   getLocales: () => [{ languageCode: 'fr', countryCode: 'FR', languageTag: 'fr-FR', isRTL: false }],

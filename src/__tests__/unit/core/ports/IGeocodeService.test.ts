@@ -56,6 +56,7 @@ describe('IGeocodeService port', () => {
       'invalid_query',
       'parse_error',
       'server_error',
+      'no_results', // [ADDED]
     ])('supports error code "%s"', (code) => {
       const error = new GeocodeError('test', code);
 

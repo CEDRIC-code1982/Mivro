@@ -33,6 +33,8 @@ describe('DI Container', () => {
     expect(container.geocodeService).toBeDefined(); // [ADDED]
     expect(container.searchAddressUseCase).toBeDefined(); // [ADDED]
     expect(container.queryClient).toBeDefined(); // [ADDED]
+    expect(container.geolocationService).toBeDefined(); // [ADDED]
+    expect(container.getCurrentLocationUseCase).toBeDefined(); // [ADDED]
   });
 
   it('getContainer returns the container after initialization', () => {

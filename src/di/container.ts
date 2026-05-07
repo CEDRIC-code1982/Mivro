@@ -17,11 +17,14 @@ import type { QueryClient } from '@tanstack/react-query'; // [ADDED]
 import { createMMKV } from 'react-native-mmkv';
 import type { ICrashReporter } from '@core/ports/ICrashReporter'; // [ADDED]
 import type { IGeocodeService } from '@core/ports/IGeocodeService'; // [ADDED]
+import type { IGeolocationService } from '@core/ports/IGeolocationService'; // [ADDED]
 import type { IStorageService } from '@core/ports/IStorageService';
 import { CreateGuestUserUseCase } from '@core/usecases/CreateGuestUserUseCase';
+import { GetCurrentLocationUseCase } from '@core/usecases/GetCurrentLocationUseCase'; // [ADDED]
 import { SearchAddressUseCase } from '@core/usecases/SearchAddressUseCase'; // [ADDED]
 import { SentryCrashReporter } from '@infrastructure/crash/SentryCrashReporter'; // [ADDED]
 import { NominatimGeocodeService } from '@infrastructure/geocode/NominatimGeocodeService'; // [ADDED]
+import { RNGeolocationService } from '@infrastructure/geolocation/RNGeolocationService'; // [ADDED]
 import { MMKVStorageService } from '@infrastructure/storage/MMKVStorageService';
 import { createZustandMMKVAdapter } from '@infrastructure/storage/zustand-mmkv-adapter';
 import { createQueryClient } from './queryClient'; // [ADDED]
@@ -45,6 +48,10 @@ export interface Container {
   searchAddressUseCase: SearchAddressUseCase; // [ADDED]
   /** QueryClient TanStack Query / TanStack Query QueryClient */ // [ADDED]
   queryClient: QueryClient; // [ADDED]
+  /** Service de géolocalisation native / Native geolocation service */ // [ADDED]
+  geolocationService: IGeolocationService; // [ADDED]
+  /** Use case de récupération de position courante / Get current location use case */ // [ADDED]
+  getCurrentLocationUseCase: GetCurrentLocationUseCase; // [ADDED]
 }
 
 let containerInstance: Container | null = null;
@@ -80,6 +87,13 @@ export const initContainer = (encryptionKey: string): Container => {
   const geocodeService = new NominatimGeocodeService(crashReporter);
   const searchAddressUseCase = new SearchAddressUseCase(geocodeService);
 
+  // [ADDED] Geolocation
+  const geolocationService = new RNGeolocationService(crashReporter);
+  const getCurrentLocationUseCase = new GetCurrentLocationUseCase(
+    geolocationService,
+    geocodeService,
+  );
+
   // [ADDED] TanStack Query
   const queryClient = createQueryClient();
 
@@ -91,6 +105,8 @@ export const initContainer = (encryptionKey: string): Container => {
     geocodeService, // [ADDED]
     searchAddressUseCase, // [ADDED]
     queryClient, // [ADDED]
+    geolocationService, // [ADDED]
+    getCurrentLocationUseCase, // [ADDED]
   };
 
   console.log(

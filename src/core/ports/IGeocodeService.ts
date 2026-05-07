@@ -13,6 +13,7 @@
 
 // [ADDED] Port IGeocodeService + GeocodeError + types
 import type { GeocodeResult } from '@core/entities/GeocodeResult';
+import type { Coordinates } from '@core/entities/Location'; // [ADDED]
 
 /**
  * Options de recherche d'adresse.
@@ -56,6 +57,37 @@ export interface IGeocodeService {
    * @throws Error pour erreur inattendue / for unexpected error
    */
   search(query: string, options?: SearchAddressOptions): Promise<GeocodeResult[]>;
+
+  /**
+   * Reverse geocoding : coordonnées → adresse formatée.
+   * Reverse geocoding: coordinates → formatted address.
+   *
+   * @param coordinates - Coordonnées GPS / GPS coordinates
+   * @param options - Options de reverse geocoding / Reverse geocoding options
+   * @returns Résultat ou null si aucun résultat / Result or null if no result
+   * @throws GeocodeError pour erreur métier identifiée / for identified business error
+   */
+  reverseGeocode(
+    coordinates: Coordinates,
+    options?: ReverseGeocodeOptions,
+  ): Promise<GeocodeResult | null>; // [ADDED]
+}
+
+/**
+ * Options de reverse geocoding.
+ * Reverse geocoding options.
+ *
+ * @param language - Langue préférée (ex: 'fr', 'en') / Preferred language
+ * @param zoom - Niveau de zoom 0-18 (ville=10, rue=18, défaut 18) / Zoom level
+ * @param signal - Signal d'annulation / Abort signal
+ */
+export interface ReverseGeocodeOptions {
+  /** Langue préférée (ex: 'fr', 'en') / Preferred language */
+  language?: string;
+  /** Niveau de zoom 0-18 (ville=10, rue=18, défaut 18) / Zoom level 0-18 */
+  zoom?: number;
+  /** Signal d'annulation / Abort signal */
+  signal?: AbortSignal;
 }
 
 /**
@@ -67,13 +99,15 @@ export interface IGeocodeService {
  * - invalid_query : query trop courte ou vide
  * - parse_error : réponse provider non conforme au schéma Zod
  * - server_error : HTTP 5xx du provider
+ * - no_results : aucun résultat (notamment reverse geocoding)
  */
 export type GeocodeErrorCode =
   | 'rate_limited'
   | 'network'
   | 'invalid_query'
   | 'parse_error'
-  | 'server_error';
+  | 'server_error'
+  | 'no_results'; // [ADDED]
 
 /**
  * Erreur métier de géocodage avec code typé.

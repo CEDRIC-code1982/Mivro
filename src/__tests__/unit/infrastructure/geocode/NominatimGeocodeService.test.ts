@@ -344,4 +344,116 @@ describe('NominatimGeocodeService', () => {
       expect(results).toEqual([]);
     });
   });
+
+  // ═══════════════════════════════════════════════════════════
+  // [ADDED] reverseGeocode tests
+  // ═══════════════════════════════════════════════════════════
+
+  describe('reverseGeocode', () => {
+    const coords = { latitude: 48.8566, longitude: 2.3522 };
+
+    const NOMINATIM_REVERSE_SUCCESS = {
+      place_id: 100,
+      osm_id: 12345,
+      osm_type: 'way',
+      lat: '48.8566',
+      lon: '2.3522',
+      display_name: '1 Rue de Rivoli, 75001 Paris, France',
+      type: 'street',
+      importance: 0.7,
+    };
+
+    // ─── Success ──────────────────────────────────────────
+    describe('successful response', () => {
+      it('returns a GeocodeResult for a valid reverse response', async () => {
+        fetchSpy.mockResolvedValueOnce(createMockResponse(NOMINATIM_REVERSE_SUCCESS));
+
+        const result = await service.reverseGeocode(coords);
+
+        expect(result).toEqual({
+          externalId: '12345',
+          coordinates: { latitude: 48.8566, longitude: 2.3522 },
+          displayName: '1 Rue de Rivoli, 75001 Paris, France',
+          placeType: 'street',
+          importance: 0.7,
+        });
+      });
+
+      it('passes language as accept-language param', async () => {
+        fetchSpy.mockResolvedValueOnce(createMockResponse(NOMINATIM_REVERSE_SUCCESS));
+
+        await service.reverseGeocode(coords, { language: 'en' });
+
+        const calledUrl = fetchSpy.mock.calls[0]?.[0] as string;
+        expect(calledUrl).toContain('accept-language=en');
+      });
+
+      it('passes zoom param (default 18)', async () => {
+        fetchSpy.mockResolvedValueOnce(createMockResponse(NOMINATIM_REVERSE_SUCCESS));
+
+        await service.reverseGeocode(coords);
+
+        const calledUrl = fetchSpy.mock.calls[0]?.[0] as string;
+        expect(calledUrl).toContain('zoom=18');
+      });
+
+      it('passes custom zoom param', async () => {
+        fetchSpy.mockResolvedValueOnce(createMockResponse(NOMINATIM_REVERSE_SUCCESS));
+
+        await service.reverseGeocode(coords, { zoom: 10 });
+
+        const calledUrl = fetchSpy.mock.calls[0]?.[0] as string;
+        expect(calledUrl).toContain('zoom=10');
+      });
+
+      it('includes lat and lon in URL', async () => {
+        fetchSpy.mockResolvedValueOnce(createMockResponse(NOMINATIM_REVERSE_SUCCESS));
+
+        await service.reverseGeocode(coords);
+
+        const calledUrl = fetchSpy.mock.calls[0]?.[0] as string;
+        expect(calledUrl).toContain('lat=48.8566');
+        expect(calledUrl).toContain('lon=2.3522');
+        expect(calledUrl).toContain('/reverse?');
+      });
+    });
+
+    // ─── No result ────────────────────────────────────────
+    describe('no result', () => {
+      it('returns null when Nominatim responds with error object', async () => {
+        fetchSpy.mockResolvedValueOnce(createMockResponse({ error: 'Unable to geocode' }));
+
+        const result = await service.reverseGeocode(coords);
+
+        expect(result).toBeNull();
+      });
+    });
+
+    // ─── HTTP 429 ─────────────────────────────────────────
+    describe('rate limiting', () => {
+      it('throws GeocodeError "rate_limited" on 429', async () => {
+        fetchSpy.mockResolvedValueOnce(createMockResponse(null, 429, false));
+
+        await expectGeocodeError(service.reverseGeocode(coords), 'rate_limited');
+      });
+    });
+
+    // ─── Network error ────────────────────────────────────
+    describe('network error', () => {
+      it('throws GeocodeError "network" on fetch failure', async () => {
+        fetchSpy.mockRejectedValueOnce(new TypeError('Network request failed'));
+
+        await expectGeocodeError(service.reverseGeocode(coords), 'network');
+      });
+    });
+
+    // ─── Parse error ──────────────────────────────────────
+    describe('parse error', () => {
+      it('throws GeocodeError "parse_error" on invalid response', async () => {
+        fetchSpy.mockResolvedValueOnce(createMockResponse([1, 2, 3]));
+
+        await expectGeocodeError(service.reverseGeocode(coords), 'parse_error');
+      });
+    });
+  });
 });

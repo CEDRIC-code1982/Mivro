@@ -16,8 +16,13 @@
 // [ADDED] Adapter NominatimGeocodeService
 import { z } from 'zod';
 import type { GeocodeResult } from '@core/entities/GeocodeResult';
+import type { Coordinates } from '@core/entities/Location'; // [ADDED]
 import type { ICrashReporter } from '@core/ports/ICrashReporter';
-import type { IGeocodeService, SearchAddressOptions } from '@core/ports/IGeocodeService';
+import type {
+  IGeocodeService,
+  ReverseGeocodeOptions, // [ADDED]
+  SearchAddressOptions,
+} from '@core/ports/IGeocodeService';
 import { GeocodeError } from '@core/ports/IGeocodeService';
 
 /** URL de base de l'API Nominatim / Nominatim API base URL */
@@ -45,6 +50,27 @@ const NominatimResponseSchema = z.array(
     importance: z.number().optional(),
   }),
 );
+
+/**
+ * Schéma DTO Nominatim /reverse succès — validation runtime (TS-004).
+ * Nominatim /reverse success DTO schema — runtime validation (TS-004).
+ */
+const NominatimReverseSuccessSchema = z.object({
+  place_id: z.number(),
+  osm_id: z.number().optional(),
+  osm_type: z.string().optional(),
+  lat: z.string(),
+  lon: z.string(),
+  display_name: z.string(),
+  type: z.string().optional(),
+  importance: z.number().optional(),
+});
+
+/**
+ * Schéma DTO Nominatim /reverse erreur — { error: "Unable to geocode" }.
+ * Nominatim /reverse error DTO schema.
+ */
+const NominatimReverseErrorSchema = z.object({ error: z.string() });
 
 /**
  * Implémentation Nominatim du port IGeocodeService.
@@ -168,6 +194,141 @@ export class NominatimGeocodeService implements IGeocodeService {
       console.error(
         `[ERROR][NominatimGeocodeService][search][?][${this.timestamp()}] ` +
           'Network error during Nominatim call',
+        error,
+      );
+      this.crashReporter?.captureException(
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          level: 'error',
+          tags: { service: 'geocode', provider: 'nominatim' },
+        },
+      );
+      throw new GeocodeError('Network error', 'network', error);
+    }
+  }
+
+  /**
+   * Reverse geocoding : coordonnées → adresse formatée via Nominatim /reverse.
+   * Reverse geocoding: coordinates → formatted address via Nominatim /reverse.
+   *
+   * @param coordinates - Coordonnées GPS / GPS coordinates
+   * @param options - Options de reverse geocoding / Reverse geocoding options
+   * @returns GeocodeResult ou null si aucun résultat / GeocodeResult or null if no result
+   * @throws GeocodeError avec code typé / with typed code
+   */
+  async reverseGeocode(
+    coordinates: Coordinates,
+    options: ReverseGeocodeOptions = {},
+  ): Promise<GeocodeResult | null> {
+    const params = new URLSearchParams({
+      lat: String(coordinates.latitude),
+      lon: String(coordinates.longitude),
+      format: 'json',
+      zoom: String(options.zoom ?? 18),
+      addressdetails: '0',
+    });
+
+    if (options.language) {
+      params.append('accept-language', options.language);
+    }
+
+    const url = `${NOMINATIM_BASE_URL}/reverse?${params.toString()}`;
+    const start = Date.now();
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': USER_AGENT,
+          Accept: 'application/json',
+        },
+        signal: options.signal as RequestInit['signal'],
+      });
+
+      const duration = Date.now() - start;
+
+      // [ADDED] HTTP 429 — rate limited
+      if (response.status === 429) {
+        console.warn(
+          `[WARN][NominatimGeocodeService][reverseGeocode][?][${this.timestamp()}] ` +
+            `Rate limited by Nominatim | duration: ${duration}ms`,
+        );
+        this.crashReporter?.captureMessage('Nominatim rate limited (reverse)', {
+          level: 'warning',
+          tags: { service: 'geocode', provider: 'nominatim' },
+        });
+        throw new GeocodeError('Rate limited by Nominatim', 'rate_limited');
+      }
+
+      // [ADDED] HTTP 5xx — server error
+      if (response.status >= 500) {
+        throw new GeocodeError(`Nominatim server error: ${response.status}`, 'server_error');
+      }
+
+      // [ADDED] Other non-OK statuses
+      if (!response.ok) {
+        throw new GeocodeError(`Nominatim unexpected status: ${response.status}`, 'server_error');
+      }
+
+      // [ADDED] Zod validation of Nominatim reverse response (TS-004)
+      const json: unknown = await response.json();
+
+      // [ADDED] Cas erreur : Nominatim renvoie { error: "Unable to geocode" }
+      const errorParsed = NominatimReverseErrorSchema.safeParse(json);
+      if (errorParsed.success) {
+        console.log(
+          `[INFO][NominatimGeocodeService][reverseGeocode][?][${this.timestamp()}] ` +
+            `No reverse result | duration: ${duration}ms`,
+        );
+        return null;
+      }
+
+      // [ADDED] Cas succès : objet avec display_name
+      const parsed = NominatimReverseSuccessSchema.safeParse(json);
+      if (!parsed.success) {
+        console.error(
+          `[ERROR][NominatimGeocodeService][reverseGeocode][?][${this.timestamp()}] ` +
+            'Failed to parse Nominatim reverse response',
+          parsed.error,
+        );
+        throw new GeocodeError(
+          'Failed to parse Nominatim reverse response',
+          'parse_error',
+          parsed.error,
+        );
+      }
+
+      const dto = parsed.data;
+
+      console.log(
+        `[INFO][NominatimGeocodeService][reverseGeocode][?][${this.timestamp()}] ` +
+          `Reverse OK | duration: ${duration}ms`,
+      );
+
+      return {
+        externalId: String(dto.osm_id ?? dto.place_id),
+        coordinates: {
+          latitude: parseFloat(dto.lat),
+          longitude: parseFloat(dto.lon),
+        },
+        displayName: dto.display_name,
+        placeType: dto.type,
+        importance: dto.importance,
+      };
+    } catch (error) {
+      // [ADDED] Re-throw GeocodeError as-is
+      if (error instanceof GeocodeError) {
+        throw error;
+      }
+
+      // [ADDED] AbortError = user cancellation
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new GeocodeError('Request aborted', 'network', error);
+      }
+
+      // [ADDED] Network error
+      console.error(
+        `[ERROR][NominatimGeocodeService][reverseGeocode][?][${this.timestamp()}] ` +
+          'Network error during reverse geocode',
         error,
       );
       this.crashReporter?.captureException(

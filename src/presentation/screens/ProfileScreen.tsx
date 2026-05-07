@@ -22,6 +22,10 @@ import {
   TextInput,
   View,
 } from 'react-native'; // [MODIFIED]
+import { getContainer } from '@/di/container'; // [ADDED]
+import type { Location } from '@core/entities/Location'; // [ADDED]
+import type { GeolocationErrorCode } from '@core/ports/IGeolocationService'; // [ADDED]
+import { GeolocationError } from '@core/ports/IGeolocationService'; // [ADDED]
 import { useTheme, type Theme } from '@core/theme';
 import { Screen, Text } from '@presentation/components/atoms';
 import {
@@ -72,6 +76,30 @@ const ProfileScreen: React.FC = () => {
     query: geocodeInput,
     options: { language: 'fr' },
   });
+
+  // [TEMP] Démo GPS — sera retirée en Phase F1
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsLocation, setGpsLocation] = useState<Location | null>(null);
+  const [gpsError, setGpsError] = useState<GeolocationErrorCode | null>(null);
+
+  const handleTestGPS = useCallback(async () => {
+    setGpsLoading(true);
+    setGpsLocation(null);
+    setGpsError(null);
+    try {
+      const { getCurrentLocationUseCase } = getContainer();
+      const location = await getCurrentLocationUseCase.execute({ language: 'fr' });
+      setGpsLocation(location);
+    } catch (error) {
+      if (error instanceof GeolocationError) {
+        setGpsError(error.code);
+      } else {
+        setGpsError('unknown');
+      }
+    } finally {
+      setGpsLoading(false);
+    }
+  }, []);
 
   // [ADDED] Sélecteurs préférences
   const themeMode = usePreferencesStore((s) => s.themeMode);
@@ -233,6 +261,56 @@ const ProfileScreen: React.FC = () => {
                   </Text>
                 </View>
               ))}
+            </View>
+          ) : null}
+        </View>
+
+        {/* [TEMP] Démo GPS — sera retirée en Phase F1 UI */}
+        <View style={styles.geocodeSection}>
+          <Text variant="h2" weight="semibold">
+            {t('gpsDemo.title')}
+          </Text>
+          <Pressable
+            style={({ pressed }) => [
+              styles.buttonPrimary,
+              pressed ? styles.buttonPressed : undefined,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={t('gpsDemo.button')}
+            onPress={handleTestGPS}
+            disabled={gpsLoading}
+          >
+            <Text variant="body" weight="semibold" color="onBrand">
+              {t('gpsDemo.button')}
+            </Text>
+          </Pressable>
+          {gpsLoading ? (
+            <View style={styles.geocodeStatus}>
+              <ActivityIndicator size="small" color={theme.color.interactive.brand.default} />
+              <Text variant="body" color="secondary">
+                {t('gpsDemo.loading')}
+              </Text>
+            </View>
+          ) : null}
+          {gpsError ? (
+            <Text variant="body" color="error">
+              {t(`gpsDemo.errors.${gpsError}`)}
+            </Text>
+          ) : null}
+          {gpsLocation ? (
+            <View style={styles.geocodeResultItem}>
+              <Text variant="body" weight="semibold">
+                {t('gpsDemo.success')}
+              </Text>
+              <Text variant="body">
+                {t('gpsDemo.address', { address: gpsLocation.formattedAddress })}
+              </Text>
+              <Text variant="caption" color="tertiary">
+                {t('gpsDemo.coords', {
+                  lat: `${gpsLocation.coordinates.latitude.toFixed(2)}**`,
+                  lon: `${gpsLocation.coordinates.longitude.toFixed(2)}**`,
+                })}
+              </Text>
             </View>
           ) : null}
         </View>
