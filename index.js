@@ -2,6 +2,9 @@
  * @format
  */
 
+// [ADDED] react-native-gesture-handler must be imported FIRST (before any other import)
+import 'react-native-gesture-handler';
+
 // [ADDED] Polyfill crypto.getRandomValues pour uuid sur React Native
 // Doit être importé AVANT toute utilisation de uuid
 import 'react-native-get-random-values';

@@ -19,29 +19,5 @@
     "signInGuest": "Crée un profil invité pour utiliser l'app",
     "signOut": "Supprime ta session et tes données locales",
     "cycleTheme": "Alterne entre système, clair et sombre"
-  },
-  "geocodeDemo": {
-    "title": "Test Geocoding (Nominatim)",
-    "placeholder": "Tape une adresse...",
-    "loading": "Recherche...",
-    "error": "Erreur : {{message}}",
-    "noResults": "Aucun résultat",
-    "results": "{{count}} résultat(s)"
-  },
-  "gpsDemo": {
-    "title": "Test GPS",
-    "button": "Tester ma position",
-    "loading": "Localisation en cours...",
-    "success": "Position détectée",
-    "address": "Adresse : {{address}}",
-    "coords": "Coordonnées : {{lat}}, {{lon}}",
-    "errors": {
-      "permission_denied": "Permission refusée. Active la localisation dans les réglages.",
-      "permission_blocked": "Localisation bloquée. Va dans les réglages pour l'activer.",
-      "unavailable": "Service de localisation indisponible.",
-      "timeout": "La détection a pris trop de temps. Réessaie.",
-      "inaccurate": "Position trop imprécise. Essaie en extérieur.",
-      "unknown": "Erreur inattendue."
-    }
   }
 }

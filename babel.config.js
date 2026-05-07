@@ -15,5 +15,6 @@ module.exports = {
         },
       },
     ],
+    'react-native-reanimated/plugin', // [ADDED] Must be LAST plugin (required by reanimated)
   ],
 };

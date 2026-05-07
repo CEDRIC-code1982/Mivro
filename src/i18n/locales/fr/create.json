@@ -1,4 +1,48 @@
 {
   "title": "Créer une session",
-  "placeholder": "Ajoute des participants et choisis un point de rencontre à mi-chemin."
+  "subtitle": "Ajoute 2 à 5 points de départ",
+  "counter": {
+    "current_one": "{{count}} / 5 point",
+    "current_other": "{{count}} / 5 points",
+    "remaining_one": "Encore {{count}} point minimum",
+    "remaining_other": "Encore {{count}} points minimum",
+    "complete": "Tu peux continuer"
+  },
+  "autocomplete": {
+    "addressLabel": "Adresse",
+    "addressPlaceholder": "Tape une adresse...",
+    "addressHint": "Cherche une rue, un lieu ou une ville",
+    "nameLabel": "Nom du participant (optionnel)",
+    "namePlaceholder": "Ex: Cédric, Sophie...",
+    "nameHint": "Pour identifier ce point dans la liste",
+    "useGps": "Utiliser ma position",
+    "useGpsHint": "Détecte automatiquement ton emplacement actuel",
+    "noResults": "Aucun résultat",
+    "noResultsHint": "Essaie une autre formulation",
+    "minLength": "Tape au moins 3 caractères",
+    "loading": "Recherche..."
+  },
+  "list": {
+    "empty": {
+      "title": "Aucun point ajouté",
+      "description": "Ajoute un point en tapant une adresse ou avec ta position GPS"
+    },
+    "removeParticipant": "Supprimer {{name}}"
+  },
+  "actions": {
+    "continue": "Continuer",
+    "continueDisabled": "Ajoute au moins 2 points pour continuer"
+  },
+  "errors": {
+    "session_full": "Tu as déjà 5 points. Supprimes-en un pour en ajouter un autre.",
+    "gps_permission_denied": "Permission de localisation refusée. Active-la dans les réglages.",
+    "gps_unavailable": "Service de localisation indisponible.",
+    "gps_timeout": "La localisation a pris trop de temps. Réessaie.",
+    "gps_inaccurate": "Position trop imprécise. Essaie en extérieur.",
+    "gps_unknown": "Erreur GPS inattendue.",
+    "geocode_rate_limited": "Trop de requêtes. Réessaie dans quelques secondes.",
+    "geocode_network": "Pas de connexion. Vérifie ton réseau.",
+    "geocode_server": "Service indisponible. Réessaie plus tard.",
+    "unknown": "Erreur inattendue."
+  }
 }

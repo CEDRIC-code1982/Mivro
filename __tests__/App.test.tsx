@@ -77,6 +77,8 @@ jest.mock('@/di/container', () => {
         removeItem: () => undefined,
       },
       createGuestUserUseCase: { execute: jest.fn() },
+      getCurrentLocationUseCase: { execute: jest.fn().mockResolvedValue({}) },
+      searchAddressUseCase: { execute: jest.fn().mockResolvedValue([]) },
       queryClient: mockQueryClient,
     }),
     getContainer: jest.fn().mockReturnValue({
@@ -87,12 +89,14 @@ jest.mock('@/di/container', () => {
         removeItem: () => undefined,
       },
       createGuestUserUseCase: { execute: jest.fn() },
+      getCurrentLocationUseCase: { execute: jest.fn().mockResolvedValue({}) },
+      searchAddressUseCase: { execute: jest.fn().mockResolvedValue([]) },
       queryClient: mockQueryClient,
     }),
   };
 });
 
-// [ADDED] Mock lucide-react-native
+// [MODIFIED] Mock lucide-react-native — Proxy pour supporter toutes les icônes
 jest.mock('lucide-react-native', () => {
   const ReactMock = require('react');
   const { View } = require('react-native');
@@ -102,12 +106,12 @@ jest.mock('lucide-react-native', () => {
     MockIcon.displayName = displayName;
     return MockIcon;
   };
-  return {
-    MapPin: createMockIcon('MapPin'),
-    List: createMockIcon('List'),
-    PlusCircle: createMockIcon('PlusCircle'),
-    User: createMockIcon('User'),
-  };
+  return new Proxy(
+    {},
+    {
+      get: (_target, prop: string) => createMockIcon(prop),
+    },
+  );
 });
 
 // [MODIFIED] Test is now async — waits for DI container bootstrap

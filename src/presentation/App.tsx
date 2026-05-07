@@ -16,6 +16,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { QueryClientProvider } from '@tanstack/react-query'; // [ADDED]
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StatusBar, StyleSheet, View, useColorScheme } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler'; // [ADDED]
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { getContainer, initContainer } from '@/di/container'; // [MODIFIED]
 import { useTheme } from '@core/theme';
@@ -67,23 +68,30 @@ const App: React.FC = () => {
   }
 
   return (
-    <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      {/* [ADDED] ErrorBoundary global — capture les erreurs React non gérées */}
-      <AppErrorBoundary>
-        {/* [ADDED] QueryClientProvider — TanStack Query pour geocoding + futures queries */}
-        <QueryClientProvider client={getContainer().queryClient}>
-          <NavigationContainer>
-            <RootNavigator />
-          </NavigationContainer>
-        </QueryClientProvider>
-      </AppErrorBoundary>
-    </SafeAreaProvider>
+    // [ADDED] GestureHandlerRootView — required by @gorhom/bottom-sheet
+    <GestureHandlerRootView style={styles.gestureRoot}>
+      <SafeAreaProvider>
+        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+        {/* [ADDED] ErrorBoundary global — capture les erreurs React non gérées */}
+        <AppErrorBoundary>
+          {/* [ADDED] QueryClientProvider — TanStack Query pour geocoding + futures queries */}
+          <QueryClientProvider client={getContainer().queryClient}>
+            <NavigationContainer>
+              <RootNavigator />
+            </NavigationContainer>
+          </QueryClientProvider>
+        </AppErrorBoundary>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 };
 
 // [ADDED] Styles pour l'écran de chargement
 const styles = StyleSheet.create({
+  // [ADDED] GestureHandlerRootView must fill the screen
+  gestureRoot: {
+    flex: 1,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',

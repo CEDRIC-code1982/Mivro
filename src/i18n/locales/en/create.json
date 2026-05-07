@@ -1,4 +1,48 @@
 {
   "title": "Create a session",
-  "placeholder": "Add participants and choose a meeting point in the middle."
+  "subtitle": "Add 2 to 5 starting points",
+  "counter": {
+    "current_one": "{{count}} / 5 point",
+    "current_other": "{{count}} / 5 points",
+    "remaining_one": "{{count}} more point minimum",
+    "remaining_other": "{{count}} more points minimum",
+    "complete": "You can continue"
+  },
+  "autocomplete": {
+    "addressLabel": "Address",
+    "addressPlaceholder": "Type an address...",
+    "addressHint": "Search for a street, place or city",
+    "nameLabel": "Participant name (optional)",
+    "namePlaceholder": "E.g.: Alice, Bob...",
+    "nameHint": "To identify this point in the list",
+    "useGps": "Use my location",
+    "useGpsHint": "Automatically detect your current location",
+    "noResults": "No results",
+    "noResultsHint": "Try a different search",
+    "minLength": "Type at least 3 characters",
+    "loading": "Searching..."
+  },
+  "list": {
+    "empty": {
+      "title": "No points added",
+      "description": "Add a point by typing an address or using your GPS location"
+    },
+    "removeParticipant": "Remove {{name}}"
+  },
+  "actions": {
+    "continue": "Continue",
+    "continueDisabled": "Add at least 2 points to continue"
+  },
+  "errors": {
+    "session_full": "You already have 5 points. Remove one to add another.",
+    "gps_permission_denied": "Location permission denied. Enable it in settings.",
+    "gps_unavailable": "Location service unavailable.",
+    "gps_timeout": "Location took too long. Try again.",
+    "gps_inaccurate": "Position too inaccurate. Try outdoors.",
+    "gps_unknown": "Unexpected GPS error.",
+    "geocode_rate_limited": "Too many requests. Try again in a few seconds.",
+    "geocode_network": "No connection. Check your network.",
+    "geocode_server": "Service unavailable. Try again later.",
+    "unknown": "Unexpected error."
+  }
 }

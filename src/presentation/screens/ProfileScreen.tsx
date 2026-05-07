@@ -11,21 +11,10 @@
  * @module presentation/screens/ProfileScreen
  */
 
-// [MODIFIED] Remplacement du placeholder par intégration stores
-import React, { useCallback, useState } from 'react'; // [MODIFIED]
+// [MODIFIED] Retrait des démos Geocoding + GPS (déplacées dans CreateSessionScreen)
+import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from 'react-native'; // [MODIFIED]
-import { getContainer } from '@/di/container'; // [ADDED]
-import type { Location } from '@core/entities/Location'; // [ADDED]
-import type { GeolocationErrorCode } from '@core/ports/IGeolocationService'; // [ADDED]
-import { GeolocationError } from '@core/ports/IGeolocationService'; // [ADDED]
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useTheme, type Theme } from '@core/theme';
 import { Screen, Text } from '@presentation/components/atoms';
 import {
@@ -34,7 +23,6 @@ import {
   useIsGuest,
   useAuthActions,
 } from '@presentation/hooks/useAuth';
-import { useGeocodeQuery } from '@presentation/hooks/useGeocodeQuery'; // [ADDED]
 import { usePreferencesStore, type ThemeMode } from '@presentation/stores/usePreferencesStore';
 
 // [ADDED] Ordre de cycle du thème / Theme cycle order
@@ -65,41 +53,6 @@ const ProfileScreen: React.FC = () => {
   const isAuthenticated = useIsAuthenticated();
   const isGuest = useIsGuest();
   const { signInAsGuest, signOut } = useAuthActions();
-
-  // [TEMP] Démo Geocoding — sera retirée en Phase F1
-  const [geocodeInput, setGeocodeInput] = useState('');
-  const {
-    data: geocodeResults,
-    isLoading: geocodeLoading,
-    error: geocodeError,
-  } = useGeocodeQuery({
-    query: geocodeInput,
-    options: { language: 'fr' },
-  });
-
-  // [TEMP] Démo GPS — sera retirée en Phase F1
-  const [gpsLoading, setGpsLoading] = useState(false);
-  const [gpsLocation, setGpsLocation] = useState<Location | null>(null);
-  const [gpsError, setGpsError] = useState<GeolocationErrorCode | null>(null);
-
-  const handleTestGPS = useCallback(async () => {
-    setGpsLoading(true);
-    setGpsLocation(null);
-    setGpsError(null);
-    try {
-      const { getCurrentLocationUseCase } = getContainer();
-      const location = await getCurrentLocationUseCase.execute({ language: 'fr' });
-      setGpsLocation(location);
-    } catch (error) {
-      if (error instanceof GeolocationError) {
-        setGpsError(error.code);
-      } else {
-        setGpsError('unknown');
-      }
-    } finally {
-      setGpsLoading(false);
-    }
-  }, []);
 
   // [ADDED] Sélecteurs préférences
   const themeMode = usePreferencesStore((s) => s.themeMode);
@@ -214,112 +167,12 @@ const ProfileScreen: React.FC = () => {
             </Text>
           </Pressable>
         </View>
-
-        {/* [TEMP] Démo Geocoding — sera retirée en Phase F1 */}
-        <View style={styles.geocodeSection}>
-          <Text variant="h2" weight="semibold">
-            {t('geocodeDemo.title')}
-          </Text>
-          <TextInput
-            style={styles.geocodeInput}
-            value={geocodeInput}
-            onChangeText={setGeocodeInput}
-            placeholder={t('geocodeDemo.placeholder')}
-            placeholderTextColor={theme.color.text.tertiary}
-            accessibilityLabel={t('geocodeDemo.placeholder')}
-            accessibilityHint={t('geocodeDemo.placeholder')}
-          />
-          {geocodeLoading ? (
-            <View style={styles.geocodeStatus}>
-              <ActivityIndicator size="small" color={theme.color.interactive.brand.default} />
-              <Text variant="body" color="secondary">
-                {t('geocodeDemo.loading')}
-              </Text>
-            </View>
-          ) : null}
-          {geocodeError ? (
-            <Text variant="body" color="error">
-              {t('geocodeDemo.error', { message: geocodeError.message })}
-            </Text>
-          ) : null}
-          {geocodeResults && geocodeResults.length === 0 && geocodeInput.trim().length >= 3 ? (
-            <Text variant="body" color="secondary">
-              {t('geocodeDemo.noResults')}
-            </Text>
-          ) : null}
-          {geocodeResults && geocodeResults.length > 0 ? (
-            <View style={styles.geocodeResults}>
-              <Text variant="caption" color="secondary">
-                {t('geocodeDemo.results', { count: geocodeResults.length })}
-              </Text>
-              {geocodeResults.map((result) => (
-                <View key={result.externalId} style={styles.geocodeResultItem}>
-                  <Text variant="body">{result.displayName}</Text>
-                  <Text variant="caption" color="tertiary">
-                    {result.coordinates.latitude.toFixed(4)},{' '}
-                    {result.coordinates.longitude.toFixed(4)}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
-        </View>
-
-        {/* [TEMP] Démo GPS — sera retirée en Phase F1 UI */}
-        <View style={styles.geocodeSection}>
-          <Text variant="h2" weight="semibold">
-            {t('gpsDemo.title')}
-          </Text>
-          <Pressable
-            style={({ pressed }) => [
-              styles.buttonPrimary,
-              pressed ? styles.buttonPressed : undefined,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel={t('gpsDemo.button')}
-            onPress={handleTestGPS}
-            disabled={gpsLoading}
-          >
-            <Text variant="body" weight="semibold" color="onBrand">
-              {t('gpsDemo.button')}
-            </Text>
-          </Pressable>
-          {gpsLoading ? (
-            <View style={styles.geocodeStatus}>
-              <ActivityIndicator size="small" color={theme.color.interactive.brand.default} />
-              <Text variant="body" color="secondary">
-                {t('gpsDemo.loading')}
-              </Text>
-            </View>
-          ) : null}
-          {gpsError ? (
-            <Text variant="body" color="error">
-              {t(`gpsDemo.errors.${gpsError}`)}
-            </Text>
-          ) : null}
-          {gpsLocation ? (
-            <View style={styles.geocodeResultItem}>
-              <Text variant="body" weight="semibold">
-                {t('gpsDemo.success')}
-              </Text>
-              <Text variant="body">
-                {t('gpsDemo.address', { address: gpsLocation.formattedAddress })}
-              </Text>
-              <Text variant="caption" color="tertiary">
-                {t('gpsDemo.coords', {
-                  lat: `${gpsLocation.coordinates.latitude.toFixed(2)}**`,
-                  lon: `${gpsLocation.coordinates.longitude.toFixed(2)}**`,
-                })}
-              </Text>
-            </View>
-          ) : null}
-        </View>
       </ScrollView>
     </Screen>
   );
 };
 
-// [MODIFIED] Styles via tokens — zéro magic number (DS-001)
+// [MODIFIED] Styles via tokens — retrait des styles démo (geocodeSection, geocodeInput, etc.)
 const buildStyles = (theme: Theme) =>
   StyleSheet.create({
     container: {
@@ -373,39 +226,6 @@ const buildStyles = (theme: Theme) =>
     },
     buttonPressed: {
       opacity: 0.8,
-    },
-    // [TEMP] Styles Geocoding démo — sera retiré en Phase F1
-    geocodeSection: {
-      width: '100%',
-      gap: theme.spacing.sm,
-      marginTop: theme.spacing.xl,
-      paddingTop: theme.spacing.lg,
-      borderTopWidth: 1,
-      borderTopColor: theme.color.border.default,
-    },
-    geocodeInput: {
-      borderWidth: 1,
-      borderColor: theme.color.border.default,
-      borderRadius: theme.radius.md,
-      paddingVertical: theme.spacing.sm,
-      paddingHorizontal: theme.spacing.md,
-      minHeight: theme.touchTarget.min,
-      color: theme.color.text.primary,
-      fontSize: theme.typography.fontSize.body,
-    },
-    geocodeStatus: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: theme.spacing.sm,
-    },
-    geocodeResults: {
-      gap: theme.spacing.xs,
-    },
-    geocodeResultItem: {
-      backgroundColor: theme.color.surface.secondary,
-      padding: theme.spacing.sm,
-      borderRadius: theme.radius.sm,
-      gap: theme.spacing.xxs,
     },
   });
 

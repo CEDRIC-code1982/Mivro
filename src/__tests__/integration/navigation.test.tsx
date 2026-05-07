@@ -19,10 +19,11 @@ import React from 'react';
 import '@/i18n';
 import RootNavigator from '@presentation/navigation/RootNavigator';
 
-// [ADDED] Mock getContainer pour useGeocodeQuery dans ProfileScreen
+// [MODIFIED] Mock getContainer pour useGeocodeQuery + getCurrentLocationUseCase
 jest.mock('@/di/container', () => ({
   getContainer: jest.fn(() => ({
     searchAddressUseCase: { execute: jest.fn().mockResolvedValue([]) },
+    getCurrentLocationUseCase: { execute: jest.fn().mockResolvedValue({}) },
   })),
 }));
 
@@ -96,7 +97,7 @@ jest.mock('@react-navigation/native-stack', () => {
   };
 });
 
-// [ADDED] Mock lucide-react-native
+// [MODIFIED] Mock lucide-react-native — Proxy pour supporter toutes les icônes
 jest.mock('lucide-react-native', () => {
   const ReactMock = require('react');
   const { View } = require('react-native');
@@ -106,12 +107,12 @@ jest.mock('lucide-react-native', () => {
     MockIcon.displayName = displayName;
     return MockIcon;
   };
-  return {
-    MapPin: createMockIcon('MapPin'),
-    List: createMockIcon('List'),
-    PlusCircle: createMockIcon('PlusCircle'),
-    User: createMockIcon('User'),
-  };
+  return new Proxy(
+    {},
+    {
+      get: (_target, prop: string) => createMockIcon(prop),
+    },
+  );
 });
 
 describe('Navigation integration', () => {

@@ -19,29 +19,5 @@
     "signInGuest": "Creates a guest profile to use the app",
     "signOut": "Clears your session and local data",
     "cycleTheme": "Cycles between system, light and dark"
-  },
-  "geocodeDemo": {
-    "title": "Test Geocoding (Nominatim)",
-    "placeholder": "Type an address...",
-    "loading": "Searching...",
-    "error": "Error: {{message}}",
-    "noResults": "No results",
-    "results": "{{count}} result(s)"
-  },
-  "gpsDemo": {
-    "title": "GPS Test",
-    "button": "Test my location",
-    "loading": "Getting location...",
-    "success": "Position detected",
-    "address": "Address: {{address}}",
-    "coords": "Coordinates: {{lat}}, {{lon}}",
-    "errors": {
-      "permission_denied": "Permission denied. Enable location in settings.",
-      "permission_blocked": "Location blocked. Go to settings to enable it.",
-      "unavailable": "Location service unavailable.",
-      "timeout": "Location detection took too long. Try again.",
-      "inaccurate": "Position too inaccurate. Try outdoors.",
-      "unknown": "Unexpected error."
-    }
   }
 }

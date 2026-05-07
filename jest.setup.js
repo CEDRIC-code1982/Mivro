@@ -96,6 +96,65 @@ jest.mock('@react-native-community/geolocation', () => {
   return { __esModule: true, default: mockGeolocation };
 });
 
+// [ADDED] Mock react-native-gesture-handler (native module unavailable in Jest)
+jest.mock('react-native-gesture-handler', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    GestureHandlerRootView: ({ children, style }) => React.createElement(View, { style }, children),
+    Swipeable: View,
+    DrawerLayout: View,
+    State: {},
+    PanGestureHandler: View,
+    TapGestureHandler: View,
+    FlingGestureHandler: View,
+    ForceTouchGestureHandler: View,
+    LongPressGestureHandler: View,
+    NativeViewGestureHandler: View,
+    PinchGestureHandler: View,
+    RotationGestureHandler: View,
+    ScrollView: View,
+    Slider: View,
+    Switch: View,
+    TextInput: View,
+    ToolbarAndroid: View,
+    ViewPagerAndroid: View,
+    FlatList: View,
+    gestureHandlerRootHOC: jest.fn((component) => component),
+    Directions: {},
+  };
+});
+
+// [ADDED] Mock @gorhom/bottom-sheet (native module unavailable in Jest)
+jest.mock('@gorhom/bottom-sheet', () => {
+  const React = require('react');
+  const { View, TextInput } = require('react-native');
+  const BottomSheet = React.forwardRef(({ children, testID }, ref) => {
+    React.useImperativeHandle(ref, () => ({
+      snapToIndex: jest.fn(),
+      close: jest.fn(),
+      expand: jest.fn(),
+      collapse: jest.fn(),
+    }));
+    return React.createElement(View, { testID }, children);
+  });
+  BottomSheet.displayName = 'BottomSheet';
+  return {
+    __esModule: true,
+    default: BottomSheet,
+    BottomSheetView: ({ children, style, testID }) =>
+      React.createElement(View, { style, testID }, children),
+    BottomSheetTextInput: React.forwardRef((props, ref) =>
+      React.createElement(TextInput, { ...props, ref }),
+    ),
+    BottomSheetFlatList: View,
+    BottomSheetScrollView: View,
+    BottomSheetBackdrop: View,
+    BottomSheetHandle: View,
+    useBottomSheet: () => ({ close: jest.fn(), expand: jest.fn(), snapToIndex: jest.fn() }),
+  };
+});
+
 // [ADDED] Mock react-native-localize (native module unavailable in Jest)
 jest.mock('react-native-localize', () => ({
   getLocales: () => [{ languageCode: 'fr', countryCode: 'FR', languageTag: 'fr-FR', isRTL: false }],
