@@ -13,10 +13,23 @@
 
 // [ADDED] Tests d'intégration navigation
 import { NavigationContainer } from '@react-navigation/native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'; // [ADDED]
 import { render, screen } from '@testing-library/react-native';
 import React from 'react';
 import '@/i18n';
 import RootNavigator from '@presentation/navigation/RootNavigator';
+
+// [ADDED] Mock getContainer pour useGeocodeQuery dans ProfileScreen
+jest.mock('@/di/container', () => ({
+  getContainer: jest.fn(() => ({
+    searchAddressUseCase: { execute: jest.fn().mockResolvedValue([]) },
+  })),
+}));
+
+// [ADDED] QueryClient de test pour les hooks TanStack Query
+const testQueryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false } },
+});
 
 // [ADDED] Mock @react-navigation/native — preserve NavigationContainer, mock native parts
 jest.mock('@react-navigation/native', () => {
@@ -105,9 +118,11 @@ describe('Navigation integration', () => {
   // ─── Default screen ───────────────────────────────────────
   it('displays MapScreen by default (first tab)', () => {
     render(
-      <NavigationContainer>
-        <RootNavigator />
-      </NavigationContainer>,
+      <QueryClientProvider client={testQueryClient}>
+        <NavigationContainer>
+          <RootNavigator />
+        </NavigationContainer>
+      </QueryClientProvider>,
     );
 
     // MapScreen title is "Carte" (fr default from jest.setup.js locale mock)
@@ -117,9 +132,11 @@ describe('Navigation integration', () => {
   // ─── 4 tabs rendered ─────────────────────────────────────
   it('renders all 4 tab screens', () => {
     render(
-      <NavigationContainer>
-        <RootNavigator />
-      </NavigationContainer>,
+      <QueryClientProvider client={testQueryClient}>
+        <NavigationContainer>
+          <RootNavigator />
+        </NavigationContainer>
+      </QueryClientProvider>,
     );
 
     expect(screen.getByTestId('tab-screen-Map')).toBeOnTheScreen();
@@ -131,9 +148,11 @@ describe('Navigation integration', () => {
   // ─── Bottom tabs container ────────────────────────────────
   it('renders the bottom tabs navigator', () => {
     render(
-      <NavigationContainer>
-        <RootNavigator />
-      </NavigationContainer>,
+      <QueryClientProvider client={testQueryClient}>
+        <NavigationContainer>
+          <RootNavigator />
+        </NavigationContainer>
+      </QueryClientProvider>,
     );
 
     expect(screen.getByTestId('bottom-tabs')).toBeOnTheScreen();
@@ -142,9 +161,11 @@ describe('Navigation integration', () => {
   // ─── Each screen displays its i18n title ──────────────────
   it('displays i18n titles for all screens', () => {
     render(
-      <NavigationContainer>
-        <RootNavigator />
-      </NavigationContainer>,
+      <QueryClientProvider client={testQueryClient}>
+        <NavigationContainer>
+          <RootNavigator />
+        </NavigationContainer>
+      </QueryClientProvider>,
     );
 
     // FR titles from locale files

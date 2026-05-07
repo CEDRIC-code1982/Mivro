@@ -19,5 +19,13 @@
     "signInGuest": "Creates a guest profile to use the app",
     "signOut": "Clears your session and local data",
     "cycleTheme": "Cycles between system, light and dark"
+  },
+  "geocodeDemo": {
+    "title": "Test Geocoding (Nominatim)",
+    "placeholder": "Type an address...",
+    "loading": "Searching...",
+    "error": "Error: {{message}}",
+    "noResults": "No results",
+    "results": "{{count}} result(s)"
   }
 }

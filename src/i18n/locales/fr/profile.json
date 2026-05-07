@@ -19,5 +19,13 @@
     "signInGuest": "Crée un profil invité pour utiliser l'app",
     "signOut": "Supprime ta session et tes données locales",
     "cycleTheme": "Alterne entre système, clair et sombre"
+  },
+  "geocodeDemo": {
+    "title": "Test Geocoding (Nominatim)",
+    "placeholder": "Tape une adresse...",
+    "loading": "Recherche...",
+    "error": "Erreur : {{message}}",
+    "noResults": "Aucun résultat",
+    "results": "{{count}} résultat(s)"
   }
 }

@@ -15,6 +15,9 @@ module.exports = {
     'node_modules/(?!(react-native|@react-native|@react-navigation|react-native-.*|uuid|@react-native-community)/)',
   ],
 
+  // [ADDED] Ignore test helpers (not test suites)
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/src/__tests__/helpers/'],
+
   // [ADDED] Setup file for RNTL matchers and global mocks
   // [MODIFIED] setupFilesAfterEnv — expect must be available for jest-native matchers
   setupFilesAfterEnv: ['./jest.setup.js'],

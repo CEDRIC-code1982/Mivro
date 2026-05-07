@@ -12,9 +12,16 @@
  */
 
 // [MODIFIED] Remplacement du placeholder par intégration stores
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react'; // [MODIFIED]
 import { useTranslation } from 'react-i18next';
-import { Pressable, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native'; // [MODIFIED]
 import { useTheme, type Theme } from '@core/theme';
 import { Screen, Text } from '@presentation/components/atoms';
 import {
@@ -23,6 +30,7 @@ import {
   useIsGuest,
   useAuthActions,
 } from '@presentation/hooks/useAuth';
+import { useGeocodeQuery } from '@presentation/hooks/useGeocodeQuery'; // [ADDED]
 import { usePreferencesStore, type ThemeMode } from '@presentation/stores/usePreferencesStore';
 
 // [ADDED] Ordre de cycle du thème / Theme cycle order
@@ -54,6 +62,17 @@ const ProfileScreen: React.FC = () => {
   const isGuest = useIsGuest();
   const { signInAsGuest, signOut } = useAuthActions();
 
+  // [TEMP] Démo Geocoding — sera retirée en Phase F1
+  const [geocodeInput, setGeocodeInput] = useState('');
+  const {
+    data: geocodeResults,
+    isLoading: geocodeLoading,
+    error: geocodeError,
+  } = useGeocodeQuery({
+    query: geocodeInput,
+    options: { language: 'fr' },
+  });
+
   // [ADDED] Sélecteurs préférences
   const themeMode = usePreferencesStore((s) => s.themeMode);
   const setThemeMode = usePreferencesStore((s) => s.setThemeMode);
@@ -78,7 +97,7 @@ const ProfileScreen: React.FC = () => {
 
   return (
     <Screen background="primary">
-      <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.container}>
         {/* [MODIFIED] Titre */}
         <Text variant="h1" weight="bold" accessibilityRole="header">
           {t('title')}
@@ -167,7 +186,57 @@ const ProfileScreen: React.FC = () => {
             </Text>
           </Pressable>
         </View>
-      </View>
+
+        {/* [TEMP] Démo Geocoding — sera retirée en Phase F1 */}
+        <View style={styles.geocodeSection}>
+          <Text variant="h2" weight="semibold">
+            {t('geocodeDemo.title')}
+          </Text>
+          <TextInput
+            style={styles.geocodeInput}
+            value={geocodeInput}
+            onChangeText={setGeocodeInput}
+            placeholder={t('geocodeDemo.placeholder')}
+            placeholderTextColor={theme.color.text.tertiary}
+            accessibilityLabel={t('geocodeDemo.placeholder')}
+            accessibilityHint={t('geocodeDemo.placeholder')}
+          />
+          {geocodeLoading ? (
+            <View style={styles.geocodeStatus}>
+              <ActivityIndicator size="small" color={theme.color.interactive.brand.default} />
+              <Text variant="body" color="secondary">
+                {t('geocodeDemo.loading')}
+              </Text>
+            </View>
+          ) : null}
+          {geocodeError ? (
+            <Text variant="body" color="error">
+              {t('geocodeDemo.error', { message: geocodeError.message })}
+            </Text>
+          ) : null}
+          {geocodeResults && geocodeResults.length === 0 && geocodeInput.trim().length >= 3 ? (
+            <Text variant="body" color="secondary">
+              {t('geocodeDemo.noResults')}
+            </Text>
+          ) : null}
+          {geocodeResults && geocodeResults.length > 0 ? (
+            <View style={styles.geocodeResults}>
+              <Text variant="caption" color="secondary">
+                {t('geocodeDemo.results', { count: geocodeResults.length })}
+              </Text>
+              {geocodeResults.map((result) => (
+                <View key={result.externalId} style={styles.geocodeResultItem}>
+                  <Text variant="body">{result.displayName}</Text>
+                  <Text variant="caption" color="tertiary">
+                    {result.coordinates.latitude.toFixed(4)},{' '}
+                    {result.coordinates.longitude.toFixed(4)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </View>
+      </ScrollView>
     </Screen>
   );
 };
@@ -226,6 +295,39 @@ const buildStyles = (theme: Theme) =>
     },
     buttonPressed: {
       opacity: 0.8,
+    },
+    // [TEMP] Styles Geocoding démo — sera retiré en Phase F1
+    geocodeSection: {
+      width: '100%',
+      gap: theme.spacing.sm,
+      marginTop: theme.spacing.xl,
+      paddingTop: theme.spacing.lg,
+      borderTopWidth: 1,
+      borderTopColor: theme.color.border.default,
+    },
+    geocodeInput: {
+      borderWidth: 1,
+      borderColor: theme.color.border.default,
+      borderRadius: theme.radius.md,
+      paddingVertical: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
+      minHeight: theme.touchTarget.min,
+      color: theme.color.text.primary,
+      fontSize: theme.typography.fontSize.body,
+    },
+    geocodeStatus: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+    },
+    geocodeResults: {
+      gap: theme.spacing.xs,
+    },
+    geocodeResultItem: {
+      backgroundColor: theme.color.surface.secondary,
+      padding: theme.spacing.sm,
+      borderRadius: theme.radius.sm,
+      gap: theme.spacing.xxs,
     },
   });
 

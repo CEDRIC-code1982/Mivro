@@ -13,13 +13,18 @@
  */
 
 // [ADDED] DI Container — wire-up des dépendances
+import type { QueryClient } from '@tanstack/react-query'; // [ADDED]
 import { createMMKV } from 'react-native-mmkv';
 import type { ICrashReporter } from '@core/ports/ICrashReporter'; // [ADDED]
+import type { IGeocodeService } from '@core/ports/IGeocodeService'; // [ADDED]
 import type { IStorageService } from '@core/ports/IStorageService';
 import { CreateGuestUserUseCase } from '@core/usecases/CreateGuestUserUseCase';
+import { SearchAddressUseCase } from '@core/usecases/SearchAddressUseCase'; // [ADDED]
 import { SentryCrashReporter } from '@infrastructure/crash/SentryCrashReporter'; // [ADDED]
+import { NominatimGeocodeService } from '@infrastructure/geocode/NominatimGeocodeService'; // [ADDED]
 import { MMKVStorageService } from '@infrastructure/storage/MMKVStorageService';
 import { createZustandMMKVAdapter } from '@infrastructure/storage/zustand-mmkv-adapter';
+import { createQueryClient } from './queryClient'; // [ADDED]
 
 /**
  * Interface du conteneur de dépendances.
@@ -34,6 +39,12 @@ export interface Container {
   createGuestUserUseCase: CreateGuestUserUseCase;
   /** Crash reporter (Sentry) / Crash reporter service */ // [ADDED]
   crashReporter: ICrashReporter; // [ADDED]
+  /** Service de géocodage (Nominatim) / Geocoding service */ // [ADDED]
+  geocodeService: IGeocodeService; // [ADDED]
+  /** Use case de recherche d'adresse / Address search use case */ // [ADDED]
+  searchAddressUseCase: SearchAddressUseCase; // [ADDED]
+  /** QueryClient TanStack Query / TanStack Query QueryClient */ // [ADDED]
+  queryClient: QueryClient; // [ADDED]
 }
 
 let containerInstance: Container | null = null;
@@ -65,11 +76,21 @@ export const initContainer = (encryptionKey: string): Container => {
   const crashReporter = new SentryCrashReporter();
   crashReporter.init();
 
+  // [ADDED] Geocoding
+  const geocodeService = new NominatimGeocodeService(crashReporter);
+  const searchAddressUseCase = new SearchAddressUseCase(geocodeService);
+
+  // [ADDED] TanStack Query
+  const queryClient = createQueryClient();
+
   containerInstance = {
     storage,
     zustandStorage,
     createGuestUserUseCase: new CreateGuestUserUseCase(),
     crashReporter, // [ADDED]
+    geocodeService, // [ADDED]
+    searchAddressUseCase, // [ADDED]
+    queryClient, // [ADDED]
   };
 
   console.log(

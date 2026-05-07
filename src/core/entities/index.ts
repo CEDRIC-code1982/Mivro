@@ -13,3 +13,7 @@ export type { Coordinates, Location } from './Location';
 
 export { ParticipantSchema, SessionStatusSchema, MidpointSessionSchema } from './MidpointSession';
 export type { Participant, SessionStatus, MidpointSession } from './MidpointSession';
+
+// [ADDED] GeocodeResult entity
+export { GeocodeResultSchema } from './GeocodeResult';
+export type { GeocodeResult } from './GeocodeResult';

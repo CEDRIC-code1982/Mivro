@@ -62,26 +62,35 @@ jest.mock('@infrastructure/storage/getEncryptionKey', () => ({
 }));
 
 // [ADDED] Mock di/container (DI bootstrap)
-jest.mock('@/di/container', () => ({
-  initContainer: jest.fn().mockReturnValue({
-    storage: {},
-    zustandStorage: {
-      getItem: () => null,
-      setItem: () => undefined,
-      removeItem: () => undefined,
-    },
-    createGuestUserUseCase: { execute: jest.fn() },
-  }),
-  getContainer: jest.fn().mockReturnValue({
-    storage: {},
-    zustandStorage: {
-      getItem: () => null,
-      setItem: () => undefined,
-      removeItem: () => undefined,
-    },
-    createGuestUserUseCase: { execute: jest.fn() },
-  }),
-}));
+// [MODIFIED] Added queryClient mock for QueryClientProvider
+jest.mock('@/di/container', () => {
+  const { QueryClient } = require('@tanstack/react-query');
+  const mockQueryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return {
+    initContainer: jest.fn().mockReturnValue({
+      storage: {},
+      zustandStorage: {
+        getItem: () => null,
+        setItem: () => undefined,
+        removeItem: () => undefined,
+      },
+      createGuestUserUseCase: { execute: jest.fn() },
+      queryClient: mockQueryClient,
+    }),
+    getContainer: jest.fn().mockReturnValue({
+      storage: {},
+      zustandStorage: {
+        getItem: () => null,
+        setItem: () => undefined,
+        removeItem: () => undefined,
+      },
+      createGuestUserUseCase: { execute: jest.fn() },
+      queryClient: mockQueryClient,
+    }),
+  };
+});
 
 // [ADDED] Mock lucide-react-native
 jest.mock('lucide-react-native', () => {

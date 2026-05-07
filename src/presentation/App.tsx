@@ -13,10 +13,11 @@ import '@/i18n';
 
 // [MODIFIED] Added bootstrap with DI container + encryption key
 import { NavigationContainer } from '@react-navigation/native';
+import { QueryClientProvider } from '@tanstack/react-query'; // [ADDED]
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StatusBar, StyleSheet, View, useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { initContainer } from '@/di/container';
+import { getContainer, initContainer } from '@/di/container'; // [MODIFIED]
 import { useTheme } from '@core/theme';
 import { getEncryptionKey } from '@infrastructure/storage/getEncryptionKey';
 import { AppErrorBoundary } from '@presentation/components/templates/AppErrorBoundary'; // [ADDED]
@@ -70,9 +71,12 @@ const App: React.FC = () => {
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       {/* [ADDED] ErrorBoundary global — capture les erreurs React non gérées */}
       <AppErrorBoundary>
-        <NavigationContainer>
-          <RootNavigator />
-        </NavigationContainer>
+        {/* [ADDED] QueryClientProvider — TanStack Query pour geocoding + futures queries */}
+        <QueryClientProvider client={getContainer().queryClient}>
+          <NavigationContainer>
+            <RootNavigator />
+          </NavigationContainer>
+        </QueryClientProvider>
       </AppErrorBoundary>
     </SafeAreaProvider>
   );

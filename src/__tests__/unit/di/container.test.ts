@@ -30,6 +30,9 @@ describe('DI Container', () => {
     expect(container.zustandStorage).toBeDefined();
     expect(container.createGuestUserUseCase).toBeDefined();
     expect(container.crashReporter).toBeDefined(); // [ADDED]
+    expect(container.geocodeService).toBeDefined(); // [ADDED]
+    expect(container.searchAddressUseCase).toBeDefined(); // [ADDED]
+    expect(container.queryClient).toBeDefined(); // [ADDED]
   });
 
   it('getContainer returns the container after initialization', () => {
