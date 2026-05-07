@@ -14,9 +14,9 @@ import Text from './Text';
 describe('Text atom', () => {
   // ─── Smoke test ───────────────────────────────────────────
   it('renders without crashing', () => {
-    render(<Text>MidPoint</Text>);
+    render(<Text>Mivro</Text>);
 
-    expect(screen.getByText('MidPoint')).toBeOnTheScreen();
+    expect(screen.getByText('Mivro')).toBeOnTheScreen();
   });
 
   // ─── Children rendering ───────────────────────────────────

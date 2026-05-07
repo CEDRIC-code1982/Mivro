@@ -1,5 +1,5 @@
-// [MODIFIED] Package aligned with bundle ID com.cedricpineau.midpoint
-package com.cedricpineau.midpoint
+// [MODIFIED] Package aligned with bundle ID com.cedricpineau.mivro
+package com.cedricpineau.mivro
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -12,7 +12,7 @@ class MainActivity : ReactActivity() {
    * Returns the name of the main component registered from JavaScript. This is used to schedule
    * rendering of the component.
    */
-  override fun getMainComponentName(): String = "MidPoint"
+  override fun getMainComponentName(): String = "Mivro" // [MODIFIED] MidPoint → Mivro
 
   /**
    * Returns the instance of the [ReactActivityDelegate]. We use [DefaultReactActivityDelegate]

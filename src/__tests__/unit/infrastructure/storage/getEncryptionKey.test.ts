@@ -46,7 +46,7 @@ describe('getEncryptionKey', () => {
       'mmkv-encryption-key',
       key,
       expect.objectContaining({
-        service: 'com.cedricpineau.midpoint.mmkv',
+        service: 'com.cedricpineau.mivro.mmkv',
       }),
     );
   });

@@ -1,7 +1,7 @@
 /**
  * @file App.tsx
- * @description Point d'entrée de l'application MidPoint.
- *              MidPoint application entry point.
+ * @description Point d'entrée de l'application Mivro.
+ *              Mivro application entry point.
  *
  *              Bootstrap : getEncryptionKey() → initContainer() → render.
  *
@@ -23,8 +23,8 @@ import { AppErrorBoundary } from '@presentation/components/templates/AppErrorBou
 import RootNavigator from '@presentation/navigation/RootNavigator';
 
 /**
- * Composant racine de l'application MidPoint.
- * MidPoint root application component.
+ * Composant racine de l'application Mivro.
+ * Mivro root application component.
  *
  * @returns Composant App / App component
  */

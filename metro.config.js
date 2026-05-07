@@ -1,3 +1,5 @@
+// [MODIFIED] Wrapped with Sentry for source maps support
+const { withSentryConfig } = require('@sentry/react-native/metro');
 const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
 
 /**
@@ -8,4 +10,4 @@ const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
  */
 const config = {};
 
-module.exports = mergeConfig(getDefaultConfig(__dirname), config);
+module.exports = withSentryConfig(mergeConfig(getDefaultConfig(__dirname), config));

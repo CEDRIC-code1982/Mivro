@@ -54,7 +54,7 @@ export const initContainer = (encryptionKey: string): Container => {
   }
 
   const mmkv = createMMKV({
-    id: 'midpoint-storage',
+    id: 'mivro-storage', // [MODIFIED] MidPoint → Mivro
     encryptionKey,
   });
 

@@ -110,8 +110,8 @@ const variantLineHeightMap: Record<TextVariant, 'tight' | 'normal' | 'relaxed'> 
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Atome Text du Design System MidPoint.
- * MidPoint Design System Text atom.
+ * Atome Text du Design System Mivro.
+ * Mivro Design System Text atom.
  *
  * Mappe les variants, weights et couleurs sur les tokens du thème actif.
  * Maps variants, weights and colors to the active theme tokens.

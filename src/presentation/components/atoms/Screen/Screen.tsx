@@ -61,8 +61,8 @@ export interface ScreenProps {
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Atome Screen du Design System MidPoint.
- * MidPoint Design System Screen atom.
+ * Atome Screen du Design System Mivro.
+ * Mivro Design System Screen atom.
  *
  * Fournit un conteneur safe-area avec fond thémé et padding horizontal.
  * Provides a safe-area container with themed background and horizontal padding.

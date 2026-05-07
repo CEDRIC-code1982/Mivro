@@ -35,8 +35,8 @@ export const ParticipantSchema = z.object({
 export const SessionStatusSchema = z.enum(['draft', 'computed', 'active', 'completed']);
 
 /**
- * Schéma Zod pour une session MidPoint complète.
- * Zod schema for a complete MidPoint session.
+ * Schéma Zod pour une session Mivro complète.
+ * Zod schema for a complete Mivro session.
  */
 export const MidpointSessionSchema = z.object({
   id: z.string().uuid(),

@@ -1,5 +1,6 @@
 {
-  "appName": "MidPoint",
+  "appName": "Mivro",
+  "slogan": "Find your mivro.",
   "actions": {
     "continue": "Continue",
     "cancel": "Cancel",

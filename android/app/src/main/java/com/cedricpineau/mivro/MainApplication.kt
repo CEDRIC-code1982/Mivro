@@ -1,5 +1,5 @@
-// [MODIFIED] Package aligned with bundle ID com.cedricpineau.midpoint
-package com.cedricpineau.midpoint
+// [MODIFIED] Package aligned with bundle ID com.cedricpineau.mivro
+package com.cedricpineau.mivro
 
 import android.app.Application
 import com.facebook.react.PackageList

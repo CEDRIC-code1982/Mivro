@@ -57,8 +57,8 @@ export interface TabBarIconProps {
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Atome TabBarIcon du Design System MidPoint.
- * MidPoint Design System TabBarIcon atom.
+ * Atome TabBarIcon du Design System Mivro.
+ * Mivro Design System TabBarIcon atom.
  *
  * Wrapper léger autour des icônes Lucide, appliquant les couleurs
  * et épaisseurs de trait du thème selon l'état focused.

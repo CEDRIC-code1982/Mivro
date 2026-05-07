@@ -1,6 +1,6 @@
-# MidPoint
+# Mivro
 
-> Meet in the middle. / Retrouvez-vous à mi-chemin.
+> Find your mivro. / Trouvez votre mivro.
 
 Application de géolocalisation collaborative — trouvez le point de rendez-vous idéal entre plusieurs participants.
 
@@ -9,7 +9,7 @@ Application de géolocalisation collaborative — trouvez le point de rendez-vou
 - **React Native** 0.85.2 (New Architecture ON — Fabric + TurboModules)
 - **TypeScript** strict (toutes les options activées)
 - **Clean Architecture** (core / infrastructure / presentation)
-- **Bundle ID** : `com.cedricpineau.midpoint` (iOS + Android)
+- **Bundle ID** : `com.cedricpineau.mivro` (iOS + Android)
 
 ## Commandes
 

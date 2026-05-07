@@ -20,7 +20,7 @@
 import * as Keychain from 'react-native-keychain';
 import { v4 as uuidv4 } from 'uuid';
 
-const KEYCHAIN_SERVICE = 'com.cedricpineau.midpoint.mmkv';
+const KEYCHAIN_SERVICE = 'com.cedricpineau.mivro.mmkv'; // [MODIFIED] MidPoint → Mivro
 const KEYCHAIN_USERNAME = 'mmkv-encryption-key';
 
 /**

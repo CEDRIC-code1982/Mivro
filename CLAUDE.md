@@ -1,4 +1,4 @@
-# CLAUDE.md — MidPoint
+# CLAUDE.md — Mivro
 
 # Fichier lu automatiquement par Claude Code à chaque session.
 
@@ -6,12 +6,12 @@
 
 # Ne pas modifier sans créer un ADR correspondant.
 
-# Version 8.0 — Avril 2026
+# Version 8.1 — Mai 2026
 
 ## PROJET
 
-Nom : MidPoint
-Slogan : "Meet in the middle." / "Retrouvez-vous à mi-chemin."
+Nom : Mivro (anciennement MidPoint, renommé suite à conflit App Store — voir ADR-011)
+Slogan : "Find your mivro." / "Trouvez votre mivro."
 Stack : React Native 0.85.2 + TypeScript strict + New Architecture ON
 Phase actuelle : PHASE 1 — Mobile iOS + Android (MVP)
 Architecture : Clean Architecture + Ports/Adapters
@@ -330,7 +330,8 @@ docs-site/docs/
 │   ├── ADR-007-new-architecture.md
 │   ├── ADR-008-mmkv-storage.md
 │   ├── ADR-009-external-apis-scaling.md
-│   └── ADR-010-sentry-posthog.md
+│   ├── ADR-010-sentry-posthog.md
+│   └── ADR-011-rename-midpoint-to-mivro.md
 └── api/                       # Généré par TypeDoc
 ```
 

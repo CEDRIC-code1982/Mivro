@@ -24,7 +24,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     window = UIWindow(frame: UIScreen.main.bounds)
 
     factory.startReactNative(
-      withModuleName: "MidPoint",
+      withModuleName: "Mivro", // [MODIFIED] MidPoint → Mivro
       in: window,
       launchOptions: launchOptions
     )

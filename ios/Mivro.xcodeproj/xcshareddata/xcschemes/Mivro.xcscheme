@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-               BuildableName = "MidPoint.app"
-               BlueprintName = "MidPoint"
-               ReferencedContainer = "container:MidPoint.xcodeproj">
+               BuildableName = "Mivro.app"
+               BlueprintName = "Mivro"
+               ReferencedContainer = "container:Mivro.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "00E356ED1AD99517003FC87E"
-               BuildableName = "MidPointTests.xctest"
-               BlueprintName = "MidPointTests"
-               ReferencedContainer = "container:MidPoint.xcodeproj">
+               BuildableName = "MivroTests.xctest"
+               BlueprintName = "MivroTests"
+               ReferencedContainer = "container:Mivro.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -55,9 +55,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "MidPoint.app"
-            BlueprintName = "MidPoint"
-            ReferencedContainer = "container:MidPoint.xcodeproj">
+            BuildableName = "Mivro.app"
+            BlueprintName = "Mivro"
+            ReferencedContainer = "container:Mivro.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -72,9 +72,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "MidPoint.app"
-            BlueprintName = "MidPoint"
-            ReferencedContainer = "container:MidPoint.xcodeproj">
+            BuildableName = "Mivro.app"
+            BlueprintName = "Mivro"
+            ReferencedContainer = "container:Mivro.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
