@@ -33,12 +33,6 @@
     "continue": "Continue",
     "continueDisabled": "Add at least 2 points to continue"
   },
-  "midpointSuccess": {
-    "title": "Midpoint calculated!",
-    "coordinates": "Coordinates: {{lat}}, {{lng}}",
-    "radius": "Zone radius: {{km}} km",
-    "tempMessage": "Interactive map coming very soon"
-  },
   "midpointErrors": {
     "no_session": "No active session.",
     "too_few_participants": "At least 2 points required.",

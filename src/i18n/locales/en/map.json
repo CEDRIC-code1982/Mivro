@@ -1,4 +1,33 @@
 {
-  "title": "Map",
-  "placeholder": "You'll see the map with your friends' real-time positions here."
+  "title": "Meeting point",
+  "noSession": {
+    "title": "No active session",
+    "description": "Start by creating a session with your starting points.",
+    "action": "Create a session"
+  },
+  "notComputed": {
+    "title": "Calculation pending",
+    "description": "Finish entering your points and calculate the midpoint."
+  },
+  "summary": {
+    "title": "Suggested meeting point",
+    "radius": "{{km}} km zone around the midpoint",
+    "coordinates": "Coordinates: {{lat}}, {{lng}}"
+  },
+  "actions": {
+    "viewPOI": "View nearby places",
+    "viewList": "List view",
+    "viewMap": "Map view",
+    "recenter": "Recenter",
+    "newSession": "New session"
+  },
+  "list": {
+    "title": "Participants",
+    "midpoint": "Meeting point",
+    "close": "Close"
+  },
+  "errors": {
+    "mapLoadFailed": "Unable to load the map. Check your connection.",
+    "unknown": "Unexpected error."
+  }
 }

@@ -79,6 +79,7 @@ jest.mock('@/di/container', () => {
       createGuestUserUseCase: { execute: jest.fn() },
       getCurrentLocationUseCase: { execute: jest.fn().mockResolvedValue({}) },
       searchAddressUseCase: { execute: jest.fn().mockResolvedValue([]) },
+      calculateMidpointUseCase: { execute: jest.fn() }, // [ADDED]
       queryClient: mockQueryClient,
     }),
     getContainer: jest.fn().mockReturnValue({
@@ -91,6 +92,7 @@ jest.mock('@/di/container', () => {
       createGuestUserUseCase: { execute: jest.fn() },
       getCurrentLocationUseCase: { execute: jest.fn().mockResolvedValue({}) },
       searchAddressUseCase: { execute: jest.fn().mockResolvedValue([]) },
+      calculateMidpointUseCase: { execute: jest.fn() }, // [ADDED]
       queryClient: mockQueryClient,
     }),
   };
@@ -118,8 +120,9 @@ jest.mock('lucide-react-native', () => {
 test('renders without crashing', async () => {
   render(<App />);
 
-  // Attend que le bootstrap async (getEncryptionKey → initContainer) se termine
+  // [MODIFIED] Attend que le bootstrap async se termine
+  // MapScreen affiche EmptyState (session draft from CreateSessionScreen mount)
   await waitFor(() => {
-    expect(screen.getByText('Carte')).toBeOnTheScreen();
+    expect(screen.getByText('Calcul en attente')).toBeOnTheScreen();
   });
 });

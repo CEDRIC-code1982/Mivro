@@ -19,11 +19,12 @@ import React from 'react';
 import '@/i18n';
 import RootNavigator from '@presentation/navigation/RootNavigator';
 
-// [MODIFIED] Mock getContainer pour useGeocodeQuery + getCurrentLocationUseCase
+// [MODIFIED] Mock getContainer pour useGeocodeQuery + getCurrentLocationUseCase + midpoint
 jest.mock('@/di/container', () => ({
   getContainer: jest.fn(() => ({
     searchAddressUseCase: { execute: jest.fn().mockResolvedValue([]) },
     getCurrentLocationUseCase: { execute: jest.fn().mockResolvedValue({}) },
+    calculateMidpointUseCase: { execute: jest.fn() }, // [ADDED]
   })),
 }));
 
@@ -126,8 +127,8 @@ describe('Navigation integration', () => {
       </QueryClientProvider>,
     );
 
-    // MapScreen title is "Carte" (fr default from jest.setup.js locale mock)
-    expect(screen.getByText('Carte')).toBeOnTheScreen();
+    // [MODIFIED] MapScreen shows EmptyState — session is draft (created by CreateSessionScreen mount)
+    expect(screen.getByText('Calcul en attente')).toBeOnTheScreen();
   });
 
   // ─── 4 tabs rendered ─────────────────────────────────────
@@ -170,8 +171,9 @@ describe('Navigation integration', () => {
     );
 
     // FR titles from locale files
+    // [MODIFIED] MapScreen shows EmptyState (session is draft from CreateSessionScreen mount)
     // Note: "Sessions" appears twice (route name + i18n title), so use getAllByText
-    expect(screen.getByText('Carte')).toBeOnTheScreen();
+    expect(screen.getByText('Calcul en attente')).toBeOnTheScreen();
     expect(screen.getAllByText('Sessions').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Créer une session')).toBeOnTheScreen();
     expect(screen.getByText('Profil')).toBeOnTheScreen();

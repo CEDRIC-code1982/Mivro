@@ -13,6 +13,14 @@
       android:theme="@style/AppTheme"
       android:usesCleartextTraffic="${usesCleartextTraffic}"
       android:supportsRtl="true">
+      <!-- [ADDED] Google Maps API key for react-native-maps (Android)
+           Vide en dev = carte avec watermark "For development purposes only".
+           Pour TestFlight / Play Beta : obtenir une clé sur
+           https://console.cloud.google.com (gratuit jusqu'à 28k loads/mois)
+           et la définir dans .env via react-native-config. -->
+      <meta-data
+        android:name="com.google.android.geo.API_KEY"
+        android:value="${GOOGLE_MAPS_API_KEY}" />
       <activity
         android:name=".MainActivity"
         android:label="@string/app_name"

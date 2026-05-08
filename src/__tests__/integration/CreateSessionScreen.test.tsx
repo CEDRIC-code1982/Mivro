@@ -51,12 +51,6 @@ jest.mock('react-i18next', () => ({
         'actions.continueDisabled': 'Ajoute au moins 2 points pour continuer',
         'errors.gps_permission_denied':
           'Permission de localisation refusée. Active-la dans les réglages.',
-        'midpointSuccess.title': 'Midpoint calculé !',
-        'midpointSuccess.coordinates': `Coordonnées : ${String(opts?.lat ?? '')}, ${String(
-          opts?.lng ?? '',
-        )}`,
-        'midpointSuccess.radius': `Rayon de zone : ${String(opts?.km ?? '')} km`,
-        'midpointSuccess.tempMessage': 'La carte interactive arrive très bientôt',
         'midpointErrors.no_session': 'Aucune session active.',
         'midpointErrors.too_few_participants': 'Il faut au moins 2 points.',
         'midpointErrors.too_many_participants': 'Maximum 5 points.',
@@ -91,6 +85,13 @@ jest.mock('lucide-react-native', () => {
     },
   );
 });
+
+// ─── Mock navigation ────────────────────────────────────────
+const mockNavigate = jest.fn();
+
+jest.mock('@react-navigation/native', () => ({
+  useNavigation: () => ({ navigate: mockNavigate }),
+}));
 
 // ─── Mock useGeocodeQuery ───────────────────────────────────
 jest.mock('@presentation/hooks/useGeocodeQuery', () => ({

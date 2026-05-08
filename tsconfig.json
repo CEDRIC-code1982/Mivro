@@ -13,6 +13,10 @@
     "noUnusedParameters": true,
     // [MODIFIED] Override base config (was false)
     "forceConsistentCasingInFileNames": true,
+    // [ADDED] Skip type checking of .d.ts in node_modules
+    // Nécessaire car certaines libs (react-native-maps) ne supportent pas
+    // exactOptionalPropertyTypes. Ne désactive PAS le check de notre code.
+    "skipLibCheck": true,
 
     // [ADDED] Path aliases
     "baseUrl": ".",
@@ -20,7 +24,8 @@
       "@/*": ["src/*"],
       "@core/*": ["src/core/*"],
       "@infrastructure/*": ["src/infrastructure/*"],
-      "@presentation/*": ["src/presentation/*"]
+      "@presentation/*": ["src/presentation/*"],
+      "react-native-maps": ["src/types/react-native-maps.d.ts"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx"],

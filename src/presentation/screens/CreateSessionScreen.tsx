@@ -12,9 +12,11 @@
  * @module presentation/screens/CreateSessionScreen
  */
 
-// [MODIFIED] Refactor complet — écran F1 fonctionnel + calcul midpoint F2
+// [MODIFIED] Refactor complet — écran F1 fonctionnel + navigation F2
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs'; // [ADDED]
+import { useNavigation } from '@react-navigation/native'; // [ADDED]
 import { MapPin } from 'lucide-react-native';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import type { Participant } from '@core/entities/MidpointSession';
@@ -24,7 +26,8 @@ import AddressAutocomplete from '@presentation/components/molecules/AddressAutoc
 import EmptyState from '@presentation/components/molecules/EmptyState';
 import ParticipantCard from '@presentation/components/molecules/ParticipantCard';
 import { useCreateSessionFlow } from '@presentation/hooks/useCreateSessionFlow';
-import { useMidpointCalculation } from '@presentation/hooks/useMidpointCalculation'; // [ADDED]
+import { useMidpointCalculation } from '@presentation/hooks/useMidpointCalculation';
+import type { BottomTabsParamList } from '@presentation/navigation/types'; // [ADDED]
 
 /**
  * Écran de création de session (F1).
@@ -51,41 +54,28 @@ const CreateSessionScreen: React.FC = () => {
     removeParticipant,
   } = useCreateSessionFlow();
 
-  // [ADDED] Hook calcul midpoint F2
+  // [ADDED] Navigation + calcul midpoint
+  const navigation = useNavigation<BottomTabNavigationProp<BottomTabsParamList>>();
   const { calculate: calculateMidpoint, error: midpointError } = useMidpointCalculation();
 
-  // [ADDED] État local pour affichage temporaire du succès
-  const [midpointSuccess, setMidpointSuccess] = useState<{
-    lat: string;
-    lng: string;
-    km: string;
-  } | null>(null);
-
   /**
-   * Gère le clic sur "Continuer" — calcule le midpoint.
-   * Handles "Continue" press — calculates midpoint.
+   * Gère le clic sur "Continuer" — calcule le midpoint et navigue vers Map.
+   * Handles "Continue" press — calculates midpoint and navigates to Map.
    */
   const handleContinue = useCallback(() => {
-    setMidpointSuccess(null);
-
     const result = calculateMidpoint();
 
     if (result) {
-      // [ADDED] Coordonnées partiellement masquées (RGPD)
-      const maskedLat = `${result.midpoint.latitude.toFixed(2)}**`;
-      const maskedLng = `${result.midpoint.longitude.toFixed(2)}**`;
-      const radiusKm = (result.radius / 1000).toFixed(1);
-
-      setMidpointSuccess({ lat: maskedLat, lng: maskedLng, km: radiusKm });
-
-      // [TEMP] Affichage temporaire — navigation vers Map en Phase 12B
+      // [ADDED] Navigation vers Map après calcul réussi
+      navigation.navigate('Map');
       console.log(
         `[INFO][CreateSessionScreen][handleContinue][?][${new Date()
           .toISOString()
-          .slice(11, 19)}] ` + 'Midpoint calculé : voir Phase 12B pour la carte',
+          .slice(11, 19)}] ` +
+          `Midpoint calculated, navigating to Map | ${result.participantsCount} participants`,
       );
     }
-  }, [calculateMidpoint]);
+  }, [calculateMidpoint, navigation]);
 
   /**
    * Rendu du compteur de participants.
@@ -185,27 +175,7 @@ const CreateSessionScreen: React.FC = () => {
         )}
       </View>
 
-      {/* [ADDED] Résultat midpoint (succès ou erreur) */}
-      {midpointSuccess != null && (
-        // [TEMP] Affichage temporaire — navigation vers Map en Phase 12B
-        <View style={styles.successCard} testID="midpoint-success">
-          <Text variant="body" weight="semibold">
-            {t('midpointSuccess.title')}
-          </Text>
-          <Text variant="small" color="secondary">
-            {t('midpointSuccess.coordinates', {
-              lat: midpointSuccess.lat,
-              lng: midpointSuccess.lng,
-            })}
-          </Text>
-          <Text variant="small" color="secondary">
-            {t('midpointSuccess.radius', { km: midpointSuccess.km })}
-          </Text>
-          <Text variant="small" color="tertiary">
-            {t('midpointSuccess.tempMessage')}
-          </Text>
-        </View>
-      )}
+      {/* [ADDED] Erreur midpoint si calcul échoue */}
       {midpointError != null && (
         <View style={styles.errorCard} testID="midpoint-error">
           <Text variant="small" color="error">
@@ -276,16 +246,6 @@ const buildStyles = (theme: Theme) =>
       borderRadius: theme.radius.md,
       borderWidth: 1,
       borderColor: theme.color.interactive.danger.default,
-    },
-    // [ADDED] Card de succès midpoint (temporaire — Phase 12B)
-    successCard: {
-      marginTop: theme.spacing.md,
-      padding: theme.spacing.md,
-      backgroundColor: theme.color.feedback.successBg,
-      borderRadius: theme.radius.md,
-      borderWidth: 1,
-      borderColor: theme.color.text.success,
-      gap: theme.spacing.xs,
     },
     footer: {
       marginTop: theme.spacing.xl,

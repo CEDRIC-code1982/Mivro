@@ -1,4 +1,33 @@
 {
-  "title": "Carte",
-  "placeholder": "Tu verras ici la carte avec les positions de tes amis en temps réel."
+  "title": "Point de rencontre",
+  "noSession": {
+    "title": "Aucune session active",
+    "description": "Commence par créer une session avec tes points de départ.",
+    "action": "Créer une session"
+  },
+  "notComputed": {
+    "title": "Calcul en attente",
+    "description": "Termine la saisie des points et calcule le midpoint."
+  },
+  "summary": {
+    "title": "Point de rencontre suggéré",
+    "radius": "Zone de {{km}} km autour du midpoint",
+    "coordinates": "Coordonnées : {{lat}}, {{lng}}"
+  },
+  "actions": {
+    "viewPOI": "Voir les lieux à proximité",
+    "viewList": "Vue liste",
+    "viewMap": "Vue carte",
+    "recenter": "Recentrer",
+    "newSession": "Nouvelle session"
+  },
+  "list": {
+    "title": "Participants",
+    "midpoint": "Point de rencontre",
+    "close": "Fermer"
+  },
+  "errors": {
+    "mapLoadFailed": "Impossible de charger la carte. Vérifie ta connexion.",
+    "unknown": "Erreur inattendue."
+  }
 }

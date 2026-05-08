@@ -155,6 +155,23 @@ jest.mock('@gorhom/bottom-sheet', () => {
   };
 });
 
+// [ADDED] Mock react-native-maps (native module unavailable in Jest)
+jest.mock('react-native-maps', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const MockMapView = React.forwardRef((props, ref) =>
+    React.createElement(View, { ...props, ref }),
+  );
+  MockMapView.displayName = 'MockMapView';
+  return {
+    __esModule: true,
+    default: MockMapView,
+    Marker: (props) => React.createElement(View, props),
+    Circle: (props) => React.createElement(View, props),
+    PROVIDER_GOOGLE: 'google',
+  };
+});
+
 // [ADDED] Mock react-native-localize (native module unavailable in Jest)
 jest.mock('react-native-localize', () => ({
   getLocales: () => [{ languageCode: 'fr', countryCode: 'FR', languageTag: 'fr-FR', isRTL: false }],
