@@ -19,6 +19,7 @@ import type { ICrashReporter } from '@core/ports/ICrashReporter'; // [ADDED]
 import type { IGeocodeService } from '@core/ports/IGeocodeService'; // [ADDED]
 import type { IGeolocationService } from '@core/ports/IGeolocationService'; // [ADDED]
 import type { IStorageService } from '@core/ports/IStorageService';
+import { CalculateMidpointUseCase } from '@core/usecases/CalculateMidpointUseCase'; // [ADDED]
 import { CreateGuestUserUseCase } from '@core/usecases/CreateGuestUserUseCase';
 import { GetCurrentLocationUseCase } from '@core/usecases/GetCurrentLocationUseCase'; // [ADDED]
 import { SearchAddressUseCase } from '@core/usecases/SearchAddressUseCase'; // [ADDED]
@@ -52,6 +53,8 @@ export interface Container {
   geolocationService: IGeolocationService; // [ADDED]
   /** Use case de récupération de position courante / Get current location use case */ // [ADDED]
   getCurrentLocationUseCase: GetCurrentLocationUseCase; // [ADDED]
+  /** Use case de calcul du midpoint (centroïde + rayon) / Midpoint calculation use case */ // [ADDED]
+  calculateMidpointUseCase: CalculateMidpointUseCase; // [ADDED]
 }
 
 let containerInstance: Container | null = null;
@@ -107,6 +110,7 @@ export const initContainer = (encryptionKey: string): Container => {
     queryClient, // [ADDED]
     geolocationService, // [ADDED]
     getCurrentLocationUseCase, // [ADDED]
+    calculateMidpointUseCase: new CalculateMidpointUseCase(), // [ADDED]
   };
 
   console.log(

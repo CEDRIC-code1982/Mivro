@@ -33,6 +33,18 @@
     "continue": "Continue",
     "continueDisabled": "Add at least 2 points to continue"
   },
+  "midpointSuccess": {
+    "title": "Midpoint calculated!",
+    "coordinates": "Coordinates: {{lat}}, {{lng}}",
+    "radius": "Zone radius: {{km}} km",
+    "tempMessage": "Interactive map coming very soon"
+  },
+  "midpointErrors": {
+    "no_session": "No active session.",
+    "too_few_participants": "At least 2 points required.",
+    "too_many_participants": "Maximum 5 points.",
+    "unknown": "Unexpected error: {{message}}"
+  },
   "errors": {
     "session_full": "You already have 5 points. Remove one to add another.",
     "gps_permission_denied": "Location permission denied. Enable it in settings.",

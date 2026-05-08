@@ -33,6 +33,18 @@
     "continue": "Continuer",
     "continueDisabled": "Ajoute au moins 2 points pour continuer"
   },
+  "midpointSuccess": {
+    "title": "Midpoint calculé !",
+    "coordinates": "Coordonnées : {{lat}}, {{lng}}",
+    "radius": "Rayon de zone : {{km}} km",
+    "tempMessage": "La carte interactive arrive très bientôt"
+  },
+  "midpointErrors": {
+    "no_session": "Aucune session active.",
+    "too_few_participants": "Il faut au moins 2 points.",
+    "too_many_participants": "Maximum 5 points.",
+    "unknown": "Erreur inattendue : {{message}}"
+  },
   "errors": {
     "session_full": "Tu as déjà 5 points. Supprimes-en un pour en ajouter un autre.",
     "gps_permission_denied": "Permission de localisation refusée. Active-la dans les réglages.",

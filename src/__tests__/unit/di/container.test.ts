@@ -35,6 +35,7 @@ describe('DI Container', () => {
     expect(container.queryClient).toBeDefined(); // [ADDED]
     expect(container.geolocationService).toBeDefined(); // [ADDED]
     expect(container.getCurrentLocationUseCase).toBeDefined(); // [ADDED]
+    expect(container.calculateMidpointUseCase).toBeDefined(); // [ADDED]
   });
 
   it('getContainer returns the container after initialization', () => {
