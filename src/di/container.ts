@@ -18,14 +18,17 @@ import { createMMKV } from 'react-native-mmkv';
 import type { ICrashReporter } from '@core/ports/ICrashReporter'; // [ADDED]
 import type { IGeocodeService } from '@core/ports/IGeocodeService'; // [ADDED]
 import type { IGeolocationService } from '@core/ports/IGeolocationService'; // [ADDED]
+import type { IPOIService } from '@core/ports/IPOIService'; // [ADDED]
 import type { IStorageService } from '@core/ports/IStorageService';
 import { CalculateMidpointUseCase } from '@core/usecases/CalculateMidpointUseCase'; // [ADDED]
 import { CreateGuestUserUseCase } from '@core/usecases/CreateGuestUserUseCase';
 import { GetCurrentLocationUseCase } from '@core/usecases/GetCurrentLocationUseCase'; // [ADDED]
 import { SearchAddressUseCase } from '@core/usecases/SearchAddressUseCase'; // [ADDED]
+import { SearchPOIUseCase } from '@core/usecases/SearchPOIUseCase'; // [ADDED]
 import { SentryCrashReporter } from '@infrastructure/crash/SentryCrashReporter'; // [ADDED]
 import { NominatimGeocodeService } from '@infrastructure/geocode/NominatimGeocodeService'; // [ADDED]
 import { RNGeolocationService } from '@infrastructure/geolocation/RNGeolocationService'; // [ADDED]
+import { OverpassPOIService } from '@infrastructure/poi/OverpassPOIService'; // [ADDED]
 import { MMKVStorageService } from '@infrastructure/storage/MMKVStorageService';
 import { createZustandMMKVAdapter } from '@infrastructure/storage/zustand-mmkv-adapter';
 import { createQueryClient } from './queryClient'; // [ADDED]
@@ -55,6 +58,10 @@ export interface Container {
   getCurrentLocationUseCase: GetCurrentLocationUseCase; // [ADDED]
   /** Use case de calcul du midpoint (centroïde + rayon) / Midpoint calculation use case */ // [ADDED]
   calculateMidpointUseCase: CalculateMidpointUseCase; // [ADDED]
+  /** Service de recherche de POI (Overpass) / POI search service */ // [ADDED]
+  poiService: IPOIService; // [ADDED]
+  /** Use case de recherche de POI / POI search use case */ // [ADDED]
+  searchPOIUseCase: SearchPOIUseCase; // [ADDED]
 }
 
 let containerInstance: Container | null = null;
@@ -97,6 +104,10 @@ export const initContainer = (encryptionKey: string): Container => {
     geocodeService,
   );
 
+  // [ADDED] POI service
+  const poiService = new OverpassPOIService(crashReporter);
+  const searchPOIUseCase = new SearchPOIUseCase(poiService);
+
   // [ADDED] TanStack Query
   const queryClient = createQueryClient();
 
@@ -111,6 +122,8 @@ export const initContainer = (encryptionKey: string): Container => {
     geolocationService, // [ADDED]
     getCurrentLocationUseCase, // [ADDED]
     calculateMidpointUseCase: new CalculateMidpointUseCase(), // [ADDED]
+    poiService, // [ADDED]
+    searchPOIUseCase, // [ADDED]
   };
 
   console.log(

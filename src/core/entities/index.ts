@@ -17,3 +17,13 @@ export type { Participant, SessionStatus, MidpointSession } from './MidpointSess
 // [ADDED] GeocodeResult entity
 export { GeocodeResultSchema } from './GeocodeResult';
 export type { GeocodeResult } from './GeocodeResult';
+
+// [ADDED] POI entities
+export {
+  POICategorySchema,
+  POI_CATEGORY_OVERPASS_FILTERS,
+  ALL_POI_CATEGORIES,
+} from './POICategory';
+export type { POICategory } from './POICategory';
+export { PointOfInterestSchema } from './PointOfInterest';
+export type { PointOfInterest } from './PointOfInterest';

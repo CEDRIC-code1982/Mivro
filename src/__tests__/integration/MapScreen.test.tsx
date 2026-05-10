@@ -15,6 +15,7 @@
 
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
+import { createQueryClientWrapper } from '@/__tests__/helpers/queryClientWrapper'; // [MODIFIED]
 import type { Coordinates } from '@core/entities/Location';
 import type { MidpointSession, Participant } from '@core/entities/MidpointSession';
 import MapScreen from '@presentation/screens/MapScreen';
@@ -87,6 +88,13 @@ jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
+// ─── Mock DI container (pour usePOIQuery) ───────────────────── // [MODIFIED]
+jest.mock('@/di/container', () => ({
+  getContainer: jest.fn(() => ({
+    searchPOIUseCase: { execute: jest.fn().mockResolvedValue([]) },
+  })),
+}));
+
 // ─── Helpers ────────────────────────────────────────────────
 
 const makeParticipant = (name: string, coords: Coordinates): Participant => ({
@@ -133,7 +141,7 @@ describe('MapScreen integration', () => {
   });
 
   it('shows EmptyState when no session exists', () => {
-    render(<MapScreen />);
+    render(<MapScreen />, { wrapper: createQueryClientWrapper() });
 
     expect(screen.getByTestId('map-screen-empty')).toBeTruthy();
     expect(screen.getByText('Aucune session active')).toBeTruthy();
@@ -142,7 +150,7 @@ describe('MapScreen integration', () => {
   it('shows "Calcul en attente" when session is draft', () => {
     useSessionStore.setState({ session: draftSession });
 
-    render(<MapScreen />);
+    render(<MapScreen />, { wrapper: createQueryClientWrapper() });
 
     expect(screen.getByTestId('map-screen-not-computed')).toBeTruthy();
     expect(screen.getByText('Calcul en attente')).toBeTruthy();
@@ -151,7 +159,7 @@ describe('MapScreen integration', () => {
   it('shows SessionMapView and footer when session is computed', () => {
     useSessionStore.setState({ session: computedSession });
 
-    render(<MapScreen />);
+    render(<MapScreen />, { wrapper: createQueryClientWrapper() });
 
     expect(screen.getByTestId('map-screen')).toBeTruthy();
     expect(screen.getByTestId('map-session')).toBeTruthy();
@@ -162,7 +170,7 @@ describe('MapScreen integration', () => {
   it('shows masked coordinates in footer summary', () => {
     useSessionStore.setState({ session: computedSession });
 
-    render(<MapScreen />);
+    render(<MapScreen />, { wrapper: createQueryClientWrapper() });
 
     expect(screen.getByText(/47\.31\*\*/)).toBeTruthy();
     expect(screen.getByText(/196\.0/)).toBeTruthy();
@@ -171,7 +179,7 @@ describe('MapScreen integration', () => {
   it('has "Voir POI" button disabled', () => {
     useSessionStore.setState({ session: computedSession });
 
-    render(<MapScreen />);
+    render(<MapScreen />, { wrapper: createQueryClientWrapper() });
 
     const poiButton = screen.getByTestId('map-btn-poi');
     expect(poiButton.props.accessibilityState).toEqual({ disabled: true });
@@ -180,7 +188,7 @@ describe('MapScreen integration', () => {
   it('opens list modal when "Vue liste" is pressed', () => {
     useSessionStore.setState({ session: computedSession });
 
-    render(<MapScreen />);
+    render(<MapScreen />, { wrapper: createQueryClientWrapper() });
 
     fireEvent.press(screen.getByTestId('map-btn-list'));
 
@@ -192,7 +200,7 @@ describe('MapScreen integration', () => {
   it('shows participant cards in list modal', () => {
     useSessionStore.setState({ session: computedSession });
 
-    render(<MapScreen />);
+    render(<MapScreen />, { wrapper: createQueryClientWrapper() });
 
     fireEvent.press(screen.getByTestId('map-btn-list'));
 
@@ -203,7 +211,7 @@ describe('MapScreen integration', () => {
   it('closes list modal when close button is pressed', () => {
     useSessionStore.setState({ session: computedSession });
 
-    render(<MapScreen />);
+    render(<MapScreen />, { wrapper: createQueryClientWrapper() });
 
     fireEvent.press(screen.getByTestId('map-btn-list'));
     expect(screen.getByTestId('map-list-midpoint')).toBeTruthy();
