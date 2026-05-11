@@ -1,0 +1,52 @@
+{
+  "title": "Nearby places",
+  "subtitle": "Around the meeting point",
+  "noSession": {
+    "title": "No calculation available",
+    "description": "Create a session and compute the midpoint to see nearby places.",
+    "action": "Back to map"
+  },
+  "viewMode": {
+    "list": "List",
+    "map": "Map"
+  },
+  "categories": {
+    "all": "All",
+    "restaurant": "Restaurants",
+    "cafe": "Cafés",
+    "bar": "Bars",
+    "park": "Parks",
+    "cinema": "Cinemas",
+    "museum": "Museums",
+    "shop": "Shops",
+    "sport": "Sport",
+    "hotel": "Hotels"
+  },
+  "list": {
+    "loading": "Searching for places...",
+    "empty": {
+      "title": "No places found",
+      "description": "Try expanding your filters or search area."
+    },
+    "noFilters": {
+      "title": "Choose at least one category",
+      "description": "Select the type of place you're looking for."
+    }
+  },
+  "detail": {
+    "distance": "{{distance}} from midpoint",
+    "address": "Address: {{address}}",
+    "actions": {
+      "navigate": "Navigate",
+      "close": "Close"
+    }
+  },
+  "errors": {
+    "rate_limited": "Too many requests. Wait a moment and try again.",
+    "network": "No connection. Check your network.",
+    "server_error": "POI service unavailable. Try again later.",
+    "query_timeout": "Search took too long. Reduce the area or categories.",
+    "parse_error": "Invalid server response.",
+    "unknown": "Unexpected error."
+  }
+}

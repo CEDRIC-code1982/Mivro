@@ -6,12 +6,14 @@ import commonEn from './locales/en/common.json';
 import createEn from './locales/en/create.json';
 import mapEn from './locales/en/map.json';
 import navigationEn from './locales/en/navigation.json';
+import poiEn from './locales/en/poi.json'; // [ADDED]
 import profileEn from './locales/en/profile.json';
 import sessionsEn from './locales/en/sessions.json';
 import commonFr from './locales/fr/common.json';
 import createFr from './locales/fr/create.json';
 import mapFr from './locales/fr/map.json';
 import navigationFr from './locales/fr/navigation.json';
+import poiFr from './locales/fr/poi.json'; // [ADDED]
 import profileFr from './locales/fr/profile.json';
 import sessionsFr from './locales/fr/sessions.json';
 
@@ -22,6 +24,7 @@ const resources = {
     create: createFr,
     map: mapFr,
     navigation: navigationFr,
+    poi: poiFr, // [ADDED]
     profile: profileFr,
     sessions: sessionsFr,
   },
@@ -30,6 +33,7 @@ const resources = {
     create: createEn,
     map: mapEn,
     navigation: navigationEn,
+    poi: poiEn, // [ADDED]
     profile: profileEn,
     sessions: sessionsEn,
   },

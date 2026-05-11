@@ -88,11 +88,13 @@ jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
-// ─── Mock DI container (pour usePOIQuery) ───────────────────── // [MODIFIED]
-jest.mock('@/di/container', () => ({
-  getContainer: jest.fn(() => ({
-    searchPOIUseCase: { execute: jest.fn().mockResolvedValue([]) },
-  })),
+// [MODIFIED] Mock navigation (pour navigation vers POIScreen)
+const mockNavigate = jest.fn();
+jest.mock('@react-navigation/native', () => ({
+  useNavigation: () => ({
+    navigate: mockNavigate,
+    goBack: jest.fn(),
+  }),
 }));
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -133,6 +135,7 @@ const draftSession: MidpointSession = {
 describe('MapScreen integration', () => {
   beforeEach(() => {
     jest.spyOn(console, 'log').mockImplementation();
+    mockNavigate.mockClear();
     useSessionStore.setState({ session: null });
   });
 
@@ -176,13 +179,15 @@ describe('MapScreen integration', () => {
     expect(screen.getByText(/196\.0/)).toBeTruthy();
   });
 
-  it('has "Voir POI" button disabled', () => {
+  it('navigates to POI screen when "Voir POI" button is pressed', () => {
     useSessionStore.setState({ session: computedSession });
 
     render(<MapScreen />, { wrapper: createQueryClientWrapper() });
 
     const poiButton = screen.getByTestId('map-btn-poi');
-    expect(poiButton.props.accessibilityState).toEqual({ disabled: true });
+    fireEvent.press(poiButton);
+
+    expect(mockNavigate).toHaveBeenCalledWith('POI');
   });
 
   it('opens list modal when "Vue liste" is pressed', () => {

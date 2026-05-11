@@ -9,6 +9,7 @@
 // [ADDED] Root Stack Navigator avec Native Stack
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
+import POIScreen from '@presentation/screens/POIScreen'; // [ADDED]
 import BottomTabsNavigator from './BottomTabsNavigator';
 import type { RootStackParamList } from './types';
 
@@ -26,6 +27,8 @@ const RootNavigator: React.FC = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Tabs" component={BottomTabsNavigator} />
+      {/* [ADDED] Écran POI F3 */}
+      <Stack.Screen name="POI" component={POIScreen} />
     </Stack.Navigator>
   );
 };

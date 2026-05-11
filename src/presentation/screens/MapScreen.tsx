@@ -11,18 +11,17 @@
  */
 
 // [MODIFIED] Refactor complet — écran F2 carte interactive
+import { useNavigation } from '@react-navigation/native'; // [ADDED]
 import { MapPin, Star } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react'; // [MODIFIED]
+import React, { useCallback, useState } from 'react'; // [MODIFIED] removed useEffect
 import { useTranslation } from 'react-i18next';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ALL_POI_CATEGORIES } from '@core/entities/POICategory'; // [ADDED]
 import { useTheme, type Theme } from '@core/theme';
 import { Text } from '@presentation/components/atoms';
 import EmptyState from '@presentation/components/molecules/EmptyState';
 import ParticipantCard from '@presentation/components/molecules/ParticipantCard';
 import SessionMapView from '@presentation/components/molecules/SessionMapView';
-import { usePOIQuery } from '@presentation/hooks/usePOIQuery'; // [ADDED]
 import { useSessionStore } from '@presentation/stores/useSessionStore';
 
 /**
@@ -38,28 +37,9 @@ const MapScreen: React.FC = () => {
   const styles = buildStyles(theme, insets.bottom);
 
   const session = useSessionStore((s) => s.session);
-  const isComputed = session?.status === 'computed'; // [ADDED]
+  const navigation = useNavigation(); // [ADDED]
 
-  // [TEMP] Démo logique POI — UI sera implémentée en Phase 13B
-  const { data: pois } = usePOIQuery({
-    center: isComputed ? session.midpoint ?? null : null,
-    radiusMeters: isComputed ? session.midpointRadius ?? null : null,
-    categories: ALL_POI_CATEGORIES,
-  });
-
-  // [TEMP] Log temporaire pour valider Phase 13A
-  useEffect(() => {
-    if (!pois) return;
-    const counts: Record<string, number> = {};
-    for (const poi of pois) {
-      counts[poi.category] = (counts[poi.category] ?? 0) + 1;
-    }
-    console.log(
-      `[INFO][MapScreen][POIDemo][?][${new Date().toISOString().slice(11, 19)}] ` +
-        `Found ${pois.length} POIs:`,
-      counts,
-    );
-  }, [pois]);
+  // [REMOVED] Démo logique POI — usePOIQuery maintenant dans POIScreen
 
   // [ADDED] État pour la modal "Vue liste" (A11Y-006)
   const [isListVisible, setIsListVisible] = useState(false);
@@ -153,16 +133,19 @@ const MapScreen: React.FC = () => {
               </Text>
             </Pressable>
 
-            {/* [TODO F3] Voir POI — inactif pour l'instant */}
+            {/* [MODIFIED] Voir POI — navigue vers POIScreen */}
             <Pressable
-              disabled
-              style={[styles.actionButton, styles.primaryButton, styles.disabledButton]}
+              onPress={() => navigation.navigate('POI')}
+              style={({ pressed }) => [
+                styles.actionButton,
+                styles.primaryButton,
+                pressed ? styles.primaryButtonPressed : undefined,
+              ]}
               accessibilityRole="button"
               accessibilityLabel={t('actions.viewPOI')}
-              accessibilityState={{ disabled: true }}
               testID="map-btn-poi"
             >
-              <Text variant="small" weight="semibold" color="tertiary">
+              <Text variant="small" weight="semibold" color="onBrand">
                 {t('actions.viewPOI')}
               </Text>
             </Pressable>
@@ -282,6 +265,9 @@ const buildStyles = (theme: Theme, bottomInset: number) =>
     primaryButton: {
       backgroundColor: theme.color.interactive.brand.default,
     },
+    primaryButtonPressed: {
+      backgroundColor: theme.color.interactive.brand.pressed,
+    },
     secondaryButton: {
       backgroundColor: theme.color.surface.secondary,
       borderWidth: 1,
@@ -290,9 +276,7 @@ const buildStyles = (theme: Theme, bottomInset: number) =>
     secondaryButtonPressed: {
       backgroundColor: theme.color.interactive.neutral.pressed,
     },
-    disabledButton: {
-      backgroundColor: theme.color.interactive.brand.disabled,
-    },
+    // [REMOVED] disabledButton — bouton POI maintenant actif (F3)
     // ─── Modal Vue Liste ──────────────────────────────────────
     modalContainer: {
       flex: 1,

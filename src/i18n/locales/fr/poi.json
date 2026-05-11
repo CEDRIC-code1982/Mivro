@@ -1,0 +1,52 @@
+{
+  "title": "Lieux à proximité",
+  "subtitle": "Autour du point de rencontre",
+  "noSession": {
+    "title": "Aucun calcul disponible",
+    "description": "Crée une session et calcule le midpoint pour voir les lieux.",
+    "action": "Retour à la carte"
+  },
+  "viewMode": {
+    "list": "Liste",
+    "map": "Carte"
+  },
+  "categories": {
+    "all": "Tout",
+    "restaurant": "Restaurants",
+    "cafe": "Cafés",
+    "bar": "Bars",
+    "park": "Parcs",
+    "cinema": "Cinémas",
+    "museum": "Musées",
+    "shop": "Boutiques",
+    "sport": "Sport",
+    "hotel": "Hôtels"
+  },
+  "list": {
+    "loading": "Recherche des lieux...",
+    "empty": {
+      "title": "Aucun lieu trouvé",
+      "description": "Essaie d'élargir tes filtres ou la zone de recherche."
+    },
+    "noFilters": {
+      "title": "Choisis au moins une catégorie",
+      "description": "Sélectionne le type de lieu qui t'intéresse."
+    }
+  },
+  "detail": {
+    "distance": "{{distance}} du midpoint",
+    "address": "Adresse : {{address}}",
+    "actions": {
+      "navigate": "Y aller",
+      "close": "Fermer"
+    }
+  },
+  "errors": {
+    "rate_limited": "Trop de requêtes. Attends un peu et réessaie.",
+    "network": "Pas de connexion. Vérifie ton réseau.",
+    "server_error": "Service POI indisponible. Réessaie plus tard.",
+    "query_timeout": "La recherche a pris trop de temps. Réduis la zone ou les catégories.",
+    "parse_error": "Réponse invalide du serveur.",
+    "unknown": "Erreur inattendue."
+  }
+}

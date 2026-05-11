@@ -28,6 +28,7 @@ export type BottomTabsParamList = {
  */
 export type RootStackParamList = {
   Tabs: NavigatorScreenParams<BottomTabsParamList>;
+  POI: undefined; // [ADDED] écran POI F3
 };
 
 // [ADDED] Déclaration globale pour le typage automatique de useNavigation()
