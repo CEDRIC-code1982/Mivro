@@ -129,14 +129,21 @@ jest.mock('react-native-gesture-handler', () => {
 jest.mock('@gorhom/bottom-sheet', () => {
   const React = require('react');
   const { View, TextInput } = require('react-native');
-  const BottomSheet = React.forwardRef(({ children, testID }, ref) => {
+  // [FIXED P0-2/P0-3] Spread all props for testability + render backdrop
+  const BottomSheet = React.forwardRef((props, ref) => {
+    const { children, backdropComponent: BackdropComp, ...viewProps } = props;
     React.useImperativeHandle(ref, () => ({
       snapToIndex: jest.fn(),
       close: jest.fn(),
       expand: jest.fn(),
       collapse: jest.fn(),
     }));
-    return React.createElement(View, { testID }, children);
+    return React.createElement(
+      View,
+      viewProps,
+      BackdropComp != null ? React.createElement(BackdropComp, { testID: 'mock-backdrop' }) : null,
+      children,
+    );
   });
   BottomSheet.displayName = 'BottomSheet';
   return {

@@ -15,14 +15,64 @@ import '@/i18n';
 import { NavigationContainer } from '@react-navigation/native';
 import { QueryClientProvider } from '@tanstack/react-query'; // [ADDED]
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StatusBar, StyleSheet, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, StatusBar, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler'; // [ADDED]
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { getContainer, initContainer } from '@/di/container'; // [MODIFIED]
-import { useTheme } from '@core/theme';
+import { ThemeModeProvider, useTheme } from '@core/theme'; // [FIXED P0-6]
 import { getEncryptionKey } from '@infrastructure/storage/getEncryptionKey';
 import { AppErrorBoundary } from '@presentation/components/templates/AppErrorBoundary'; // [ADDED]
 import RootNavigator from '@presentation/navigation/RootNavigator';
+import { usePreferencesStore } from '@presentation/stores/usePreferencesStore'; // [FIXED P0-6]
+
+/**
+ * Provider de thème connecté au store de préférences.
+ * Theme provider connected to the preferences store.
+ *
+ * Lit themeMode depuis usePreferencesStore et le fournit
+ * au ThemeModeContext pour que useTheme() le respecte.
+ * Reads themeMode from usePreferencesStore and provides it
+ * to ThemeModeContext so useTheme() respects it.
+ *
+ * @param children - Enfants à wrapper / Children to wrap
+ * @returns Provider avec themeMode / Provider with themeMode
+ */
+// [FIXED P0-6] Theme provider reads from preferences store
+const AppThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const themeMode = usePreferencesStore((s) => s.themeMode);
+  return <ThemeModeProvider value={themeMode}>{children}</ThemeModeProvider>;
+};
+
+/**
+ * Contenu de l'app une fois le bootstrap terminé.
+ * App content after bootstrap is complete.
+ *
+ * Séparé pour que useTheme() soit appelé SOUS le ThemeModeProvider.
+ * Separated so useTheme() is called UNDER the ThemeModeProvider.
+ *
+ * @returns Arbre React principal / Main React tree
+ */
+// [FIXED P0-6] Separate component — useTheme reads from context
+const AppContent: React.FC = () => {
+  const theme = useTheme();
+
+  return (
+    <GestureHandlerRootView style={styles.gestureRoot}>
+      <SafeAreaProvider>
+        <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} />
+        {/* [ADDED] ErrorBoundary global — capture les erreurs React non gérées */}
+        <AppErrorBoundary>
+          {/* [ADDED] QueryClientProvider — TanStack Query pour geocoding + futures queries */}
+          <QueryClientProvider client={getContainer().queryClient}>
+            <NavigationContainer>
+              <RootNavigator />
+            </NavigationContainer>
+          </QueryClientProvider>
+        </AppErrorBoundary>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  );
+};
 
 /**
  * Composant racine de l'application Mivro.
@@ -32,8 +82,7 @@ import RootNavigator from '@presentation/navigation/RootNavigator';
  */
 const App: React.FC = () => {
   const [ready, setReady] = useState(false);
-  const isDarkMode = useColorScheme() === 'dark';
-  const theme = useTheme();
+  const theme = useTheme(); // Default context ('system') — loading screen only
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -67,22 +116,11 @@ const App: React.FC = () => {
     );
   }
 
+  // [FIXED P0-6] AppThemeProvider wraps content so useTheme respects user preference
   return (
-    // [ADDED] GestureHandlerRootView — required by @gorhom/bottom-sheet
-    <GestureHandlerRootView style={styles.gestureRoot}>
-      <SafeAreaProvider>
-        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-        {/* [ADDED] ErrorBoundary global — capture les erreurs React non gérées */}
-        <AppErrorBoundary>
-          {/* [ADDED] QueryClientProvider — TanStack Query pour geocoding + futures queries */}
-          <QueryClientProvider client={getContainer().queryClient}>
-            <NavigationContainer>
-              <RootNavigator />
-            </NavigationContainer>
-          </QueryClientProvider>
-        </AppErrorBoundary>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <AppThemeProvider>
+      <AppContent />
+    </AppThemeProvider>
   );
 };
 

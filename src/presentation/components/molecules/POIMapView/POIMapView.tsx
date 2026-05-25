@@ -179,7 +179,8 @@ const POIMapView: React.FC<POIMapViewProps> = ({
               accessibilityLabel={`${poi.name}, ${poi.category}`}
               testID={testID ? `${testID}-poi-${poi.externalId}` : undefined}
             >
-              <View style={styles.poiMarker}>
+              {/* [FIXED P0-5] pointerEvents="none" prevents View from intercepting Marker touch */}
+              <View style={styles.poiMarker} pointerEvents="none">
                 <Icon size={POI_ICON_SIZE} color={theme.color.text.primary} strokeWidth={2} />
               </View>
             </Marker>

@@ -265,4 +265,29 @@ describe('AddressAutocomplete', () => {
       expect(getByTestId('autocomplete-sheet-input')).toBeTruthy();
     });
   });
+
+  // ─── P0-2 : Bottom sheet keyboard behavior ─────────────
+  describe('keyboard behavior (P0-2)', () => {
+    it('configures keyboard behavior props on bottom sheet', () => {
+      const { getByTestId } = render(
+        <AddressAutocomplete {...defaultProps} testID="autocomplete" />,
+      );
+
+      const bottomSheet = getByTestId('autocomplete-bottom-sheet');
+      expect(bottomSheet.props.keyboardBehavior).toBe('extend');
+      expect(bottomSheet.props.keyboardBlurBehavior).toBe('restore');
+      expect(bottomSheet.props.android_keyboardInputMode).toBe('adjustResize');
+    });
+  });
+
+  // ─── P0-3 : Bottom sheet backdrop ──────────────────────
+  describe('backdrop (P0-3)', () => {
+    it('renders backdrop to prevent content showing behind sheet', () => {
+      const { getByTestId } = render(
+        <AddressAutocomplete {...defaultProps} testID="autocomplete" />,
+      );
+
+      expect(getByTestId('mock-backdrop')).toBeTruthy();
+    });
+  });
 });

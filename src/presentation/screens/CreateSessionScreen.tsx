@@ -18,7 +18,7 @@ import { useNavigation } from '@react-navigation/native'; // [ADDED]
 import { MapPin } from 'lucide-react-native';
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import type { Participant } from '@core/entities/MidpointSession';
 import { useTheme, type Theme } from '@core/theme';
 import { Screen, Text } from '@presentation/components/atoms';
@@ -93,23 +93,6 @@ const CreateSessionScreen: React.FC = () => {
   );
 
   /**
-   * Rendu d'un item participant dans la FlatList.
-   * Renders a participant item in the FlatList.
-   *
-   * @param item - Participant à rendre / Participant to render
-   */
-  const renderParticipantItem = useCallback(
-    ({ item }: { item: Participant }) => (
-      <ParticipantCard
-        participant={item}
-        onRemove={() => removeParticipant(item.id)}
-        testID={`create-participant-${item.id}`}
-      />
-    ),
-    [removeParticipant],
-  );
-
-  /**
    * Rendu de l'erreur GPS.
    * Renders the GPS error card.
    */
@@ -154,7 +137,7 @@ const CreateSessionScreen: React.FC = () => {
       {/* [ADDED] Erreur GPS */}
       {renderGpsError()}
 
-      {/* [ADDED] Liste des participants */}
+      {/* [FIXED P0-4] Liste des participants — View+map au lieu de FlatList */}
       <View style={styles.listSection}>
         {participantsCount === 0 ? (
           <EmptyState
@@ -164,14 +147,16 @@ const CreateSessionScreen: React.FC = () => {
             testID="create-empty-state"
           />
         ) : (
-          <FlatList
-            data={participants as Participant[]}
-            keyExtractor={(item) => item.id}
-            renderItem={renderParticipantItem}
-            scrollEnabled={false}
-            contentContainerStyle={styles.listContent}
-            testID="create-participants-list"
-          />
+          <View style={styles.listContent} testID="create-participants-list">
+            {(participants as Participant[]).map((item) => (
+              <ParticipantCard
+                key={item.id}
+                participant={item}
+                onRemove={() => removeParticipant(item.id)}
+                testID={`create-participant-${item.id}`}
+              />
+            ))}
+          </View>
         )}
       </View>
 

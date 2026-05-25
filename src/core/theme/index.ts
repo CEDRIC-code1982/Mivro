@@ -18,6 +18,7 @@
  * @module core/theme
  */
 
+import { createContext, useContext } from 'react';
 import { useColorScheme } from 'react-native';
 import {
   palette,
@@ -203,18 +204,59 @@ export const darkTheme = buildTheme('dark');
 export type Theme = typeof lightTheme;
 export type ThemeMode = 'light' | 'dark';
 
+/**
+ * Préférence de mode de thème : 'system' suit l'appareil,
+ * 'light'/'dark' sont des overrides explicites.
+ * Theme mode preference: 'system' follows device,
+ * 'light'/'dark' are explicit overrides.
+ */
+export type ThemeModePreference = 'system' | 'light' | 'dark';
+
+// ═══════════════════════════════════════════════════════════════
+// THEME MODE CONTEXT — [FIXED P0-6]
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Contexte React pour la préférence de thème.
+ * React context for theme preference.
+ *
+ * Par défaut 'system' (suit l'appareil). La couche presentation
+ * fournit la valeur via ThemeModeProvider connecté au store.
+ * Defaults to 'system' (follows device). The presentation layer
+ * provides the value via ThemeModeProvider connected to the store.
+ */
+const ThemeModeContext = createContext<ThemeModePreference>('system');
+
+/**
+ * Provider à placer dans l'arbre React pour overrider le mode thème.
+ * Provider to place in the React tree to override the theme mode.
+ *
+ * @example
+ * ```tsx
+ * <ThemeModeProvider value={themeMode}>
+ *   <App />
+ * </ThemeModeProvider>
+ * ```
+ */
+export const ThemeModeProvider = ThemeModeContext.Provider;
+
 // ═══════════════════════════════════════════════════════════════
 // HOOK — useTheme()
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Retourne le thème actif selon la préférence système ou utilisateur.
- * Returns the active theme based on system or user preference.
+ * Retourne le thème actif selon la préférence utilisateur ou système.
+ * Returns the active theme based on user preference or system.
  *
- * Le hook lit `useColorScheme()` (préférence système) et peut être
- * étendu pour respecter `usePreferencesStore.darkMode` (override user).
+ * Lit le ThemeModeContext (fourni par la couche presentation).
+ * Si le mode est 'system', suit useColorScheme(). Sinon, utilise
+ * le mode explicite ('light' ou 'dark').
  *
- * @returns Theme courant (light ou dark)
+ * Reads ThemeModeContext (provided by the presentation layer).
+ * If mode is 'system', follows useColorScheme(). Otherwise, uses
+ * the explicit mode ('light' or 'dark').
+ *
+ * @returns Theme courant (light ou dark) / Current theme (light or dark)
  *
  * @example
  * const theme = useTheme();
@@ -227,9 +269,12 @@ export type ThemeMode = 'light' | 'dark';
  */
 export const useTheme = (): Theme => {
   const systemScheme = useColorScheme();
-  // En MVP : on suit le système. En V1 : override via usePreferencesStore.
-  // MVP: follow system. V1: override via usePreferencesStore.
-  return systemScheme === 'dark' ? darkTheme : lightTheme;
+  const preferredMode = useContext(ThemeModeContext);
+
+  // [FIXED P0-6] Respect user's theme preference over system
+  const effectiveScheme = preferredMode !== 'system' ? preferredMode : systemScheme ?? 'light';
+
+  return effectiveScheme === 'dark' ? darkTheme : lightTheme;
 };
 
 // Re-export des primitifs pour cas avancés (composables hors composants)

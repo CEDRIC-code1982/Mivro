@@ -135,4 +135,19 @@ describe('POIMapView', () => {
     expect(getByTestId('map')).toBeTruthy();
     expect(queryByTestId('map-poi-node/1')).toBeNull();
   });
+
+  // ─── P0-5 : POI marker View does not intercept touches ──
+  it('sets pointerEvents="none" on POI marker custom View (P0-5)', () => {
+    const { getByTestId } = render(<POIMapView {...defaultProps} testID="map" />);
+
+    // The custom View inside the Marker must not intercept touches
+    // so the Marker's native onPress fires correctly on Android
+    const poiMarker = getByTestId('map-poi-node/1');
+    // The View is a child of the Marker mock (which is also a View)
+    const customView = poiMarker.children[0];
+    expect(customView).toBeTruthy();
+    if (typeof customView === 'object' && customView !== null && 'props' in customView) {
+      expect(customView.props.pointerEvents).toBe('none');
+    }
+  });
 });

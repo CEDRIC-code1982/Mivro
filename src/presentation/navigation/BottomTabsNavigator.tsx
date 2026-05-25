@@ -19,6 +19,7 @@ import CreateSessionScreen from '@presentation/screens/CreateSessionScreen';
 import MapScreen from '@presentation/screens/MapScreen';
 import ProfileScreen from '@presentation/screens/ProfileScreen';
 import SessionsScreen from '@presentation/screens/SessionsScreen';
+import { useSessionStore } from '@presentation/stores/useSessionStore'; // [FIXED P0-7]
 import type { BottomTabsParamList } from './types';
 
 // [ADDED] Typed bottom tab navigator
@@ -33,6 +34,10 @@ const Tab = createBottomTabNavigator<BottomTabsParamList>();
 const BottomTabsNavigator: React.FC = () => {
   const { t } = useTranslation('navigation');
   const theme = useTheme();
+
+  // [FIXED P0-7] Default tab: Map if session computed, Create otherwise
+  const session = useSessionStore((s) => s.session);
+  const initialTab = session?.status === 'computed' ? 'Map' : 'Create';
 
   // [ADDED] Extracted tabBarIcon render functions to avoid unstable nested components
   const renderMapIcon = React.useCallback(
@@ -65,6 +70,7 @@ const BottomTabsNavigator: React.FC = () => {
 
   return (
     <Tab.Navigator
+      initialRouteName={initialTab}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: theme.color.interactive.brand.default,

@@ -20,7 +20,12 @@
 
 // [MODIFIED] Molecule AddressAutocomplete — Phase 6 (bottom sheet ajouté)
 
-import BottomSheet, { BottomSheetTextInput, BottomSheetView } from '@gorhom/bottom-sheet';
+import BottomSheet, {
+  BottomSheetBackdrop,
+  type BottomSheetBackdropProps,
+  BottomSheetTextInput,
+  BottomSheetView,
+} from '@gorhom/bottom-sheet';
 import { AlertCircle, MapPin, Search } from 'lucide-react-native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -116,6 +121,15 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   const handleCloseSheet = useCallback(() => {
     Keyboard.dismiss();
   }, []);
+
+  // [FIXED P0-3] Backdrop empêchant le contenu de transparaître
+  // Backdrop preventing content from showing behind the sheet
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} opacity={0.5} />
+    ),
+    [],
+  );
 
   /**
    * Gère la sélection d'un résultat.
@@ -289,9 +303,14 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         index={-1}
         snapPoints={snapPoints}
         enablePanDownToClose
+        keyboardBehavior="extend"
+        keyboardBlurBehavior="restore"
+        android_keyboardInputMode="adjustResize"
+        backdropComponent={renderBackdrop}
         onClose={handleCloseSheet}
         backgroundStyle={styles.sheetBackground}
         handleIndicatorStyle={styles.sheetHandle}
+        {...(testID != null && { testID: `${testID}-bottom-sheet` })}
       >
         <BottomSheetView style={styles.sheetContent}>
           {/* [ADDED] Input dans le sheet pour continuer la saisie */}

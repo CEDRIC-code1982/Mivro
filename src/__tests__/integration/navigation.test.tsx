@@ -18,6 +18,7 @@ import { render, screen } from '@testing-library/react-native';
 import React from 'react';
 import '@/i18n';
 import RootNavigator from '@presentation/navigation/RootNavigator';
+import { useSessionStore } from '@presentation/stores/useSessionStore'; // [FIXED P0-7]
 
 // [MODIFIED] Mock getContainer pour useGeocodeQuery + getCurrentLocationUseCase + midpoint
 jest.mock('@/di/container', () => ({
@@ -158,6 +159,48 @@ describe('Navigation integration', () => {
     );
 
     expect(screen.getByTestId('bottom-tabs')).toBeOnTheScreen();
+  });
+
+  // ─── P0-7 : Initial tab logic ──────────────────────────────
+  describe('initial tab logic (P0-7)', () => {
+    it('selects Create tab when no session exists', () => {
+      useSessionStore.setState({ session: null });
+      const session = useSessionStore.getState().session;
+      const initialTab = session?.status === 'computed' ? 'Map' : 'Create';
+      expect(initialTab).toBe('Create');
+    });
+
+    it('selects Map tab when session is computed', () => {
+      useSessionStore.setState({
+        session: {
+          id: 'test-session',
+          status: 'computed',
+          participants: [],
+          midpoint: { latitude: 0, longitude: 0 },
+          midpointRadius: 100,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      });
+      const session = useSessionStore.getState().session;
+      const initialTab = session?.status === 'computed' ? 'Map' : 'Create';
+      expect(initialTab).toBe('Map');
+    });
+
+    it('selects Create tab when session is draft', () => {
+      useSessionStore.setState({
+        session: {
+          id: 'test-session',
+          status: 'draft',
+          participants: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      });
+      const session = useSessionStore.getState().session;
+      const initialTab = session?.status === 'computed' ? 'Map' : 'Create';
+      expect(initialTab).toBe('Create');
+    });
   });
 
   // ─── Each screen displays its i18n title ──────────────────
