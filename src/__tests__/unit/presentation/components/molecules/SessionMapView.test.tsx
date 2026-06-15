@@ -105,4 +105,28 @@ describe('SessionMapView', () => {
     expect(getByText('A')).toBeTruthy();
     expect(getByText('B')).toBeTruthy();
   });
+
+  // [FIXED P1] Carte annonçable par VoiceOver (A11Y-006)
+  it('exposes the map as a single accessible element when accessibilityLabel is provided', () => {
+    const { getByTestId } = render(
+      <SessionMapView
+        {...defaultProps}
+        accessibilityLabel="Carte du point de rencontre avec 2 participants."
+        testID="map"
+      />,
+    );
+
+    const container = getByTestId('map');
+    expect(container.props.accessible).toBe(true);
+    expect(container.props.accessibilityRole).toBe('image');
+    expect(container.props.accessibilityLabel).toBe(
+      'Carte du point de rencontre avec 2 participants.',
+    );
+  });
+
+  it('is not marked accessible when no accessibilityLabel is provided', () => {
+    const { getByTestId } = render(<SessionMapView {...defaultProps} testID="map" />);
+
+    expect(getByTestId('map').props.accessible).toBeUndefined();
+  });
 });

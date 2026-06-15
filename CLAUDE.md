@@ -407,9 +407,11 @@ Molecules livrés : `ParticipantCard`, `EmptyState`, `AddressAutocomplete`, `Ses
 
 > ⚠️ Divergence à corriger : le README/anciennes notes mentionnaient des atoms `Button`/`Input`/`IconButton`/`Card`/`Spinner` — **ils n'existent pas encore**. À créer au besoin via le skill `create-atom`.
 
-### 🔜 Sprint en cours / suivant — Fix QA P1 (S09 amont)
+### 🔜 Sprint en cours / suivant — F7 Profil
 
-Priorité immédiate avant les nouvelles features. Détails dans le backlog ci-dessous (#Fix QA P1).
+Fix QA P1 ✅ fait (2026-06-15, commit `fix(qa-p1)`) — voir `docs/context/PROGRESS.md`.
+⚠️ Restent à re-vérifier sur device : layout Dynamic Type 200 % et EmptyState autocomplete (fixes défensifs posés).
+Prochaine feature : **F7 Profil** (voir backlog ci-dessous).
 
 ### 📋 Backlog priorisé
 

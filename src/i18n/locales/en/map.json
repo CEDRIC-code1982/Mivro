@@ -26,6 +26,10 @@
     "midpoint": "Meeting point",
     "close": "Close"
   },
+  "accessibility": {
+    "mapLabel": "Meeting point map with {{participantCount}} participants. Tap \"List view\" to read the details as text.",
+    "viewListHint": "Shows participants and the meeting point as a text list"
+  },
   "errors": {
     "mapLoadFailed": "Unable to load the map. Check your connection.",
     "unknown": "Unexpected error."

@@ -50,6 +50,18 @@ export interface SessionMapViewProps {
   readonly radius: number;
   /** Padding pour fitToCoordinates (défaut 80) / Padding for fitToCoordinates (default 80) */
   readonly edgePadding?: number;
+  /**
+   * Label d'accessibilité résumant le contenu de la carte (A11Y-006).
+   * Accessibility label summarizing the map content (A11Y-006).
+   *
+   * Si fourni, la carte est annoncée comme un élément unique par les
+   * lecteurs d'écran (les markers ne sont pas explorables — la vue liste
+   * du parent est l'alternative textuelle).
+   * If provided, the map is announced as a single element by screen
+   * readers (markers are not explorable — the parent list view is the
+   * textual alternative).
+   */
+  readonly accessibilityLabel?: string;
   readonly testID?: string;
 }
 
@@ -65,6 +77,7 @@ const SessionMapView: React.FC<SessionMapViewProps> = ({
   midpoint,
   radius,
   edgePadding = 80,
+  accessibilityLabel,
   testID,
 }) => {
   const theme = useTheme();
@@ -94,7 +107,15 @@ const SessionMapView: React.FC<SessionMapViewProps> = ({
   const circleFillColor = `${theme.color.interactive.brand.default}26`;
 
   return (
-    <View style={styles.container} testID={testID}>
+    <View
+      style={styles.container}
+      testID={testID}
+      {...(accessibilityLabel != null && {
+        accessible: true,
+        accessibilityRole: 'image' as const,
+        accessibilityLabel,
+      })}
+    >
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}

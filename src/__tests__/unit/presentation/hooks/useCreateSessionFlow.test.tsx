@@ -42,6 +42,9 @@ const fakeLocation: Location = {
   formattedAddress: '1 Rue de Rivoli, Paris, France',
 };
 
+// [FIXED P1] Le use case renvoie désormais { location, addressResolved }
+const fakeGpsResult = { location: fakeLocation, addressResolved: true };
+
 const fakeGeocodeResult: GeocodeResult = {
   externalId: 'osm-12345',
   coordinates: { latitude: 48.8584, longitude: 2.2945 },
@@ -177,7 +180,7 @@ describe('useCreateSessionFlow', () => {
   // ─── addByGps ─────────────────────────────────────────────
   describe('addByGps', () => {
     it('calls getCurrentLocationUseCase and adds participant', async () => {
-      mockGetCurrentLocationExecute.mockResolvedValueOnce(fakeLocation);
+      mockGetCurrentLocationExecute.mockResolvedValueOnce(fakeGpsResult);
       const { result } = renderHook(() => useCreateSessionFlow());
 
       await act(async () => {
@@ -194,7 +197,7 @@ describe('useCreateSessionFlow', () => {
     });
 
     it('uses provided displayName', async () => {
-      mockGetCurrentLocationExecute.mockResolvedValueOnce(fakeLocation);
+      mockGetCurrentLocationExecute.mockResolvedValueOnce(fakeGpsResult);
       const { result } = renderHook(() => useCreateSessionFlow());
 
       await act(async () => {
@@ -204,11 +207,39 @@ describe('useCreateSessionFlow', () => {
       expect(result.current.participants[0]?.displayName).toBe('Cédric');
     });
 
+    // [FIXED P1] Adresse non résolue (hors ligne) → notice non-bloquante, point ajouté
+    it('sets a non-blocking notice when the address could not be resolved', async () => {
+      mockGetCurrentLocationExecute.mockResolvedValueOnce({
+        location: fakeLocation,
+        addressResolved: false,
+      });
+      const { result } = renderHook(() => useCreateSessionFlow());
+
+      await act(async () => {
+        await result.current.addByGps();
+      });
+
+      expect(result.current.participantsCount).toBe(1);
+      expect(result.current.gpsNotice).toEqual({ code: 'gps_address_unresolved' });
+      expect(result.current.gpsError).toBeNull();
+    });
+
+    it('leaves notice null when the address is resolved', async () => {
+      mockGetCurrentLocationExecute.mockResolvedValueOnce(fakeGpsResult);
+      const { result } = renderHook(() => useCreateSessionFlow());
+
+      await act(async () => {
+        await result.current.addByGps();
+      });
+
+      expect(result.current.gpsNotice).toBeNull();
+    });
+
     it('sets isAddingByGps during GPS call', async () => {
-      let resolveGps: ((value: Location) => void) | undefined;
+      let resolveGps: ((value: typeof fakeGpsResult) => void) | undefined;
       mockGetCurrentLocationExecute.mockImplementation(
         () =>
-          new Promise<Location>((resolve) => {
+          new Promise<typeof fakeGpsResult>((resolve) => {
             resolveGps = resolve;
           }),
       );
@@ -226,7 +257,7 @@ describe('useCreateSessionFlow', () => {
 
       // Résoudre le GPS
       await act(async () => {
-        resolveGps?.(fakeLocation);
+        resolveGps?.(fakeGpsResult);
         await gpsPromise;
       });
 
@@ -335,7 +366,7 @@ describe('useCreateSessionFlow', () => {
     it('clears gpsError on next successful addByGps', async () => {
       mockGetCurrentLocationExecute
         .mockRejectedValueOnce(new GeolocationError('Timeout', 'timeout'))
-        .mockResolvedValueOnce(fakeLocation);
+        .mockResolvedValueOnce(fakeGpsResult);
       const errorSpy = jest.spyOn(console, 'error').mockImplementation();
 
       const { result } = renderHook(() => useCreateSessionFlow());

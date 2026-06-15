@@ -39,6 +39,7 @@ import {
   View,
 } from 'react-native';
 import type { GeocodeResult } from '@core/entities/GeocodeResult';
+import { GeocodeError } from '@core/ports/IGeocodeService';
 import { useTheme, type Theme } from '@core/theme';
 import Text from '@presentation/components/atoms/Text';
 import EmptyState from '@presentation/components/molecules/EmptyState';
@@ -70,6 +71,32 @@ export interface AddressAutocompleteProps {
 
 /** Longueur minimum de la query pour déclencher la recherche */
 const MIN_QUERY_LENGTH = 3;
+
+/**
+ * Mappe une erreur de géocodage vers une clé i18n de message dédiée.
+ * Maps a geocoding error to a dedicated i18n message key.
+ *
+ * Distingue une erreur réseau/serveur d'une absence de résultat (bug QA P1).
+ * Distinguishes a network/server error from an empty result set (QA P1 bug).
+ *
+ * @param error - Erreur remontée par useGeocodeQuery / Error surfaced by useGeocodeQuery
+ * @returns Clé i18n (namespace create) / i18n key (create namespace)
+ */
+const geocodeErrorKey = (error: unknown): string => {
+  if (error instanceof GeocodeError) {
+    switch (error.code) {
+      case 'network':
+        return 'errors.geocode_network';
+      case 'rate_limited':
+        return 'errors.geocode_rate_limited';
+      case 'server_error':
+        return 'errors.geocode_server';
+      default:
+        return 'errors.unknown';
+    }
+  }
+  return 'errors.unknown';
+};
 
 /**
  * Molecule AddressAutocomplete du Design System Mivro.
@@ -122,11 +149,13 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     Keyboard.dismiss();
   }, []);
 
-  // [FIXED P0-3] Backdrop empêchant le contenu de transparaître
-  // Backdrop preventing content from showing behind the sheet
+  // [FIXED P0-3 / P1] Backdrop empêchant le contenu (et le texte) de transparaître
+  // Backdrop preventing content/text from showing behind the sheet
+  // [FIXED P1] Opacité augmentée (0.5 → 0.7) : l'EmptyState du sheet n'est plus
+  // visuellement parasité par les textes de l'écran en arrière-plan.
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} opacity={0.5} />
+      <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} opacity={0.7} />
     ),
     [],
   );
@@ -191,11 +220,12 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     }
 
     if (error != null) {
+      // [FIXED P1] Message d'erreur réseau distinct de "aucun résultat" (ERR-001/003)
+      // Network error message distinct from "no results" (ERR-001/003)
       return (
         <EmptyState
           icon={AlertCircle}
-          title={t('autocomplete.noResults')}
-          description={t('autocomplete.noResultsHint')}
+          title={t(geocodeErrorKey(error))}
           {...(testID != null && { testID: `${testID}-error` })}
         />
       );
@@ -332,7 +362,9 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
           </View>
 
           {/* [ADDED] Contenu conditionnel */}
-          {renderSheetContent()}
+          {/* [FIXED P1] Corps en flex:1 — l'EmptyState/erreur occupe l'espace
+              propre du sheet, sans superposition avec l'input ni le fond. */}
+          <View style={styles.sheetBody}>{renderSheetContent()}</View>
         </BottomSheetView>
       </BottomSheet>
     </>
@@ -410,6 +442,10 @@ const buildStyles = (theme: Theme) =>
     sheetContent: {
       flex: 1,
       paddingBottom: theme.spacing.lg,
+    },
+    // [FIXED P1] Corps du sheet (sous l'input) — occupe l'espace restant
+    sheetBody: {
+      flex: 1,
     },
     sheetInputWrapper: {
       flexDirection: 'row',

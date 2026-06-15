@@ -45,6 +45,25 @@ export interface GetCurrentLocationInput {
 }
 
 /**
+ * Résultat de la récupération de position courante.
+ * Result of the current location retrieval.
+ *
+ * @param location - Location enrichie (coords + adresse) / Enriched location
+ * @param addressResolved - true si l'adresse vient du reverse geocoding,
+ *                          false si c'est un fallback coordonnées (reverse
+ *                          indisponible, ex: hors ligne).
+ *                          true if the address comes from reverse geocoding,
+ *                          false if it is a coordinates fallback (reverse
+ *                          unavailable, e.g. offline).
+ */
+export interface GetCurrentLocationResult {
+  /** Location enrichie (coords + adresse) / Enriched location */
+  location: Location;
+  /** Adresse résolue (true) ou fallback coordonnées (false) / Address resolved or coordinates fallback */
+  addressResolved: boolean;
+}
+
+/**
  * Use case : récupérer la position GPS courante enrichie d'une adresse.
  * Use case: get current GPS position enriched with an address.
  *
@@ -62,10 +81,10 @@ export class GetCurrentLocationUseCase {
    * Executes enriched position retrieval.
    *
    * @param input - Paramètres optionnels / Optional parameters
-   * @returns Location complète (coords + adresse) / Complete Location (coords + address)
+   * @returns Location + drapeau de résolution d'adresse / Location + address resolution flag
    * @throws GeolocationError si le GPS échoue / if GPS fails
    */
-  async execute(input: GetCurrentLocationInput = {}): Promise<Location> {
+  async execute(input: GetCurrentLocationInput = {}): Promise<GetCurrentLocationResult> {
     const { language = 'fr', accuracyMeters = 100, timeoutMs = 10_000 } = input;
 
     // [ADDED] 1. Récupération GPS (peut throw GeolocationError)
@@ -75,11 +94,19 @@ export class GetCurrentLocationUseCase {
     });
 
     // [ADDED] 2. Tentative de reverse geocoding (fallback graceful)
+    // [FIXED P1] On signale si l'adresse n'a pas pu être résolue (hors ligne)
+    // pour permettre une notice non-bloquante côté UI (au lieu d'un fallback muet).
     let formattedAddress: string;
+    let addressResolved = false;
     try {
       const reverseResult = await this.geocodeService.reverseGeocode(coordinates, { language });
 
-      formattedAddress = reverseResult?.displayName ?? this.fallbackAddress(coordinates);
+      if (reverseResult != null) {
+        formattedAddress = reverseResult.displayName;
+        addressResolved = true;
+      } else {
+        formattedAddress = this.fallbackAddress(coordinates);
+      }
     } catch {
       // Reverse geocoding échoue → fallback graceful sans bloquer
       console.warn(
@@ -91,9 +118,12 @@ export class GetCurrentLocationUseCase {
     }
 
     return {
-      id: uuidv4(),
-      coordinates,
-      formattedAddress,
+      location: {
+        id: uuidv4(),
+        coordinates,
+        formattedAddress,
+      },
+      addressResolved,
     };
   }
 

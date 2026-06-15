@@ -45,11 +45,12 @@ describe('GetCurrentLocationUseCase', () => {
       mockGeolocationService.getCurrentPosition.mockResolvedValueOnce(fakeCoords);
       mockGeocodeService.reverseGeocode.mockResolvedValueOnce(fakeReverseResult);
 
-      const location = await useCase.execute();
+      const { location, addressResolved } = await useCase.execute();
 
       expect(location.id).toBe(mockUuid);
       expect(location.coordinates).toEqual(fakeCoords);
       expect(location.formattedAddress).toBe('1 Rue de Rivoli, 75001 Paris, France');
+      expect(addressResolved).toBe(true);
     });
 
     it('passes language to reverse geocode', async () => {
@@ -80,7 +81,7 @@ describe('GetCurrentLocationUseCase', () => {
       mockGeolocationService.getCurrentPosition.mockResolvedValueOnce(fakeCoords);
       mockGeocodeService.reverseGeocode.mockResolvedValueOnce(fakeReverseResult);
 
-      const location = await useCase.execute();
+      const { location } = await useCase.execute();
 
       expect(location.id).toBe(mockUuid);
     });
@@ -92,10 +93,12 @@ describe('GetCurrentLocationUseCase', () => {
       mockGeolocationService.getCurrentPosition.mockResolvedValueOnce(fakeCoords);
       mockGeocodeService.reverseGeocode.mockResolvedValueOnce(null);
 
-      const location = await useCase.execute();
+      const { location, addressResolved } = await useCase.execute();
 
       expect(location.formattedAddress).toBe('48.8566, 2.3522');
       expect(location.coordinates).toEqual(fakeCoords);
+      // [FIXED P1] adresse non résolue → flag false pour notice non-bloquante
+      expect(addressResolved).toBe(false);
     });
   });
 
@@ -107,10 +110,12 @@ describe('GetCurrentLocationUseCase', () => {
         new GeocodeError('Network error', 'network'),
       );
 
-      const location = await useCase.execute();
+      const { location, addressResolved } = await useCase.execute();
 
       expect(location.formattedAddress).toBe('48.8566, 2.3522');
       expect(location.coordinates).toEqual(fakeCoords);
+      // [FIXED P1] reverse échoue (hors ligne) → flag false
+      expect(addressResolved).toBe(false);
     });
   });
 

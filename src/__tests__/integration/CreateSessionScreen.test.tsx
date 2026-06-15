@@ -109,7 +109,10 @@ const fakeLocation: Location = {
   formattedAddress: '1 Rue de Rivoli, Paris, France',
 };
 
-const mockGetCurrentLocationExecute = jest.fn().mockResolvedValue(fakeLocation);
+// [FIXED P1] Le use case renvoie désormais { location, addressResolved }
+const mockGetCurrentLocationExecute = jest
+  .fn()
+  .mockResolvedValue({ location: fakeLocation, addressResolved: true });
 
 // [MODIFIED] Mock midpoint UseCase ajouté pour F2
 const mockCalculateMidpointExecute = jest.fn();
@@ -186,11 +189,16 @@ describe('CreateSessionScreen integration', () => {
   });
 
   it('enables Continue button after 2 participants added', async () => {
-    mockGetCurrentLocationExecute.mockResolvedValueOnce(fakeLocation).mockResolvedValueOnce({
-      ...fakeLocation,
-      id: 'loc-gps-002',
-      formattedAddress: 'Place Bellecour, Lyon, France',
-    });
+    mockGetCurrentLocationExecute
+      .mockResolvedValueOnce({ location: fakeLocation, addressResolved: true })
+      .mockResolvedValueOnce({
+        location: {
+          ...fakeLocation,
+          id: 'loc-gps-002',
+          formattedAddress: 'Place Bellecour, Lyon, France',
+        },
+        addressResolved: true,
+      });
 
     renderScreen();
 

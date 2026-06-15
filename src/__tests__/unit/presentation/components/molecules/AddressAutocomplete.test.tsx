@@ -31,6 +31,10 @@ jest.mock('react-i18next', () => ({
         'autocomplete.noResultsHint': 'Essaie une autre formulation',
         'autocomplete.minLength': 'Tape au moins 3 caractères',
         'autocomplete.loading': 'Recherche...',
+        'errors.geocode_network': 'Pas de connexion. Vérifie ton réseau.',
+        'errors.geocode_rate_limited': 'Trop de requêtes. Réessaie dans quelques secondes.',
+        'errors.geocode_server': 'Service indisponible. Réessaie plus tard.',
+        'errors.unknown': 'Erreur inattendue.',
       };
       return translations[key] ?? key;
     },
@@ -186,6 +190,40 @@ describe('AddressAutocomplete', () => {
       fireEvent.changeText(getByTestId('autocomplete-address-input'), 'Paris');
 
       expect(getByTestId('autocomplete-error')).toBeTruthy();
+    });
+
+    // [FIXED P1] Erreur réseau distincte de "aucun résultat"
+    it('shows a network error message (not "no results") on network error', () => {
+      mockUseGeocodeQuery.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: new GeocodeError('Network error', 'network'),
+      });
+
+      const { getByTestId, getByText, queryByText } = render(
+        <AddressAutocomplete {...defaultProps} testID="autocomplete" />,
+      );
+
+      fireEvent.changeText(getByTestId('autocomplete-address-input'), 'Paris');
+
+      expect(getByText('Pas de connexion. Vérifie ton réseau.')).toBeTruthy();
+      expect(queryByText('Aucun résultat')).toBeNull();
+    });
+
+    it('shows the rate-limited message on rate_limited error', () => {
+      mockUseGeocodeQuery.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: new GeocodeError('Rate limited', 'rate_limited'),
+      });
+
+      const { getByTestId, getByText } = render(
+        <AddressAutocomplete {...defaultProps} testID="autocomplete" />,
+      );
+
+      fireEvent.changeText(getByTestId('autocomplete-address-input'), 'Paris');
+
+      expect(getByText('Trop de requêtes. Réessaie dans quelques secondes.')).toBeTruthy();
     });
 
     it('shows empty state when data is empty array', () => {

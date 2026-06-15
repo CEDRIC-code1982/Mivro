@@ -15,7 +15,7 @@
 | S05-06 (F2)    | 2026-05-08         | ✅ Fait    | `cf70fce` `eb022c9`           |
 | S07-08 (F3)    | 2026-05-10 → 05-11 | ✅ Fait    | `0bca95f` `4804539`           |
 | QA P0          | 2026-05-25         | ✅ Fait    | `f520911`                     |
-| QA P1          | —                  | 🔜 À faire | —                             |
+| QA P1          | 2026-06-15         | ✅ Fait    | `fix(qa-p1)` (en cours)       |
 | F7 Profil      | —                  | 📋 Backlog | —                             |
 | F4 Temps réel  | —                  | 📋 Backlog | —                             |
 | F5 Partage     | —                  | 📋 Backlog | —                             |
@@ -67,6 +67,15 @@
 ### QA P0 — 7 bugs critiques device (`f520911`)
 
 - Correction de 7 bugs bloquants remontés au QA device (voir `01-checklist-qa-technique.md`).
+
+### QA P1 — accessibilité & robustesse (2026-06-15)
+
+- **VoiceOver** : `SessionMapView` annonce la carte (prop `accessibilityLabel` + `accessible`/`role=image`), hint « Vue liste » clarifié dans `MapScreen`.
+- **Erreur réseau** : `AddressAutocomplete` mappe `GeocodeError.code` → messages i18n dédiés (`geocode_network`/`rate_limited`/`server`), qui existaient mais étaient inutilisés.
+- **GPS hors-ligne** : `GetCurrentLocationUseCase` renvoie `{ location, addressResolved }`; `useCreateSessionFlow` expose `gpsNotice`; `CreateSessionScreen` affiche une notice non-bloquante.
+- **EmptyState / layout 200 %** : backdrop autocomplete 0.5→0.7, corps du sheet `flex:1`, compteur F1 `flexWrap` (à re-vérifier device).
+- **Fichiers clés** : `AddressAutocomplete.tsx`, `SessionMapView.tsx`, `MapScreen.tsx`, `GetCurrentLocationUseCase.ts`, `useCreateSessionFlow.ts`, `CreateSessionScreen.tsx`, i18n `create`/`map`.
+- **Tests** : +8 (network/rate-limited messages, map accessible, addressResolved true/false, gpsNotice). Total 603, `npm run check` vert.
 
 ---
 
@@ -123,3 +132,5 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 - **react-native-reanimated 4** : plugin Babel requis (worklets) — vérifier `babel.config.js`.
 - **Rename MidPoint → Mivro** : conflit App Store (ADR-011) ; le bundle id iOS historique reste `com.cedricpineau.midpoint`, le MMKV id est passé à `mivro-storage`.
 - **Sentry `beforeSend`** : scrubbing obligatoire des coordonnées GPS / emails / tokens (`sanitizers.ts`) — RGPD.
+- **i18n clés mortes** : les messages `errors.geocode_*` existaient en FR/EN mais n'étaient jamais utilisés (l'UI affichait `noResults`). Penser à vérifier que les clés d'erreur sont bien câblées à l'UI.
+- **Fallback silencieux trompeur** : `GetCurrentLocationUseCase` masquait l'échec du reverse geocode derrière une adresse « lat, lon ». Un use case qui « dégrade » doit **remonter le fait** (drapeau) pour que l'UI puisse informer l'utilisateur.

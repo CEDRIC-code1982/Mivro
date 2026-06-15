@@ -8,16 +8,16 @@ Ordre d'exécution recommandé : Fix QA P1 → F7 → F4 → F5 → F8 → F6 �
 
 ---
 
-## P0 — Fix QA P1 (accessibilité & robustesse)
+## P0 — Fix QA P1 (accessibilité & robustesse) — ✅ FAIT (2026-06-15)
 
 _Estimation : S (M pour VoiceOver). Dépendances : aucune. Blockers : aucun._
 
-- [ ] **VoiceOver Map** : annoncer la carte (`accessibilityLabel`) + rendre le bouton « Vue liste » accessible (A11Y-003/006)
-- [ ] **Layout texte 200 %** : corriger les cassures de mise en page (A11Y-004)
-- [ ] **Erreur réseau Nominatim** : distinguer « erreur réseau » de « aucun résultat » (ERR-001/003)
-- [ ] **EmptyState caché** : « aucun résultat » masqué par un autre texte → fixer z-index / layout
-- [ ] **GPS mode avion** : afficher une erreur si le reverse geocode échoue (ERR-001)
-- [ ] Mettre à jour PROGRESS.md + cocher ici + commit
+- [x] **VoiceOver Map** : carte annoncée (`SessionMapView` accessible + `accessibilityLabel` résumant la session) + hint « Vue liste » clarifié (A11Y-003/006)
+- [x] **Erreur réseau Nominatim** : `AddressAutocomplete` mappe `network`/`rate_limited`/`server_error` vers les messages dédiés (au lieu de « aucun résultat ») (ERR-001/003)
+- [x] **GPS mode avion** : `GetCurrentLocationUseCase` renvoie `addressResolved`; le flux affiche une **notice non-bloquante** « Adresse non résolue (hors ligne) » et ajoute quand même le point (ERR-001)
+- [x] **EmptyState caché** : backdrop autocomplete renforcé (0.5 → 0.7) + corps du sheet en `flex:1`. ⚠️ **À re-vérifier sur device** (repro visuelle non observable hors device)
+- [x] **Layout texte 200 %** : passe défensive sur le compteur F1 (`flexWrap`). ⚠️ **À re-vérifier sur device** — écran de casse non pinpointé par le QA ; étendre si d'autres écrans cassent
+- [x] Docs mises à jour (PROGRESS.md + TODO.md) — commit `fix(qa-p1)`
 
 ---
 
@@ -124,6 +124,8 @@ _Estimation : L. Dépendances : comptes stores._
 
 ## Dette technique connue
 
+- [ ] **POI rayon géant** (ex: Paris + Tokyo) : la requête Overpass `(around:RAYON_ÉNORME)` fait timeout/erreur → `POIListView` affiche « Erreur inattendue » au lieu d'un EmptyState. Découvert au QA (Pacifique). À traiter : borner le rayon POI ou mapper le timeout vers un message dédié. (P2)
+- [ ] **Layout 200 % / EmptyState autocomplete** : fixes défensifs posés mais **non vérifiés sur device** — re-tester en Dynamic Type 200 % et recherche sans résultat.
 - [ ] **Coverage non mesurée** : `coverage/coverage-summary.json` absent → lancer `npm run test:coverage` et reporter les chiffres dans PROGRESS.md.
 - [ ] **Atoms manquants** : `Button`, `Input`, `IconButton`, `Card`, `Spinner` n'existent pas — à créer via skill `create-atom` quand une feature les requiert.
 - [ ] **Ports placeholders** : dossiers `infrastructure/{realtime,eta,analytics}` vides — à remplir (F4 / V1 / PostHog).

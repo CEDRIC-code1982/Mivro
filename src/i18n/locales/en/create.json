@@ -33,6 +33,9 @@
     "continue": "Continue",
     "continueDisabled": "Add at least 2 points to continue"
   },
+  "notices": {
+    "gps_address_unresolved": "Point added. Address could not be resolved (offline), GPS coordinates used."
+  },
   "midpointErrors": {
     "no_session": "No active session.",
     "too_few_participants": "At least 2 points required.",

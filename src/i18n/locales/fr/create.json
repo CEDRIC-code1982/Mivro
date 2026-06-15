@@ -33,6 +33,9 @@
     "continue": "Continuer",
     "continueDisabled": "Ajoute au moins 2 points pour continuer"
   },
+  "notices": {
+    "gps_address_unresolved": "Point ajouté. Adresse non résolue (hors ligne), coordonnées GPS utilisées."
+  },
   "midpointErrors": {
     "no_session": "Aucune session active.",
     "too_few_participants": "Il faut au moins 2 points.",

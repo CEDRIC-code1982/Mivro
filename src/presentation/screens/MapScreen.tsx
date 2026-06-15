@@ -97,6 +97,9 @@ const MapScreen: React.FC = () => {
         participants={session.participants}
         midpoint={session.midpoint}
         radius={session.midpointRadius}
+        accessibilityLabel={t('accessibility.mapLabel', {
+          participantCount: session.participants.length,
+        })}
         testID="map-session"
       />
 
@@ -125,7 +128,7 @@ const MapScreen: React.FC = () => {
               ]}
               accessibilityRole="button"
               accessibilityLabel={t('actions.viewList')}
-              accessibilityHint={t('list.title')}
+              accessibilityHint={t('accessibility.viewListHint')}
               testID="map-btn-list"
             >
               <Text variant="small" weight="semibold" color="brand">

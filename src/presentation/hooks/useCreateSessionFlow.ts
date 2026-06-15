@@ -66,6 +66,14 @@ export type AddPointError =
   | { code: 'unknown'; message: string };
 
 /**
+ * Notice non-bloquante lors de l'ajout d'un point (information, pas erreur).
+ * Non-blocking notice when adding a point (informational, not an error).
+ */
+export type AddPointNotice =
+  /** Point ajouté mais adresse non résolue (reverse geocode hors ligne) */
+  { code: 'gps_address_unresolved' };
+
+/**
  * Résultat du hook useCreateSessionFlow.
  * useCreateSessionFlow hook result.
  *
@@ -96,6 +104,8 @@ export interface UseCreateSessionFlowResult {
   isAddingByGps: boolean;
   /** Erreur GPS de la dernière action / GPS error from last action */
   gpsError: AddPointError | null;
+  /** Notice non-bloquante de la dernière action GPS / Non-blocking notice from last GPS action */
+  gpsNotice: AddPointNotice | null;
   /** Ajoute un point via résultat de geocode / Add point from geocode result */
   addByGeocode: (result: GeocodeResult, displayName?: string) => void;
   /** Ajoute un point via position GPS courante / Add point from current GPS position */
@@ -123,6 +133,8 @@ export const useCreateSessionFlow = (): UseCreateSessionFlowResult => {
   // [ADDED] État local GPS
   const [isAddingByGps, setIsAddingByGps] = useState(false);
   const [gpsError, setGpsError] = useState<AddPointError | null>(null);
+  // [FIXED P1] Notice non-bloquante (ex: adresse non résolue hors ligne)
+  const [gpsNotice, setGpsNotice] = useState<AddPointNotice | null>(null);
 
   // [ADDED] Initialiser la session si elle n'existe pas
   useEffect(() => {
@@ -202,10 +214,11 @@ export const useCreateSessionFlow = (): UseCreateSessionFlowResult => {
 
       setIsAddingByGps(true);
       setGpsError(null);
+      setGpsNotice(null);
 
       try {
         const { getCurrentLocationUseCase } = getContainer();
-        const location = await getCurrentLocationUseCase.execute({
+        const { location, addressResolved } = await getCurrentLocationUseCase.execute({
           language: 'fr', // TODO V1 : utiliser la langue courante de i18n
         });
 
@@ -213,6 +226,11 @@ export const useCreateSessionFlow = (): UseCreateSessionFlowResult => {
           displayName: displayName?.trim() || generateDefaultName(),
           startLocation: location,
         });
+
+        // [FIXED P1] Adresse non résolue (hors ligne) → notice non-bloquante
+        if (!addressResolved) {
+          setGpsNotice({ code: 'gps_address_unresolved' });
+        }
 
         console.log(
           `[INFO][useCreateSessionFlow][addByGps][?][${new Date().toISOString().slice(11, 19)}] ` +
@@ -262,6 +280,7 @@ export const useCreateSessionFlow = (): UseCreateSessionFlowResult => {
   const reset = useCallback((): void => {
     resetSession();
     setGpsError(null);
+    setGpsNotice(null);
   }, [resetSession]);
 
   return {
@@ -272,6 +291,7 @@ export const useCreateSessionFlow = (): UseCreateSessionFlowResult => {
     remainingMin,
     isAddingByGps,
     gpsError,
+    gpsNotice,
     addByGeocode,
     addByGps,
     removeParticipant,

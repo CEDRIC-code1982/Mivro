@@ -26,6 +26,10 @@
     "midpoint": "Point de rencontre",
     "close": "Fermer"
   },
+  "accessibility": {
+    "mapLabel": "Carte du point de rencontre avec {{participantCount}} participants. Touchez « Vue liste » pour consulter le détail en texte.",
+    "viewListHint": "Affiche les participants et le point de rencontre sous forme de liste textuelle"
+  },
   "errors": {
     "mapLoadFailed": "Impossible de charger la carte. Vérifie ta connexion.",
     "unknown": "Erreur inattendue."

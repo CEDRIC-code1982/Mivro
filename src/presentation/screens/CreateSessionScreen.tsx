@@ -49,6 +49,7 @@ const CreateSessionScreen: React.FC = () => {
     remainingMin,
     isAddingByGps,
     gpsError,
+    gpsNotice,
     addByGeocode,
     addByGps,
     removeParticipant,
@@ -110,6 +111,22 @@ const CreateSessionScreen: React.FC = () => {
     );
   };
 
+  /**
+   * Rendu de la notice GPS non-bloquante (information, pas erreur).
+   * Renders the non-blocking GPS notice (informational, not an error).
+   */
+  const renderGpsNotice = () => {
+    if (gpsNotice == null) return null;
+
+    return (
+      <View style={styles.noticeCard} testID="create-gps-notice">
+        <Text variant="small" color="secondary">
+          {t(`notices.${gpsNotice.code}`)}
+        </Text>
+      </View>
+    );
+  };
+
   return (
     <Screen background="primary" scrollable testID="create-screen">
       {/* [ADDED] Header */}
@@ -136,6 +153,9 @@ const CreateSessionScreen: React.FC = () => {
 
       {/* [ADDED] Erreur GPS */}
       {renderGpsError()}
+
+      {/* [FIXED P1] Notice GPS non-bloquante (adresse non résolue hors ligne) */}
+      {renderGpsNotice()}
 
       {/* [FIXED P0-4] Liste des participants — View+map au lieu de FlatList */}
       <View style={styles.listSection}>
@@ -216,6 +236,10 @@ const buildStyles = (theme: Theme) =>
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
+      // [FIXED P1] Autorise le passage à la ligne en Dynamic Type 200% (A11Y-004)
+      flexWrap: 'wrap',
+      columnGap: theme.spacing.md,
+      rowGap: theme.spacing.xxs,
       marginBottom: theme.spacing.md,
     },
     listSection: {
@@ -231,6 +255,15 @@ const buildStyles = (theme: Theme) =>
       borderRadius: theme.radius.md,
       borderWidth: 1,
       borderColor: theme.color.interactive.danger.default,
+    },
+    // [FIXED P1] Notice non-bloquante — style info neutre (pas erreur)
+    noticeCard: {
+      marginTop: theme.spacing.sm,
+      padding: theme.spacing.md,
+      backgroundColor: theme.color.surface.secondary,
+      borderRadius: theme.radius.md,
+      borderWidth: 1,
+      borderColor: theme.color.border.default,
     },
     footer: {
       marginTop: theme.spacing.xl,
