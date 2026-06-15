@@ -6,7 +6,7 @@
 
 # Ne pas modifier sans créer un ADR correspondant.
 
-# Version 8.1 — Mai 2026
+# Version 8.2 — Juin 2026 (ajout : mode autonomie, roadmap détaillée, auto-maintenance docs)
 
 ## PROJET
 
@@ -16,6 +16,29 @@ Stack : React Native 0.85.2 + TypeScript strict + New Architecture ON
 Phase actuelle : PHASE 1 — Mobile iOS + Android (MVP)
 Architecture : Clean Architecture + Ports/Adapters
 Doc : Docusaurus + TypeDoc → docs-site/
+
+### Contexte d'ingénierie (lire en début de session)
+
+- `docs/context/ARCHITECTURE.md` — architecture réelle du code (couches, entités, ports, stores, composants)
+- `docs/context/PROGRESS.md` — historique des sprints, commits, métriques, pièges rencontrés
+- `docs/context/TODO.md` — tâches restantes priorisées (P0→P3), dette technique, décisions en attente
+
+---
+
+## MODE DE TRAVAIL (AUTONOMIE)
+
+Objectif : maximiser l'autonomie de Claude Code, minimiser les allers-retours.
+
+- Tu **enchaînes les étapes** d'une feature automatiquement (entité → port → usecase → adapter → hook → UI → i18n → DI → tests → docs).
+- Tu **modifies / ajoutes / supprimes** des fichiers SANS demander, tant que tu respectes les règles bloquantes ci-dessous.
+- En cas d'erreur de build/test, tu **tentes un fix automatique jusqu'à 2 fois** avant de signaler.
+- Tu **PAUSES** uniquement si :
+  - une décision produit / architecture est ambiguë ;
+  - une feature nécessite un secret, un compte ou un fichier externe que tu ne peux pas créer (ex : Firebase, Apple/Google dev, clé API prod) — voir ⚠️ PAUSE OBLIGATOIRE dans la roadmap ;
+  - tu n'es pas certain d'une convention Claude Code → recherche web doc officielle Anthropic, sinon demande.
+- Si une spec manque → ajoute un TODO explicite « ⚠️ À SPÉCIFIER AVEC CÉDRIC » plutôt que d'inventer.
+- Si tu détectes une incohérence dans les specs → signale-la.
+- À la fin de chaque feature : **résumé + mise à jour des docs (voir AUTO-MAINTENANCE) + commit**.
 
 ---
 
@@ -141,6 +164,8 @@ src/
 ├── __tests__/            # unit | integration | e2e
 └── docs-site/            # Docusaurus + TypeDoc
 ```
+
+> Détail à jour de l'arborescence réelle, des entités/ports/usecases/stores/hooks/composants existants : voir `docs/context/ARCHITECTURE.md`.
 
 ---
 
@@ -364,7 +389,128 @@ Alternatives écartées : Avec raisons
 
 ---
 
-## ROADMAP
+## ROADMAP COMPLÈTE (jusqu'à finalisation MVP)
+
+### ✅ Fait
+
+| Sprint | Livrable                                                     | Commit(s) clés                          |
+| ------ | ------------------------------------------------------------ | --------------------------------------- |
+| S01-02 | Setup RN, navigation, stores Zustand+MMKV, Sentry            | `7cdacc9` `c8dcb29` `a1065f2` `0e92689` |
+| S03-04 | Geocoding Nominatim + Geolocation GPS + reverse              | `593ae51` `1ff8ad6`                     |
+| F1     | Saisie 2-5 points + autocomplete + GPS (CreateSessionScreen) | `0e2db7c`                               |
+| F2     | Midpoint (centroïde + rayon) + carte react-native-maps       | `cf70fce` `eb022c9`                     |
+| F3     | POI Overpass + écran liste/carte toggle                      | `0bca95f` `4804539`                     |
+| QA P0  | Fix 7 bugs critiques device QA                               | `f520911`                               |
+
+Atoms livrés : `Text`, `Screen`, `TabBarIcon`, `CategoryChip`
+Molecules livrés : `ParticipantCard`, `EmptyState`, `AddressAutocomplete`, `SessionMapView`, `POICard`, `POIDetailSheet`, `POIListView`, `POIMapView`, `POIScreenHeader`
+
+> ⚠️ Divergence à corriger : le README/anciennes notes mentionnaient des atoms `Button`/`Input`/`IconButton`/`Card`/`Spinner` — **ils n'existent pas encore**. À créer au besoin via le skill `create-atom`.
+
+### 🔜 Sprint en cours / suivant — Fix QA P1 (S09 amont)
+
+Priorité immédiate avant les nouvelles features. Détails dans le backlog ci-dessous (#Fix QA P1).
+
+### 📋 Backlog priorisé
+
+Ordre recommandé : **Fix QA P1 → F7 → F4 → F5 → F8 → F6 → ADR → PostHog → Beta**.
+Pour chaque feature : objectif · couches · composants · dépendances · décisions tranchées · done · complexité.
+
+---
+
+#### Fix QA P1 — Accessibilité & robustesse
+
+- **Objectif** : corriger les 5 bugs P1 du QA device.
+- **Couches** : presentation (a11y, layout), infrastructure (mapping erreurs réseau).
+- **Tâches** :
+  - VoiceOver Map : annoncer la carte (`accessibilityLabel`) + rendre le bouton "Vue liste" accessible (A11Y-003/006).
+  - Layout texte 200% : fixer les cassures de mise en page (A11Y-004).
+  - Message erreur réseau Nominatim : distinguer "erreur réseau" de "aucun résultat" (ERR-001/003).
+  - EmptyState "aucun résultat" caché par un autre texte → fixer z-index / layout.
+  - GPS mode avion : afficher une erreur si le reverse geocode échoue (ERR-001).
+- **Done** : les 5 points validés, `npm run check` vert, cas testés.
+- **Complexité** : S (M pour VoiceOver Map).
+
+#### F7 — Profil
+
+- **Objectif** : permettre à l'user de personnaliser son identité. `ProfileScreen.tsx` (232 l.) existe déjà → enrichir, pas créer de zéro.
+- **Couches** : presentation (principalement) + `UpdateProfileUseCase` (core).
+- **Composants à créer** : grille avatars (atom/molecule), intégration photo picker, édition `displayName`.
+- **Avatar** : grille de 20 avatars prédéfinis (SVG ou emoji-based).
+- **Photo** : photo picker (`react-native-image-picker`), resize 200×200, stockée FileSystem (cf. STORAGE).
+- **Nom** : édition `displayName` → update `useAuthStore`.
+- **Dépendances** : `react-native-image-picker` (permissions caméra/galerie iOS + Android).
+- **Décisions tranchées** : avatars prédéfinis EN PLUS de la photo optionnelle.
+- **Done** : profil éditable, persisté MMKV, avatar affiché dans `ParticipantCard`.
+- **Complexité** : M.
+
+#### F4 — Temps réel Firebase (S09-10)
+
+- **Objectif** : voir les positions GPS live des participants sur la carte.
+- **Couches** : core (`IRealtimeService` port + `TrackParticipantsUseCase` + entité `RealtimeParticipant`), infrastructure (`FirebaseRealtimeService` → `src/infrastructure/realtime/`), presentation (`useRealtimeStore`).
+- **Store** : `useRealtimeStore` (Zustand, **NON persisté** — RGPD).
+- **Dépendances** : `@react-native-firebase/app` + `@react-native-firebase/database`.
+- **Décisions tranchées** : Realtime Database (pas Firestore) pour le MVP ; positions éphémères ; TTL court ; suppression en fin de session ; opti batterie (5s en mouvement / 30s à l'arrêt / off en background — cf. LOCALISATION TEMPS RÉEL).
+- **Done** : 2 devices voient leurs positions bouger en temps réel ; vue liste a11y alternative (A11Y-006).
+- **Complexité** : L.
+- **⚠️ PAUSE OBLIGATOIRE** : nécessite création projet Firebase + `GoogleService-Info.plist` (iOS) et `google-services.json` (Android). → Demander à Cédric avant d'implémenter l'adapter.
+
+#### F5 — Partage deep link (S11)
+
+- **Objectif** : inviter des amis à rejoindre une session.
+- **Couches** : core (`ShareSessionUseCase`), presentation (config navigation + UI partage).
+- **Deep linking** : scheme `mivro://` + universal links ; config `@react-navigation` linking.
+- **Décisions tranchées** : lien valide 24h (guest) / 7j (compte) — cf. RGPD.
+- **Done** : ouvrir `mivro://session/{id}` rejoint la session.
+- **Complexité** : M.
+
+#### F8 — Biométrie (S12)
+
+- **Objectif** : protéger l'accès au compte par Face ID / Touch ID.
+- **Couches** : presentation (toggle Profile, unlock au lancement) + `usePreferencesStore` (flag biométrie).
+- **Dépendances** : `react-native-keychain` (déjà prévu) + `biometryType`.
+- **Décisions tranchées** : opt-in ; compte requis (pas guest).
+- **Done** : toggle dans Profile, déverrouillage biométrique au lancement.
+- **Complexité** : S.
+
+#### F6 — Auth Google / Apple
+
+- **Objectif** : connexion via Google / Apple Sign-In. Signatures no-op déjà présentes dans `useAuthStore`.
+- **Couches** : presentation + `useAuthStore` + éventuel usecase d'auth.
+- **Dépendances** : `@react-native-google-signin/google-signin` + `@invertase/react-native-apple-authentication`.
+- **Décisions tranchées** : guest-first conservé (cf. ADR-004) ; auth optionnelle.
+- **Done** : login Google + Apple fonctionnels, état persisté.
+- **Complexité** : M.
+- **⚠️ PAUSE OBLIGATOIRE** : comptes développeur requis (Google Cloud OAuth client + Apple Developer / Sign in with Apple capability).
+
+#### ADR rattrapage
+
+- **Objectif** : documenter rétroactivement les décisions déjà prises. **ADR-011 existe déjà** ; il manque **ADR-001 → ADR-010** (référencés dans la section DOCUMENTATION).
+- **À écrire** : ADR-001 Nominatim vs Google, ADR-002 Clean Architecture, ADR-003 Expo vs RN CLI, ADR-004 Guest-first auth, ADR-005 Zustand vs Redux, ADR-006 Firebase Realtime, ADR-007 New Architecture, ADR-008 MMKV, ADR-009 External APIs scaling, ADR-010 Sentry+PostHog.
+- **Format** : voir DOCUMENTATION > Format ADR. Emplacement `docs-site/docs/adr/`.
+- **Done** : `npm run docs` passe ; chaque ADR au format imposé.
+- **Complexité** : M (rédaction).
+
+#### PostHog analytics
+
+- **Objectif** : analytics produit RGPD-compliant.
+- **Couches** : core (`IAnalyticsService` port), infrastructure (`PostHogAnalytics` → `src/infrastructure/analytics/`), presentation (opt-out dans `usePreferencesStore`).
+- **Décisions tranchées** : auto-hébergé (VPS, données EU) ; JAMAIS de GPS exact / identités / contenus ; opt-out respecté.
+- **Done** : events feature-usage trackés, opt-out fonctionnel.
+- **Complexité** : M.
+- **⚠️ PAUSE OBLIGATOIRE** : setup infra serveur (instance PostHog auto-hébergée + clé projet).
+
+#### TestFlight + Play Beta (S12)
+
+- **Objectif** : distribution beta iOS + Android.
+- **Tâches** : clé API Google Maps Android production, build signing, provisioning profiles, upload stores.
+- **Done** : build distribuable sur TestFlight + Play Console (piste interne), coverage global ≥ 70%.
+- **Complexité** : L.
+- **⚠️ PAUSE OBLIGATOIRE** : secrets de signing + clés API prod.
+
+---
+
+## ROADMAP MACRO (post-MVP — référence)
 
 ### Phase 1 MVP (S01-S12)
 
@@ -393,6 +539,18 @@ watchOS + WearOS (ADR obligatoire avant)
 ### Phase 5
 
 Monétisation
+
+---
+
+## AUTO-MAINTENANCE DES DOCS (RÈGLE)
+
+À la fin de CHAQUE sprint / feature, tu DOIS — et ces updates font partie du **commit de la feature** :
+
+1. **`docs/context/PROGRESS.md`** — ajouter ce qui a été livré (fichiers clés, tests, commit hash).
+2. **`docs/context/TODO.md`** — cocher le fait, ajouter les découvertes / nouvelles tâches / blockers.
+3. **`docs/context/ARCHITECTURE.md`** — mettre à jour si nouveaux patterns / composants / ports / stores.
+4. **CLAUDE.md > ROADMAP > ✅ Fait** — déplacer la feature terminée depuis le backlog.
+5. Si décision d'architecture prise → **nouvel ADR** dans `docs-site/docs/adr/` (DOC-003).
 
 ---
 
