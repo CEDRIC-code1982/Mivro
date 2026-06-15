@@ -175,7 +175,19 @@ jest.mock('@gorhom/bottom-sheet', () => {
     BottomSheetTextInput: React.forwardRef((props, ref) =>
       React.createElement(TextInput, { ...props, ref }),
     ),
-    BottomSheetFlatList: View,
+    // [FIXED P1] Rend réellement data/renderItem (comme un FlatList) pour les tests
+    BottomSheetFlatList: ({ data, renderItem, keyExtractor, ...rest }) =>
+      React.createElement(
+        View,
+        rest,
+        (data || []).map((item, index) =>
+          React.createElement(
+            View,
+            { key: keyExtractor ? keyExtractor(item, index) : index },
+            renderItem({ item, index }),
+          ),
+        ),
+      ),
     BottomSheetScrollView: View,
     BottomSheetBackdrop: View,
     BottomSheetHandle: View,

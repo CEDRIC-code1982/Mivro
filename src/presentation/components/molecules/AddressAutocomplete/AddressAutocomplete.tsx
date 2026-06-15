@@ -23,6 +23,7 @@
 import {
   BottomSheetBackdrop,
   type BottomSheetBackdropProps,
+  BottomSheetFlatList,
   BottomSheetModal,
   BottomSheetTextInput,
   BottomSheetView,
@@ -30,15 +31,7 @@ import {
 import { AlertCircle, MapPin, Search } from 'lucide-react-native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  ActivityIndicator,
-  FlatList,
-  Keyboard,
-  Pressable,
-  StyleSheet,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import type { GeocodeResult } from '@core/entities/GeocodeResult';
 import { GeocodeError } from '@core/ports/IGeocodeService';
 import { useTheme, type Theme } from '@core/theme';
@@ -246,7 +239,9 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     }
 
     return (
-      <FlatList
+      // [FIXED P1] BottomSheetFlatList : se redimensionne avec le sheet quand le
+      // clavier s'ouvre, donc les résultats restent visibles au-dessus du clavier.
+      <BottomSheetFlatList
         data={results}
         keyExtractor={(item) => item.externalId}
         renderItem={({ item }) => (
@@ -257,6 +252,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
           />
         )}
         keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.resultsListContent}
         {...(testID != null && { testID: `${testID}-results-list` })}
       />
     );
@@ -450,6 +446,10 @@ const buildStyles = (theme: Theme) =>
     // [FIXED P1] Corps du sheet (sous l'input) — occupe l'espace restant
     sheetBody: {
       flex: 1,
+    },
+    // [FIXED P1] Padding bas pour que le dernier résultat ne colle pas au clavier
+    resultsListContent: {
+      paddingBottom: theme.spacing.lg,
     },
     sheetInputWrapper: {
       flexDirection: 'row',
