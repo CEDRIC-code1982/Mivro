@@ -20,9 +20,10 @@
 
 // [MODIFIED] Molecule AddressAutocomplete — Phase 6 (bottom sheet ajouté)
 
-import BottomSheet, {
+import {
   BottomSheetBackdrop,
   type BottomSheetBackdropProps,
+  BottomSheetModal,
   BottomSheetTextInput,
   BottomSheetView,
 } from '@gorhom/bottom-sheet';
@@ -123,7 +124,9 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   const [pendingDisplayName, setPendingDisplayName] = useState('');
 
   // [ADDED] Bottom sheet ref + snap points
-  const sheetRef = useRef<BottomSheet>(null);
+  // [FIXED P1] BottomSheetModal (portail) au lieu de BottomSheet pour éviter
+  // que le sheet fermé s'affiche dans le ScrollView de l'écran (champ fantôme).
+  const sheetRef = useRef<BottomSheetModal>(null);
   const snapPoints = useMemo(() => ['50%', '90%'], []);
 
   // [ADDED] TanStack Query pour l'autocomplete
@@ -134,7 +137,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
    * Opens the bottom sheet on address input focus.
    */
   const handleAddressFocus = useCallback(() => {
-    sheetRef.current?.snapToIndex(0);
+    sheetRef.current?.present();
     console.log(
       `[INFO][AddressAutocomplete][onFocus][?][${new Date().toISOString().slice(11, 19)}] ` +
         'Bottom sheet opened',
@@ -169,7 +172,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   const handleSelectResult = useCallback(
     (result: GeocodeResult) => {
       onSelectResult(result, pendingDisplayName || undefined);
-      sheetRef.current?.close();
+      sheetRef.current?.dismiss();
       setQuery('');
       Keyboard.dismiss();
       console.log(
@@ -328,16 +331,17 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       </View>
 
       {/* [ADDED] Bottom Sheet — autocomplete résultats */}
-      <BottomSheet
+      {/* [FIXED P1] BottomSheetModal : présenté/dismissé via present()/dismiss(),
+          rendu en overlay racine (plus de champ fantôme dans le ScrollView). */}
+      <BottomSheetModal
         ref={sheetRef}
-        index={-1}
         snapPoints={snapPoints}
         enablePanDownToClose
         keyboardBehavior="extend"
         keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"
         backdropComponent={renderBackdrop}
-        onClose={handleCloseSheet}
+        onDismiss={handleCloseSheet}
         backgroundStyle={styles.sheetBackground}
         handleIndicatorStyle={styles.sheetHandle}
         {...(testID != null && { testID: `${testID}-bottom-sheet` })}
@@ -366,7 +370,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
               propre du sheet, sans superposition avec l'input ni le fond. */}
           <View style={styles.sheetBody}>{renderSheetContent()}</View>
         </BottomSheetView>
-      </BottomSheet>
+      </BottomSheetModal>
     </>
   );
 };

@@ -12,6 +12,7 @@
 import '@/i18n';
 
 // [MODIFIED] Added bootstrap with DI container + encryption key
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet'; // [FIXED P1]
 import { NavigationContainer } from '@react-navigation/native';
 import { QueryClientProvider } from '@tanstack/react-query'; // [ADDED]
 import React, { useEffect, useState } from 'react';
@@ -64,9 +65,13 @@ const AppContent: React.FC = () => {
         <AppErrorBoundary>
           {/* [ADDED] QueryClientProvider — TanStack Query pour geocoding + futures queries */}
           <QueryClientProvider client={getContainer().queryClient}>
-            <NavigationContainer>
-              <RootNavigator />
-            </NavigationContainer>
+            {/* [FIXED P1] BottomSheetModalProvider — rend les sheets en overlay racine
+                (portail) plutôt que dans le flux d'un ScrollView (champ fantôme F1). */}
+            <BottomSheetModalProvider>
+              <NavigationContainer>
+                <RootNavigator />
+              </NavigationContainer>
+            </BottomSheetModalProvider>
           </QueryClientProvider>
         </AppErrorBoundary>
       </SafeAreaProvider>

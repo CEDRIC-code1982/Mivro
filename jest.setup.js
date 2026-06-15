@@ -146,9 +146,30 @@ jest.mock('@gorhom/bottom-sheet', () => {
     );
   });
   BottomSheet.displayName = 'BottomSheet';
+  // [FIXED P1] BottomSheetModal — version portail (rend les enfants en continu pour les tests)
+  const BottomSheetModal = React.forwardRef((props, ref) => {
+    const { children, backdropComponent: BackdropComp, ...viewProps } = props;
+    React.useImperativeHandle(ref, () => ({
+      present: jest.fn(),
+      dismiss: jest.fn(),
+      snapToIndex: jest.fn(),
+      close: jest.fn(),
+      expand: jest.fn(),
+      collapse: jest.fn(),
+    }));
+    return React.createElement(
+      View,
+      viewProps,
+      BackdropComp != null ? React.createElement(BackdropComp, { testID: 'mock-backdrop' }) : null,
+      children,
+    );
+  });
+  BottomSheetModal.displayName = 'BottomSheetModal';
   return {
     __esModule: true,
     default: BottomSheet,
+    BottomSheetModal,
+    BottomSheetModalProvider: ({ children }) => React.createElement(View, null, children),
     BottomSheetView: ({ children, style, testID }) =>
       React.createElement(View, { style, testID }, children),
     BottomSheetTextInput: React.forwardRef((props, ref) =>
@@ -159,6 +180,7 @@ jest.mock('@gorhom/bottom-sheet', () => {
     BottomSheetBackdrop: View,
     BottomSheetHandle: View,
     useBottomSheet: () => ({ close: jest.fn(), expand: jest.fn(), snapToIndex: jest.fn() }),
+    useBottomSheetModal: () => ({ dismiss: jest.fn(), dismissAll: jest.fn() }),
   };
 });
 

@@ -252,14 +252,17 @@ const buildStyles = (theme: Theme, bottomInset: number) =>
       gap: theme.spacing.xs,
       ...theme.elevation.lg,
     },
+    // [FIXED P1] Boutons empilés verticalement : le libellé long « Voir les
+    // lieux à proximité » ne déborde plus et le layout tient en Dynamic Type 200%.
     actionsRow: {
-      flexDirection: 'row',
+      flexDirection: 'column',
       gap: theme.spacing.sm,
       marginTop: theme.spacing.sm,
     },
     actionButton: {
-      flex: 1,
+      alignSelf: 'stretch',
       paddingVertical: theme.spacing.md,
+      paddingHorizontal: theme.spacing.md,
       borderRadius: theme.radius.md,
       minHeight: theme.touchTarget.min,
       justifyContent: 'center',
