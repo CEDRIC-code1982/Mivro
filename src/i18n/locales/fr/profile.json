@@ -10,6 +10,40 @@
     "light": "Clair",
     "dark": "Sombre"
   },
+  "displayName": {
+    "label": "Nom affiché",
+    "placeholder": "Ton nom",
+    "hint": "Saisis le nom visible par les autres participants",
+    "error": "Le nom doit contenir entre 1 et 50 caractères",
+    "save": "Enregistrer le nom",
+    "saveHint": "Met à jour ton nom affiché"
+  },
+  "avatarPicker": {
+    "label": "Choisis ton avatar",
+    "selectHint": "Sélectionne l'avatar {{name}}"
+  },
+  "avatarNames": {
+    "fox": "Renard",
+    "cat": "Chat",
+    "dog": "Chien",
+    "panda": "Panda",
+    "koala": "Koala",
+    "lion": "Lion",
+    "tiger": "Tigre",
+    "bear": "Ours",
+    "frog": "Grenouille",
+    "owl": "Hibou",
+    "penguin": "Pingouin",
+    "rabbit": "Lapin",
+    "unicorn": "Licorne",
+    "dragon": "Dragon",
+    "octopus": "Pieuvre",
+    "whale": "Baleine",
+    "butterfly": "Papillon",
+    "robot": "Robot",
+    "alien": "Alien",
+    "ghost": "Fantôme"
+  },
   "actions": {
     "signInGuest": "Continuer en invité",
     "signOut": "Se déconnecter",

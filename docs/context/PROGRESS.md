@@ -1,7 +1,7 @@
 # PROGRESS.md — Mivro
 
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-06-15 (HEAD `f520911`).
+> Dernière mise à jour : 2026-06-20 (F7 Profil passe 1, non commitée).
 
 ## Tableau des sprints
 
@@ -15,8 +15,8 @@
 | S05-06 (F2)    | 2026-05-08         | ✅ Fait    | `cf70fce` `eb022c9`           |
 | S07-08 (F3)    | 2026-05-10 → 05-11 | ✅ Fait    | `0bca95f` `4804539`           |
 | QA P0          | 2026-05-25         | ✅ Fait    | `f520911`                     |
-| QA P1          | 2026-06-15         | ✅ Fait    | `fix(qa-p1)` (en cours)       |
-| F7 Profil      | —                  | 📋 Backlog | —                             |
+| QA P1          | 2026-06-15         | ✅ Fait    | `786a4e9` `ed7b0ee` `c01e29c` |
+| F7 Profil (P1) | 2026-06-20         | ✅ Fait\*  | non commité                   |
 | F4 Temps réel  | —                  | 📋 Backlog | —                             |
 | F5 Partage     | —                  | 📋 Backlog | —                             |
 | F8 Biométrie   | —                  | 📋 Backlog | —                             |
@@ -24,6 +24,8 @@
 | ADR rattrapage | —                  | 📋 Backlog | —                             |
 | PostHog        | —                  | 📋 Backlog | —                             |
 | Beta           | —                  | 📋 Backlog | —                             |
+
+\*F7 passe 1 livrée/testée/reviewée (APPROVED), pas encore commitée au moment de cette mise à jour. La passe 2 (photo picker, `avatarId` à la création de session) reste à faire — voir TODO.md.
 
 ---
 
@@ -77,6 +79,26 @@
 - **Fichiers clés** : `AddressAutocomplete.tsx`, `SessionMapView.tsx`, `MapScreen.tsx`, `GetCurrentLocationUseCase.ts`, `useCreateSessionFlow.ts`, `CreateSessionScreen.tsx`, i18n `create`/`map`.
 - **Tests** : +8 (network/rate-limited messages, map accessible, addressResolved true/false, gpsNotice). Total 603, `npm run check` vert.
 
+### F7 — Profil, passe 1 (2026-06-20, non commité)
+
+Première passe de la feature Profil : édition du `displayName` + sélection d'un avatar parmi **20 avatars emoji prédéfinis**. Le **photo picker est reporté en passe 2** (étape native, voir TODO).
+
+- **Décision tranchée** : avatars **emoji-based** (pas de SVG vectoriel, pas de dépendance native), rendus via `<Text>` sur un fond coloré tiré de la palette du Design System. Lève la décision en attente « Avatars F7 : SVG ou emoji ». Voir ADR-012.
+- **Core** :
+  - `entities/Avatar.ts` — `AvatarSchema`, `AvatarIdSchema` (enum de 20 ids), liste `AVATARS` (emoji + `backgroundColor` palette), `getAvatarById` (lookup O(1), `safeParse` défensif → `undefined` si id inconnu), types `Avatar` / `AvatarId` / `PredefinedAvatar`.
+  - `usecases/UpdateProfileUseCase.ts` — use case **pur** (pas de port, pas d'effet de bord) : `execute(current, patch)` valide le patch (`UpdateProfileInputSchema` : `displayName` trim 1..50, `avatarId` optionnel) puis re-valide le `User` complet via `UserSchema`. Câblé dans `di/container.ts` (`updateProfileUseCase`).
+  - `entities/User.ts` et `entities/MidpointSession.ts` (participant) portent désormais un `avatarId?` (validé par `AvatarIdSchema`).
+- **Presentation** :
+  - Store : `useAuthStore.updateProfile(input)` (persisté MMKV) délègue à `UpdateProfileUseCase` ; exposé via le hook `useAuth`.
+  - Atom `Avatar` (`atoms/Avatar/`) : rend l'emoji sur fond coloré, ou une initiale en fallback (`fallbackName`).
+  - Molecule `AvatarPicker` (`molecules/AvatarPicker/`) : grille `radiogroup` accessible (A11Y-003).
+  - `ParticipantCard` **refactorée** pour consommer l'atom `Avatar` → déduplication de la logique d'initiale.
+  - `ProfileScreen` enrichi (édition nom + grille avatars).
+- **i18n** : namespace `profile` complété FR + EN (`displayName.*`, `avatarPicker.*`, `avatarNames.*` pour les 20 ids).
+- **Fichiers clés** : `core/entities/Avatar.ts`, `core/usecases/UpdateProfileUseCase.ts`, `core/entities/User.ts`, `core/entities/MidpointSession.ts`, `atoms/Avatar/`, `molecules/AvatarPicker/`, `molecules/ParticipantCard/`, `screens/ProfileScreen.tsx`, `stores/useAuthStore.ts`, `hooks/useAuth.ts`, `di/container.ts`, `i18n/locales/{fr,en}/profile.json`.
+- **Tests** : 7 fichiers touchés (~80 cas) — nouveaux : `Avatar.test.ts` (entité), `UpdateProfileUseCase.test.ts`, `Avatar.test.tsx` (atom), `AvatarPicker.test.tsx`, `ProfileScreen.test.tsx` (intégration) ; modifiés : `ParticipantCard.test.tsx`, `useAuthStore.test.ts`. `npm run check` vert (**661 tests**), seuils de coverage respectés.
+- **Reporté en passe 2** : photo picker (`react-native-image-picker` — npm install + pod install + permissions Info.plist/AndroidManifest) ; `avatarId` ajouté à `Participant` mais **pas encore peuplé** à la création de session (`useCreateSessionFlow`) — `ParticipantCard` l'affichera dès qu'il sera fourni.
+
 ---
 
 ## Historique des commits (annoté)
@@ -104,23 +126,25 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 
 ---
 
-## Métriques actuelles (2026-06-15)
+## Métriques actuelles (2026-06-20)
 
 | Métrique                           | Valeur                    |
 | ---------------------------------- | ------------------------- |
-| Fichiers code (`src/`, hors tests) | 91                        |
-| Fichiers de tests                  | 52                        |
-| Entités core                       | 6                         |
+| Fichiers code (`src/`, hors tests) | 94                        |
+| Fichiers de tests                  | 57                        |
+| Tests (cas) — `npm run check`      | 661                       |
+| Entités core                       | 7 (+`Avatar`)             |
 | Ports                              | 5                         |
-| Use cases                          | 5                         |
+| Use cases                          | 6 (+`UpdateProfile`)      |
 | Adapters infrastructure            | 5 (+3 placeholders vides) |
 | Stores Zustand                     | 3                         |
 | Hooks custom                       | 7                         |
-| Atoms / Molecules / Templates      | 4 / 9 / 1                 |
+| Atoms / Molecules / Templates      | 5 / 10 / 1                |
 | Écrans                             | 5                         |
 | Namespaces i18n × langues          | 7 × 2 (FR/EN)             |
 
-> ⚠️ Coverage par couche **non mesurée ici** : `coverage/coverage-summary.json` absent. Lancer `npm run test:coverage` pour les chiffres réels (seuils CI : core 90% / infra 70% / presentation 50% / global 70%).
+> Atoms : +`Avatar`. Molecules : +`AvatarPicker`.
+> ⚠️ Coverage par couche **non mesurée ici** : `coverage/coverage-summary.json` absent. La review F7 indique seuils respectés ; lancer `npm run test:coverage` pour les chiffres réels (seuils CI : core 90% / infra 70% / presentation 50% / global 70%).
 
 ---
 
@@ -134,4 +158,7 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 - **Sentry `beforeSend`** : scrubbing obligatoire des coordonnées GPS / emails / tokens (`sanitizers.ts`) — RGPD.
 - **i18n clés mortes** : les messages `errors.geocode_*` existaient en FR/EN mais n'étaient jamais utilisés (l'UI affichait `noResults`). Penser à vérifier que les clés d'erreur sont bien câblées à l'UI.
 - **Fallback silencieux trompeur** : `GetCurrentLocationUseCase` masquait l'échec du reverse geocode derrière une adresse « lat, lon ». Un use case qui « dégrade » doit **remonter le fait** (drapeau) pour que l'UI puisse informer l'utilisateur.
+- **Avatars emoji plutôt que SVG (F7)** : pour le MVP, des avatars emoji rendus via `<Text>` évitent toute dépendance native / asset bundling, tout en restant accessibles (label par avatar). Décision actée en ADR-012.
+- **Use case pur sans port** : `UpdateProfileUseCase` ne prend aucun port (transformation pure `User + patch → User`). Pas besoin d'injecter un port quand il n'y a pas d'I/O — mais on le câble quand même dans le container pour rester cohérent et faciliter un futur port (ex : sync serveur).
+- **Double validation Zod défensive** : `UpdateProfileUseCase` valide le patch ET re-valide le `User` complet (`UserSchema`) — la discriminated union guest/auth peut casser si on patche naïvement. `getAvatarById` fait du `safeParse` pour tolérer un `avatarId` inconnu venant du storage (robustesse, pas de throw).
 - **`BottomSheet` ≠ `BottomSheetModal`** (@gorhom) : `BottomSheet` n'est PAS un portail — placé dans un `ScrollView`, il se positionne dans le flux du scroll et son contenu « fermé » s'affiche en bas du contenu (champ fantôme F1). Pour un sheet par-dessus un écran scrollable, utiliser `BottomSheetModal` + `BottomSheetModalProvider` (rendu en portail racine). `present()`/`dismiss()` au lieu de `snapToIndex(0)`/`close()`, `onDismiss` au lieu de `onClose`, pas de prop `index`.

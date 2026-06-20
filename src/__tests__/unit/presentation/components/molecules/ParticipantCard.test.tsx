@@ -66,6 +66,26 @@ describe('ParticipantCard', () => {
     expect(getByText('A', { includeHiddenElements: true })).toBeTruthy();
   });
 
+  // [ADDED] F7 — avatar emoji
+  it('renders the avatar emoji when participant has an avatarId', () => {
+    const { getByText, queryByText } = render(
+      <ParticipantCard participant={makeParticipant({ displayName: 'Léa', avatarId: 'fox' })} />,
+    );
+
+    expect(getByText('🦊', { includeHiddenElements: true })).toBeTruthy();
+    // L'initiale ne doit pas être rendue quand un avatar emoji est présent
+    expect(queryByText('L', { includeHiddenElements: true })).toBeNull();
+  });
+
+  // [ADDED] F7 — fallback initiale si avatarId absent
+  it('falls back to the name initial when participant has no avatarId', () => {
+    const { getByText } = render(
+      <ParticipantCard participant={makeParticipant({ displayName: 'Bruno' })} />,
+    );
+
+    expect(getByText('B', { includeHiddenElements: true })).toBeTruthy();
+  });
+
   it('shows remove button when onRemove is provided', () => {
     const onRemove = jest.fn();
     const { getByTestId } = render(

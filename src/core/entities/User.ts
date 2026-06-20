@@ -15,6 +15,7 @@
 
 // [ADDED] Entité User avec discriminated union Zod
 import { z } from 'zod';
+import { AvatarIdSchema } from './Avatar'; // [ADDED] F7 — avatar emoji prédéfini
 
 /**
  * Schéma Zod pour un utilisateur invité.
@@ -24,6 +25,8 @@ export const GuestUserSchema = z.object({
   type: z.literal('guest'),
   id: z.string().uuid(),
   displayName: z.string().min(1).max(50),
+  // [ADDED] F7 — id de l'avatar emoji prédéfini choisi / chosen predefined emoji avatar id
+  avatarId: AvatarIdSchema.optional(),
   createdAt: z.string().datetime(),
 });
 
@@ -36,6 +39,8 @@ export const AuthenticatedUserSchema = z.object({
   id: z.string().uuid(),
   email: z.string().email(),
   displayName: z.string().min(1).max(50),
+  // [ADDED] F7 — id de l'avatar emoji prédéfini choisi / chosen predefined emoji avatar id
+  avatarId: AvatarIdSchema.optional(),
   avatarUrl: z.string().url().optional(),
   provider: z.enum(['google', 'apple']),
   createdAt: z.string().datetime(),

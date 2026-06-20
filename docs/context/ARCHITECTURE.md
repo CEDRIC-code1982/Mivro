@@ -1,7 +1,7 @@
 # ARCHITECTURE.md — Mivro
 
 > Architecture **réelle** du code, explorée depuis le filesystem. Mise à jour à chaque feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière exploration : 2026-06-15 (commit `f520911`).
+> Dernière exploration : 2026-06-20 (F7 Profil passe 1, non commitée).
 
 ## Vue d'ensemble — Clean Architecture + Ports/Adapters
 
@@ -26,7 +26,7 @@
 - `presentation` n'importe JAMAIS `infrastructure` (passe par les ports + le DI container).
 - Le seul point de câblage concret est `src/di/container.ts`.
 
-Compteurs de fichiers (hors `.gitkeep`) : core **28** · infrastructure **15** · presentation **61**. Tests : **55** fichiers.
+Compteurs de fichiers `.ts`/`.tsx` (hors `.gitkeep`) : core **27** · infrastructure **8** · presentation **57**. Tests (`src/__tests__/`, helpers inclus) : **59** fichiers, dont **57** `*.test.ts(x)` (**661** cas, `npm run check` vert au 2026-06-20).
 
 ---
 
@@ -35,9 +35,9 @@ Compteurs de fichiers (hors `.gitkeep`) : core **28** · infrastructure **15** �
 ```
 src/
 ├── core/
-│   ├── entities/        GeocodeResult, Location, MidpointSession, POICategory, PointOfInterest, User (+ index)
+│   ├── entities/        Avatar, GeocodeResult, Location, MidpointSession, POICategory, PointOfInterest, User (+ index)
 │   ├── ports/           ICrashReporter, IGeocodeService, IGeolocationService, IPOIService, IStorageService
-│   ├── usecases/        CalculateMidpoint, CreateGuestUser, GetCurrentLocation, SearchAddress, SearchPOI
+│   ├── usecases/        CalculateMidpoint, CreateGuestUser, GetCurrentLocation, SearchAddress, SearchPOI, UpdateProfile
 │   ├── theme/           tokens.ts, index.ts
 │   └── utils/
 │       ├── geo/         centroid, distance, radius (+ index)
@@ -55,9 +55,9 @@ src/
 │   ├── App.tsx
 │   ├── screens/         CreateSessionScreen, MapScreen, POIScreen, ProfileScreen, SessionsScreen
 │   ├── components/
-│   │   ├── atoms/        Text, Screen, TabBarIcon, CategoryChip
-│   │   ├── molecules/    AddressAutocomplete, EmptyState, POICard, POIDetailSheet, POIListView,
-│   │   │                 POIMapView, POIScreenHeader, ParticipantCard, SessionMapView
+│   │   ├── atoms/        Text, Screen, TabBarIcon, CategoryChip, Avatar
+│   │   ├── molecules/    AddressAutocomplete, AvatarPicker, EmptyState, POICard, POIDetailSheet,
+│   │   │                 POIListView, POIMapView, POIScreenHeader, ParticipantCard, SessionMapView
 │   │   ├── organisms/    (vide)
 │   │   └── templates/    AppErrorBoundary
 │   ├── hooks/           useAuth, useCrashReporter, useCreateSessionFlow, useDebounce,
@@ -75,16 +75,18 @@ src/
 
 ## Entités Core (`src/core/entities/`)
 
-| Entité            | Rôle                                                        |
-| ----------------- | ----------------------------------------------------------- |
-| `Location`        | Coordonnées GPS + adresse formatée                          |
-| `GeocodeResult`   | Résultat brut de géocodage (avant conversion en `Location`) |
-| `MidpointSession` | Session de calcul de midpoint avec participants             |
-| `PointOfInterest` | POI (résultat Overpass)                                     |
-| `POICategory`     | Catégorie de POI (filtres / chips)                          |
-| `User`            | Distingue utilisateur invité (guest) et authentifié         |
+| Entité            | Rôle                                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------------------- |
+| `Avatar`          | Avatar emoji prédéfini (`AvatarSchema`, `AvatarIdSchema` 20 ids, `AVATARS`, `getAvatarById`) — F7 |
+| `Location`        | Coordonnées GPS + adresse formatée                                                                |
+| `GeocodeResult`   | Résultat brut de géocodage (avant conversion en `Location`)                                       |
+| `MidpointSession` | Session de calcul de midpoint avec participants (participant porte `avatarId?`)                   |
+| `PointOfInterest` | POI (résultat Overpass)                                                                           |
+| `POICategory`     | Catégorie de POI (filtres / chips)                                                                |
+| `User`            | Distingue utilisateur invité (guest) et authentifié (+ `avatarId?` — F7)                          |
 
 Toutes les entités sont définies/validées via **Zod** (`z.infer<>` exporté). `index.ts` = barrel d'export.
+`Avatar` n'est PAS une entité persistée comme telle : c'est un **référentiel statique** (20 avatars en dur) + l'enum d'ids (`AvatarId`) référencé par `User.avatarId` et `Participant.avatarId`.
 
 ## Ports (`src/core/ports/`) → Adapters (`src/infrastructure/`)
 
@@ -100,15 +102,17 @@ Toutes les entités sont définies/validées via **Zod** (`z.infer<>` exporté).
 
 ## Use Cases (`src/core/usecases/`)
 
-| Use Case                    | Rôle                                                       |
-| --------------------------- | ---------------------------------------------------------- |
-| `CalculateMidpointUseCase`  | Calcul du midpoint (centroïde + rayon) d'une session       |
-| `CreateGuestUserUseCase`    | Crée un guest user (UUID + displayName généré)             |
-| `GetCurrentLocationUseCase` | Position GPS courante (orchestre géoloc + reverse géocode) |
-| `SearchAddressUseCase`      | Recherche d'adresse (orchestre `IGeocodeService`)          |
-| `SearchPOIUseCase`          | Recherche de POI (orchestre `IPOIService`)                 |
+| Use Case                    | Rôle                                                                        |
+| --------------------------- | --------------------------------------------------------------------------- |
+| `CalculateMidpointUseCase`  | Calcul du midpoint (centroïde + rayon) d'une session                        |
+| `CreateGuestUserUseCase`    | Crée un guest user (UUID + displayName généré)                              |
+| `GetCurrentLocationUseCase` | Position GPS courante (orchestre géoloc + reverse géocode)                  |
+| `SearchAddressUseCase`      | Recherche d'adresse (orchestre `IGeocodeService`)                           |
+| `SearchPOIUseCase`          | Recherche de POI (orchestre `IPOIService`)                                  |
+| `UpdateProfileUseCase`      | Met à jour le profil (`displayName` + `avatarId`) — **pur, sans port** (F7) |
 
 Chaque use case reçoit ses ports par **injection de constructeur** (instancié dans le container).
+Exception : `UpdateProfileUseCase` est une transformation **pure** (`User + patch → User`, validée Zod) sans I/O ni port ; il est tout de même câblé dans le container pour rester homogène et faciliter un futur port (ex : sync serveur).
 
 ## Utils Core (`src/core/utils/`)
 
@@ -121,11 +125,11 @@ Chaque use case reçoit ses ports par **injection de constructeur** (instancié 
 
 ## Stores Zustand (`src/presentation/stores/`)
 
-| Store                 | Persisté ? | Rôle                                             |
-| --------------------- | ---------- | ------------------------------------------------ |
-| `useAuthStore`        | MMKV       | Auth guest-first (guest vs authentifié)          |
-| `usePreferencesStore` | MMKV       | Thème, langue, opt-in analytics (+ biométrie F8) |
-| `useSessionStore`     | non\*      | Session courante : participants, midpoint, POIs  |
+| Store                 | Persisté ? | Rôle                                                                                               |
+| --------------------- | ---------- | -------------------------------------------------------------------------------------------------- |
+| `useAuthStore`        | MMKV       | Auth guest-first (guest vs authentifié) + `updateProfile` (nom/avatar, via `UpdateProfileUseCase`) |
+| `usePreferencesStore` | MMKV       | Thème, langue, opt-in analytics (+ biométrie F8)                                                   |
+| `useSessionStore`     | non\*      | Session courante : participants, midpoint, POIs                                                    |
 
 \*`useRealtimeStore` (F4) sera **non persisté** (RGPD — positions éphémères).
 Persistance via `zustand-mmkv-adapter` (infrastructure) câblé dans le container.
@@ -144,21 +148,23 @@ Persistance via `zustand-mmkv-adapter` (infrastructure) câblé dans le containe
 
 ## Atomic Design (`src/presentation/components/`)
 
-- **Atoms** : `Text`, `Screen`, `TabBarIcon`, `CategoryChip`
+- **Atoms** : `Text`, `Screen`, `TabBarIcon`, `CategoryChip`, `Avatar`
+  - `Avatar` (F7) : rend l'emoji d'un avatar prédéfini sur fond coloré, ou une initiale en fallback (`fallbackName`). Source unique de la logique d'initiale (réutilisée par `ParticipantCard`).
   - ⚠️ `Button`, `Input`, `IconButton`, `Card`, `Spinner` **n'existent pas** — à créer au besoin (skill `create-atom`).
-- **Molecules** : `AddressAutocomplete` (+ `AddressResultItem`), `EmptyState`, `POICard`, `POIDetailSheet`, `POIListView`, `POIMapView`, `POIScreenHeader`, `ParticipantCard`, `SessionMapView`
+- **Molecules** : `AddressAutocomplete` (+ `AddressResultItem`), `AvatarPicker`, `EmptyState`, `POICard`, `POIDetailSheet`, `POIListView`, `POIMapView`, `POIScreenHeader`, `ParticipantCard`, `SessionMapView`
+  - `AvatarPicker` (F7) : grille des 20 avatars en `accessibilityRole="radiogroup"` (A11Y-003), composant l'atom `Avatar`.
 - **Organisms** : aucun pour l'instant
 - **Templates** : `AppErrorBoundary` (ErrorBoundary global — ERR-002)
 
 ## Écrans (`src/presentation/screens/`)
 
-| Écran                 | État                                        |
-| --------------------- | ------------------------------------------- |
-| `CreateSessionScreen` | F1 — saisie 2-5 points + autocomplete + GPS |
-| `MapScreen`           | F2 — midpoint + carte react-native-maps     |
-| `POIScreen`           | F3 — POI Overpass, toggle liste/carte       |
-| `ProfileScreen`       | Squelette (232 l.) — à enrichir pour F7/F8  |
-| `SessionsScreen`      | Squelette (72 l.) — historique sessions     |
+| Écran                 | État                                                                         |
+| --------------------- | ---------------------------------------------------------------------------- |
+| `CreateSessionScreen` | F1 — saisie 2-5 points + autocomplete + GPS                                  |
+| `MapScreen`           | F2 — midpoint + carte react-native-maps                                      |
+| `POIScreen`           | F3 — POI Overpass, toggle liste/carte                                        |
+| `ProfileScreen`       | F7 (passe 1) — édition `displayName` + grille avatars ; biométrie F8 à venir |
+| `SessionsScreen`      | Squelette (72 l.) — historique sessions                                      |
 
 Navigation : `RootNavigator` (native-stack) + `BottomTabsNavigator` (bottom-tabs), types dans `navigation/types.ts`.
 
@@ -168,7 +174,7 @@ Navigation : `RootNavigator` (native-stack) + `BottomTabsNavigator` (bottom-tabs
 
 - **Seul fichier** connaissant les implémentations concrètes (swap provider = 1 ligne).
 - Pattern : singleton `containerInstance`, `initContainer(encryptionKey)` au démarrage, `getContainer()` ailleurs.
-- Câble : `storage`, `zustandStorage`, `crashReporter`, `geocodeService`, `geolocationService`, `poiService`, le `queryClient` TanStack, et les use cases (`createGuestUser`, `searchAddress`, `getCurrentLocation`, `calculateMidpoint`, `searchPOI`).
+- Câble : `storage`, `zustandStorage`, `crashReporter`, `geocodeService`, `geolocationService`, `poiService`, le `queryClient` TanStack, et les use cases (`createGuestUser`, `searchAddress`, `getCurrentLocation`, `calculateMidpoint`, `searchPOI`, `updateProfileUseCase`).
 - `crashReporter.init()` est appelé **avant** le reste (les adapters le reçoivent par constructeur).
 - `queryClient.ts` : factory `createQueryClient()` (config cache/retry).
 

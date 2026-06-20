@@ -1,7 +1,7 @@
 # TODO.md — Mivro
 
 > Tâches restantes priorisées. Cocher au fur et à mesure, ajouter les découvertes (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-06-15.
+> Dernière mise à jour : 2026-06-20.
 
 Priorités : **P0** bloquant/immédiat · **P1** important · **P2** souhaitable · **P3** plus tard.
 Ordre d'exécution recommandé : Fix QA P1 → F7 → F4 → F5 → F8 → F6 → ADR → PostHog → Beta.
@@ -21,18 +21,30 @@ _Estimation : S (M pour VoiceOver). Dépendances : aucune. Blockers : aucun._
 
 ---
 
-## P1 — F7 Profil
+## P1 — F7 Profil — passe 1 ✅ FAIT (2026-06-20)
 
-_Estimation : M. Dépendances : `react-native-image-picker`. Blockers : permissions caméra/galerie (Info.plist + AndroidManifest)._
+_Estimation : M. Décision avatars tranchée : **emoji-based** (ADR-012, pas de SVG/photo pour cette passe du MVP)._
 
-- [ ] `UpdateProfileUseCase` (core)
-- [ ] Grille de 20 avatars prédéfinis (atom/molecule, SVG ou emoji-based)
-- [ ] Photo picker (`react-native-image-picker`) + resize 200×200 (stockage FileSystem)
-- [ ] Édition `displayName` → `useAuthStore`
-- [ ] Enrichir `ProfileScreen.tsx` (existe déjà, 232 l.)
-- [ ] Afficher l'avatar dans `ParticipantCard`
-- [ ] i18n namespace `profile` (existe déjà — compléter FR + EN)
-- [ ] Tests (usecase + composants) + update docs
+- [x] `UpdateProfileUseCase` (core, pur, validé Zod) + câblé dans `di/container.ts`
+- [x] Entité `Avatar` (`AvatarSchema`, `AvatarIdSchema` 20 ids, `AVATARS`, `getAvatarById`)
+- [x] `avatarId?` ajouté à `User` + `Participant` (`MidpointSession`)
+- [x] Grille de 20 avatars prédéfinis (atom `Avatar` + molecule `AvatarPicker`, emoji-based)
+- [x] Édition `displayName` → `useAuthStore.updateProfile` (persisté MMKV) + exposé via `useAuth`
+- [x] Enrichir `ProfileScreen.tsx` (édition nom + grille avatars)
+- [x] Afficher l'avatar dans `ParticipantCard` (refactorée pour utiliser l'atom `Avatar`)
+- [x] i18n namespace `profile` complété FR + EN (`displayName`, `avatarPicker`, `avatarNames`)
+- [x] Tests (entité, usecase, atom, picker, intégration ProfileScreen) — `npm run check` vert (661 tests)
+
+## P1 — F7 Profil — passe 2 (photo + intégration session)
+
+_Estimation : S. **Étape native** : npm install + pod install + permissions._
+**⚠️ BLOCKER** : permissions caméra/galerie (`NSCameraUsageDescription` / `NSPhotoLibraryUsageDescription` dans `Info.plist` + `AndroidManifest`).
+
+- [ ] Installer `react-native-image-picker` (npm install + `pod install`)
+- [ ] Photo picker + resize 200×200 (stockage FileSystem, cf. STORAGE)
+- [ ] Intégrer la photo dans l'atom `Avatar` (photo > emoji > initiale)
+- [ ] Peupler `avatarId` du `Participant` à la création de session (`useCreateSessionFlow`) — `ParticipantCard` l'affichera dès qu'il sera fourni
+- [ ] Tests + update docs
 
 ## P1 — F4 Temps réel Firebase (S09-10)
 
@@ -131,12 +143,14 @@ _Estimation : L. Dépendances : comptes stores._
 - [ ] **Ports placeholders** : dossiers `infrastructure/{realtime,eta,analytics}` vides — à remplir (F4 / V1 / PostHog).
 - [ ] **`SessionsScreen`** : squelette 72 l. — historique sessions à implémenter (AsyncStorage, cf. STORAGE).
 - [ ] **react-native-maps shim** : `skipLibCheck` désactive le check des `.d.ts` libs — surveiller les régressions de types externes.
+- [ ] **`borderWidth: 1` en dur** (magic number) répandu dans plusieurs écrans — relevé par la review F7, **non introduit par F7**. Envisager un token `borderWidth` dans le thème (DS-001). (P2)
+- [ ] **`AvatarPicker` `fallbackName={avatar.emoji}`** : fallback inatteignable pour un id connu (cosmétique / robustesse défensive). Relevé par la review F7 — à nettoyer ou documenter. (P3)
 
 ---
 
 ## Décisions en attente (input Cédric requis)
 
-- [ ] ⚠️ **Avatars F7** : SVG vectoriels custom **ou** emoji-based ? (impacte le poids/rendu)
+- [x] ⚠️ **Avatars F7** : ~~SVG vectoriels custom **ou** emoji-based ?~~ → **tranché : emoji-based** (passe 1, 2026-06-20, ADR-012).
 - [ ] ⚠️ **Firebase F4** : créer le projet Firebase + fournir les fichiers de config natifs.
 - [ ] ⚠️ **F5 universal links** : MVP en scheme `mivro://` seul, ou config domaine (AASA/assetlinks) dès maintenant ?
 - [ ] ⚠️ **Comptes dev F6** : Google Cloud + Apple Developer prêts ?

@@ -6,7 +6,7 @@
 
 # Ne pas modifier sans créer un ADR correspondant.
 
-# Version 8.2 — Juin 2026 (ajout : mode autonomie, roadmap détaillée, auto-maintenance docs)
+# Version 8.3 — 2026-06-20 (F7 Profil passe 1 livrée ; pointeur sprint → F4)
 
 ## PROJET
 
@@ -356,7 +356,8 @@ docs-site/docs/
 │   ├── ADR-008-mmkv-storage.md
 │   ├── ADR-009-external-apis-scaling.md
 │   ├── ADR-010-sentry-posthog.md
-│   └── ADR-011-rename-midpoint-to-mivro.md
+│   ├── ADR-011-rename-midpoint-to-mivro.md
+│   └── ADR-012-emoji-avatars-vs-svg.md
 └── api/                       # Généré par TypeDoc
 ```
 
@@ -393,25 +394,28 @@ Alternatives écartées : Avec raisons
 
 ### ✅ Fait
 
-| Sprint | Livrable                                                     | Commit(s) clés                          |
-| ------ | ------------------------------------------------------------ | --------------------------------------- |
-| S01-02 | Setup RN, navigation, stores Zustand+MMKV, Sentry            | `7cdacc9` `c8dcb29` `a1065f2` `0e92689` |
-| S03-04 | Geocoding Nominatim + Geolocation GPS + reverse              | `593ae51` `1ff8ad6`                     |
-| F1     | Saisie 2-5 points + autocomplete + GPS (CreateSessionScreen) | `0e2db7c`                               |
-| F2     | Midpoint (centroïde + rayon) + carte react-native-maps       | `cf70fce` `eb022c9`                     |
-| F3     | POI Overpass + écran liste/carte toggle                      | `0bca95f` `4804539`                     |
-| QA P0  | Fix 7 bugs critiques device QA                               | `f520911`                               |
+| Sprint  | Livrable                                                     | Commit(s) clés                          |
+| ------- | ------------------------------------------------------------ | --------------------------------------- |
+| S01-02  | Setup RN, navigation, stores Zustand+MMKV, Sentry            | `7cdacc9` `c8dcb29` `a1065f2` `0e92689` |
+| S03-04  | Geocoding Nominatim + Geolocation GPS + reverse              | `593ae51` `1ff8ad6`                     |
+| F1      | Saisie 2-5 points + autocomplete + GPS (CreateSessionScreen) | `0e2db7c`                               |
+| F2      | Midpoint (centroïde + rayon) + carte react-native-maps       | `cf70fce` `eb022c9`                     |
+| F3      | POI Overpass + écran liste/carte toggle                      | `0bca95f` `4804539`                     |
+| QA P0   | Fix 7 bugs critiques device QA                               | `f520911`                               |
+| QA P1   | Accessibilité & robustesse (VoiceOver, erreurs réseau, GPS)  | `786a4e9` `ed7b0ee` `c01e29c`           |
+| F7 (P1) | Profil : `displayName` + 20 avatars emoji (passe 1)          | non commité (2026-06-20)                |
 
-Atoms livrés : `Text`, `Screen`, `TabBarIcon`, `CategoryChip`
-Molecules livrés : `ParticipantCard`, `EmptyState`, `AddressAutocomplete`, `SessionMapView`, `POICard`, `POIDetailSheet`, `POIListView`, `POIMapView`, `POIScreenHeader`
+Atoms livrés : `Text`, `Screen`, `TabBarIcon`, `CategoryChip`, `Avatar`
+Molecules livrés : `ParticipantCard`, `EmptyState`, `AddressAutocomplete`, `AvatarPicker`, `SessionMapView`, `POICard`, `POIDetailSheet`, `POIListView`, `POIMapView`, `POIScreenHeader`
 
 > ⚠️ Divergence à corriger : le README/anciennes notes mentionnaient des atoms `Button`/`Input`/`IconButton`/`Card`/`Spinner` — **ils n'existent pas encore**. À créer au besoin via le skill `create-atom`.
 
-### 🔜 Sprint en cours / suivant — F7 Profil
+### 🔜 Sprint en cours / suivant — F4 Temps réel
 
-Fix QA P1 ✅ fait (2026-06-15, commit `fix(qa-p1)`) — voir `docs/context/PROGRESS.md`.
-⚠️ Restent à re-vérifier sur device : layout Dynamic Type 200 % et EmptyState autocomplete (fixes défensifs posés).
-Prochaine feature : **F7 Profil** (voir backlog ci-dessous).
+F7 Profil **passe 1** ✅ faite (2026-06-20) : `displayName` + 20 avatars emoji (décision emoji-based, ADR-012). Non encore commitée — voir `docs/context/PROGRESS.md`.
+Prochaine feature : **F4 Temps réel Firebase** (⚠️ **PAUSE OBLIGATOIRE** : projet Firebase + fichiers de config natifs requis avant l'adapter).
+En attendant le déblocage F4, candidat sans blocker : **F7 passe 2** (photo picker `react-native-image-picker` — étape native : install + pods + permissions) puis F5/F8. Voir `docs/context/TODO.md`.
+⚠️ Restent à re-vérifier sur device (QA P1) : layout Dynamic Type 200 % et champ fantôme F1 (fixes posés).
 
 ### 📋 Backlog priorisé
 

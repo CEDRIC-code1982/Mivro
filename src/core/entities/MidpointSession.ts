@@ -11,6 +11,7 @@
 
 // [ADDED] Entité MidpointSession avec validation Zod
 import { z } from 'zod';
+import { AvatarIdSchema } from './Avatar'; // [ADDED] F7 — avatar emoji prédéfini
 import { CoordinatesSchema, LocationSchema } from './Location';
 
 /**
@@ -20,6 +21,8 @@ import { CoordinatesSchema, LocationSchema } from './Location';
 export const ParticipantSchema = z.object({
   id: z.string().uuid(),
   displayName: z.string().min(1),
+  // [ADDED] F7 — avatar emoji optionnel (fallback initiale si absent) / optional emoji avatar
+  avatarId: AvatarIdSchema.optional(),
   startLocation: LocationSchema,
 });
 

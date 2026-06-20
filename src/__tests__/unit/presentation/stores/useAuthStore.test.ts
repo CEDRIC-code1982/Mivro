@@ -21,6 +21,7 @@ const mockSetUser = jest.fn(); // [ADDED]
 
 jest.mock('@/di/container', () => {
   const { CreateGuestUserUseCase } = require('@core/usecases/CreateGuestUserUseCase');
+  const { UpdateProfileUseCase } = require('@core/usecases/UpdateProfileUseCase'); // [ADDED] F7
   return {
     getContainer: () => ({
       zustandStorage: {
@@ -33,6 +34,7 @@ jest.mock('@/di/container', () => {
         },
       },
       createGuestUserUseCase: new CreateGuestUserUseCase(),
+      updateProfileUseCase: new UpdateProfileUseCase(), // [ADDED] F7
       // [ADDED] Mock crashReporter pour les tests auth → Sentry
       crashReporter: {
         setUser: mockSetUser,
@@ -47,6 +49,7 @@ jest.mock('@/di/container', () => {
   };
 });
 
+import { UserSchema } from '@core/entities/User'; // [ADDED] F7
 import { useAuthStore } from '@presentation/stores/useAuthStore';
 
 describe('useAuthStore', () => {
@@ -146,6 +149,72 @@ describe('useAuthStore', () => {
       useAuthStore.getState().updateDisplayName('Ghost');
 
       expect(useAuthStore.getState().user).toBeNull();
+    });
+  });
+
+  // ─── updateProfile (F7) ───────────────────────────────────
+  describe('updateProfile', () => {
+    it('updates displayName of the current user and persists it', () => {
+      useAuthStore.getState().signInAsGuest('Ancien');
+
+      useAuthStore.getState().updateProfile({ displayName: 'Récent' });
+
+      expect(useAuthStore.getState().user?.displayName).toBe('Récent');
+      // Persistance : l'adapter MMKV mocké doit contenir le nouveau nom
+      expect(mockStorage.get('auth')).toContain('Récent');
+    });
+
+    it('updates the avatarId of the current user and persists it', () => {
+      useAuthStore.getState().signInAsGuest('Léa');
+
+      useAuthStore.getState().updateProfile({ avatarId: 'panda' });
+
+      expect(useAuthStore.getState().user?.avatarId).toBe('panda');
+      expect(mockStorage.get('auth')).toContain('panda');
+    });
+
+    it('updates both name and avatar at once', () => {
+      useAuthStore.getState().signInAsGuest('Léa');
+
+      useAuthStore.getState().updateProfile({ displayName: 'Max', avatarId: 'fox' });
+
+      const user = useAuthStore.getState().user;
+      expect(user?.displayName).toBe('Max');
+      expect(user?.avatarId).toBe('fox');
+    });
+
+    it('does nothing if no user is signed in (no-op)', () => {
+      useAuthStore.getState().updateProfile({ displayName: 'Ghost', avatarId: 'cat' });
+
+      expect(useAuthStore.getState().user).toBeNull();
+    });
+
+    it('throws (ZodError) on an invalid patch and leaves the user unchanged', () => {
+      useAuthStore.getState().signInAsGuest('Stable');
+
+      expect(() => useAuthStore.getState().updateProfile({ displayName: '' })).toThrow();
+      expect(useAuthStore.getState().user?.displayName).toBe('Stable');
+    });
+
+    it('persists a user carrying an avatarId in a Zod-valid, rehydratable shape', () => {
+      // Simule un user déjà persisté avec avatarId.
+      useAuthStore.getState().signInAsGuest('Léa');
+      useAuthStore.getState().updateProfile({ avatarId: 'owl' });
+
+      // Le blob persisté contient bien l'avatarId.
+      const raw = mockStorage.get('auth');
+      expect(raw).toBeDefined();
+      const persisted = JSON.parse(raw ?? '{}') as {
+        state: { user: unknown };
+      };
+
+      // Le user persisté repasse la validation Zod faite à la rehydratation
+      // (onRehydrateStorage) → il ne sera pas effacé au prochain démarrage.
+      const result = UserSchema.safeParse(persisted.state.user);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.avatarId).toBe('owl');
+      }
     });
   });
 

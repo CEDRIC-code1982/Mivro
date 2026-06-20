@@ -62,4 +62,5 @@ export const useAuthActions = () => ({
   signInWithApple: useAuthStore((s) => s.signInWithApple),
   signOut: useAuthStore((s) => s.signOut),
   updateDisplayName: useAuthStore((s) => s.updateDisplayName),
+  updateProfile: useAuthStore((s) => s.updateProfile), // [ADDED] F7
 });

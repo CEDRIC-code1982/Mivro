@@ -8,6 +8,10 @@ export {
 } from './User';
 export type { GuestUser, AuthenticatedUser, User } from './User';
 
+// [ADDED] F7 — Avatar entity (avatars emoji prédéfinis)
+export { AvatarSchema, AvatarIdSchema, AVATARS, getAvatarById } from './Avatar';
+export type { Avatar, AvatarId, PredefinedAvatar } from './Avatar';
+
 export { CoordinatesSchema, LocationSchema } from './Location';
 export type { Coordinates, Location } from './Location';
 

@@ -25,6 +25,7 @@ import { CreateGuestUserUseCase } from '@core/usecases/CreateGuestUserUseCase';
 import { GetCurrentLocationUseCase } from '@core/usecases/GetCurrentLocationUseCase'; // [ADDED]
 import { SearchAddressUseCase } from '@core/usecases/SearchAddressUseCase'; // [ADDED]
 import { SearchPOIUseCase } from '@core/usecases/SearchPOIUseCase'; // [ADDED]
+import { UpdateProfileUseCase } from '@core/usecases/UpdateProfileUseCase'; // [ADDED] F7
 import { SentryCrashReporter } from '@infrastructure/crash/SentryCrashReporter'; // [ADDED]
 import { NominatimGeocodeService } from '@infrastructure/geocode/NominatimGeocodeService'; // [ADDED]
 import { RNGeolocationService } from '@infrastructure/geolocation/RNGeolocationService'; // [ADDED]
@@ -62,6 +63,8 @@ export interface Container {
   poiService: IPOIService; // [ADDED]
   /** Use case de recherche de POI / POI search use case */ // [ADDED]
   searchPOIUseCase: SearchPOIUseCase; // [ADDED]
+  /** Use case de mise à jour du profil (nom + avatar) / Profile update use case */ // [ADDED] F7
+  updateProfileUseCase: UpdateProfileUseCase; // [ADDED] F7
 }
 
 let containerInstance: Container | null = null;
@@ -124,6 +127,7 @@ export const initContainer = (encryptionKey: string): Container => {
     calculateMidpointUseCase: new CalculateMidpointUseCase(), // [ADDED]
     poiService, // [ADDED]
     searchPOIUseCase, // [ADDED]
+    updateProfileUseCase: new UpdateProfileUseCase(), // [ADDED] F7
   };
 
   console.log(

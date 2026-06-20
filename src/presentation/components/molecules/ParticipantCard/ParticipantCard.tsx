@@ -23,6 +23,7 @@ import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { Participant } from '@core/entities/MidpointSession';
 import { useTheme, type Theme } from '@core/theme';
+import Avatar from '@presentation/components/atoms/Avatar'; // [ADDED] F7
 import Text from '@presentation/components/atoms/Text';
 
 /**
@@ -46,18 +47,6 @@ export interface ParticipantCardProps {
 }
 
 /**
- * Extrait l'initiale d'un nom pour l'avatar.
- * Extracts the initial from a name for the avatar.
- *
- * @param name - Nom du participant / Participant name
- * @returns Initiale en majuscule / Uppercase initial
- */
-const getInitial = (name: string): string => {
-  const firstChar = name.trim().charAt(0);
-  return firstChar.toUpperCase();
-};
-
-/**
  * Molecule ParticipantCard du Design System Mivro.
  * Mivro Design System ParticipantCard molecule.
  *
@@ -75,8 +64,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
   const theme = useTheme();
   const styles = buildStyles(theme);
 
-  const { displayName, startLocation } = participant;
-  const initial = getInitial(displayName);
+  const { displayName, startLocation, avatarId } = participant; // [MODIFIED] F7 — avatarId
   const address = startLocation.formattedAddress;
 
   const cardLabel = accessibilityLabelOverride ?? `${displayName}, ${address}`;
@@ -88,21 +76,13 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
       accessibilityRole="none"
       testID={testID}
     >
-      {/* [ADDED] Avatar circulaire avec initiale */}
-      <View
-        style={styles.avatar}
-        accessibilityElementsHidden={true}
-        importantForAccessibility="no-hide-descendants"
-      >
-        <Text
-          variant="body"
-          weight="bold"
-          color="onBrand"
-          testID={testID ? `${testID}-initial` : undefined}
-        >
-          {initial}
-        </Text>
-      </View>
+      {/* [MODIFIED] F7 — Avatar emoji choisi (fallback initiale via l'atome Avatar) */}
+      <Avatar
+        avatarId={avatarId}
+        fallbackName={displayName}
+        size={AVATAR_SIZE}
+        testID={testID ? `${testID}-avatar` : undefined}
+      />
 
       {/* [ADDED] Nom + adresse */}
       <View style={styles.textContainer}>
@@ -156,14 +136,6 @@ const buildStyles = (theme: Theme) =>
       gap: theme.spacing.md,
       backgroundColor: theme.color.surface.secondary,
       borderRadius: theme.radius.md,
-    },
-    avatar: {
-      width: AVATAR_SIZE,
-      height: AVATAR_SIZE,
-      borderRadius: theme.radius.full,
-      backgroundColor: theme.color.interactive.brand.default,
-      justifyContent: 'center',
-      alignItems: 'center',
     },
     textContainer: {
       flex: 1,
