@@ -19,6 +19,7 @@ import type { ICrashReporter } from '@core/ports/ICrashReporter'; // [ADDED]
 import type { IGeocodeService } from '@core/ports/IGeocodeService'; // [ADDED]
 import type { IGeolocationService } from '@core/ports/IGeolocationService'; // [ADDED]
 import type { IPOIService } from '@core/ports/IPOIService'; // [ADDED]
+import type { IProfilePhotoService } from '@core/ports/IProfilePhotoService'; // [ADDED] F7 passe 2
 import type { IStorageService } from '@core/ports/IStorageService';
 import { CalculateMidpointUseCase } from '@core/usecases/CalculateMidpointUseCase'; // [ADDED]
 import { CreateGuestUserUseCase } from '@core/usecases/CreateGuestUserUseCase';
@@ -29,6 +30,7 @@ import { UpdateProfileUseCase } from '@core/usecases/UpdateProfileUseCase'; // [
 import { SentryCrashReporter } from '@infrastructure/crash/SentryCrashReporter'; // [ADDED]
 import { NominatimGeocodeService } from '@infrastructure/geocode/NominatimGeocodeService'; // [ADDED]
 import { RNGeolocationService } from '@infrastructure/geolocation/RNGeolocationService'; // [ADDED]
+import { ImagePickerProfilePhotoService } from '@infrastructure/media/ImagePickerProfilePhotoService'; // [ADDED] F7 passe 2
 import { OverpassPOIService } from '@infrastructure/poi/OverpassPOIService'; // [ADDED]
 import { MMKVStorageService } from '@infrastructure/storage/MMKVStorageService';
 import { createZustandMMKVAdapter } from '@infrastructure/storage/zustand-mmkv-adapter';
@@ -65,6 +67,8 @@ export interface Container {
   searchPOIUseCase: SearchPOIUseCase; // [ADDED]
   /** Use case de mise à jour du profil (nom + avatar) / Profile update use case */ // [ADDED] F7
   updateProfileUseCase: UpdateProfileUseCase; // [ADDED] F7
+  /** Service de photo de profil (picker + FileSystem) / Profile photo service */ // [ADDED] F7 passe 2
+  profilePhotoService: IProfilePhotoService; // [ADDED] F7 passe 2
 }
 
 let containerInstance: Container | null = null;
@@ -128,6 +132,7 @@ export const initContainer = (encryptionKey: string): Container => {
     poiService, // [ADDED]
     searchPOIUseCase, // [ADDED]
     updateProfileUseCase: new UpdateProfileUseCase(), // [ADDED] F7
+    profilePhotoService: new ImagePickerProfilePhotoService(crashReporter), // [ADDED] F7 passe 2
   };
 
   console.log(

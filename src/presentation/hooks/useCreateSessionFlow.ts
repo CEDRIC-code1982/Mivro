@@ -22,6 +22,7 @@ import { getContainer } from '@/di/container';
 import type { GeocodeResult } from '@core/entities/GeocodeResult';
 import type { Participant } from '@core/entities/MidpointSession';
 import { GeolocationError, type GeolocationErrorCode } from '@core/ports/IGeolocationService';
+import { useAuthUser } from '@presentation/hooks/useAuth'; // [ADDED] F7 passe 2 — avatarId du user courant
 import { useSessionStore } from '@presentation/stores/useSessionStore';
 
 /** Nombre minimum de participants pour continuer / Minimum participants to continue */
@@ -123,6 +124,9 @@ export interface UseCreateSessionFlowResult {
  * @returns Résultat du hook / Hook result
  */
 export const useCreateSessionFlow = (): UseCreateSessionFlowResult => {
+  // [ADDED] F7 passe 2 — avatar emoji du user courant (peuplé sur « ma position »)
+  const currentUser = useAuthUser();
+
   // [ADDED] Sélecteurs Zustand session store
   const session = useSessionStore((s) => s.session);
   const createSession = useSessionStore((s) => s.createSession);
@@ -222,9 +226,14 @@ export const useCreateSessionFlow = (): UseCreateSessionFlowResult => {
           language: 'fr', // TODO V1 : utiliser la langue courante de i18n
         });
 
+        // [ADDED] F7 passe 2 — « ma position » → on porte l'avatar emoji du user
+        // courant sur le participant (PAS la photo : la photo reste pour le profil).
+        // Si l'user n'a pas d'avatar, on n'ajoute rien (fallback initiale côté card).
+        const currentAvatarId = currentUser?.avatarId;
         addParticipant({
           displayName: displayName?.trim() || generateDefaultName(),
           startLocation: location,
+          ...(currentAvatarId !== undefined ? { avatarId: currentAvatarId } : {}),
         });
 
         // [FIXED P1] Adresse non résolue (hors ligne) → notice non-bloquante
@@ -257,7 +266,7 @@ export const useCreateSessionFlow = (): UseCreateSessionFlowResult => {
         setIsAddingByGps(false);
       }
     },
-    [addParticipant, generateDefaultName, isFull, participantsCount],
+    [addParticipant, generateDefaultName, isFull, participantsCount, currentUser?.avatarId],
   );
 
   /**

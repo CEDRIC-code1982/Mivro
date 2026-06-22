@@ -13,6 +13,8 @@
  * @example
  *   const useCase = new UpdateProfileUseCase();
  *   const updated = useCase.execute(currentUser, { displayName: 'Léa', avatarId: 'fox' });
+ *   // Effacer la photo de profil / clear the profile photo:
+ *   const cleared = useCase.execute(currentUser, { photoUri: null });
  *
  * @module core/usecases/UpdateProfileUseCase
  */
@@ -27,16 +29,25 @@ import { UserSchema } from '@core/entities/User';
  * Schéma Zod du patch de mise à jour de profil.
  * Zod schema for the profile update patch.
  *
- * Les deux champs sont optionnels : on ne met à jour que ce qui est fourni.
+ * Tous les champs sont optionnels : on ne met à jour que ce qui est fourni.
  * Le `displayName` est `trim`é puis contraint (1..50, comme l'entité User).
- * Both fields are optional: only provided fields are updated.
+ * `photoUri` accepte `null` pour **effacer** la photo (distinction explicite
+ * entre « ne pas toucher » = champ absent et « supprimer » = `null`).
+ * All fields are optional: only provided fields are updated.
  * `displayName` is trimmed then constrained (1..50, like the User entity).
+ * `photoUri` accepts `null` to **clear** the photo (explicit distinction
+ * between "leave untouched" = absent field and "remove" = `null`).
  */
 export const UpdateProfileInputSchema = z.object({
   /** Nouveau nom affiché (trimé, 1..50) / New display name (trimmed, 1..50) */
   displayName: z.string().trim().min(1).max(50).optional(),
   /** Nouvel id d'avatar emoji prédéfini / New predefined emoji avatar id */
   avatarId: AvatarIdSchema.optional(),
+  /**
+   * Nouveau chemin local de photo, ou `null` pour effacer.
+   * New local photo path, or `null` to clear.
+   */
+  photoUri: z.string().min(1).nullable().optional(),
 });
 
 /**
@@ -71,6 +82,16 @@ export class UpdateProfileUseCase {
       ...(patch.displayName !== undefined ? { displayName: patch.displayName } : {}),
       ...(patch.avatarId !== undefined ? { avatarId: patch.avatarId } : {}),
     };
+
+    // photoUri : `null` = effacer (supprime la propriété, exactOptionalPropertyTypes),
+    // string = définir, `undefined`/absent = laisser inchangé.
+    // photoUri: `null` = clear (delete the property), string = set,
+    // `undefined`/absent = leave untouched.
+    if (patch.photoUri === null) {
+      delete candidate.photoUri;
+    } else if (patch.photoUri !== undefined) {
+      candidate.photoUri = patch.photoUri;
+    }
 
     // Re-valide l'entité complète (cohérence de la discriminated union).
     // Re-validate the full entity (discriminated union consistency).

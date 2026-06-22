@@ -56,6 +56,42 @@ describe('User entity', () => {
 
       expect(result.success).toBe(false);
     });
+
+    // ─── F7 passe 2 — photoUri ──────────────────────────────
+    it('accepts a valid photoUri and round-trips it', () => {
+      const guest = GuestUserSchema.parse({
+        type: 'guest',
+        id: VALID_UUID,
+        displayName: 'Léa',
+        photoUri: '/mock/Documents/profile-photos/abc.jpg',
+        createdAt: VALID_DATETIME,
+      });
+
+      expect(guest.photoUri).toBe('/mock/Documents/profile-photos/abc.jpg');
+    });
+
+    it('rejects an empty photoUri (min 1)', () => {
+      const result = GuestUserSchema.safeParse({
+        type: 'guest',
+        id: VALID_UUID,
+        displayName: 'Léa',
+        photoUri: '',
+        createdAt: VALID_DATETIME,
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it('parses a guest without photoUri (optional)', () => {
+      const guest = GuestUserSchema.parse({
+        type: 'guest',
+        id: VALID_UUID,
+        displayName: 'Léa',
+        createdAt: VALID_DATETIME,
+      });
+
+      expect(guest.photoUri).toBeUndefined();
+    });
   });
 
   // ─── AuthenticatedUser parsing ────────────────────────────
@@ -109,6 +145,37 @@ describe('User entity', () => {
         email: 'test@example.com',
         displayName: 'Jean',
         provider: 'facebook',
+        createdAt: VALID_DATETIME,
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    // ─── F7 passe 2 — photoUri (distinct de avatarUrl) ──────
+    it('accepts a local photoUri alongside a remote avatarUrl', () => {
+      const user = AuthenticatedUserSchema.parse({
+        type: 'authenticated',
+        id: VALID_UUID,
+        email: 'test@example.com',
+        displayName: 'Jean Dupont',
+        avatarUrl: 'https://example.com/avatar.png',
+        photoUri: '/mock/Documents/profile-photos/def.jpg',
+        provider: 'google',
+        createdAt: VALID_DATETIME,
+      });
+
+      expect(user.photoUri).toBe('/mock/Documents/profile-photos/def.jpg');
+      expect(user.avatarUrl).toBe('https://example.com/avatar.png');
+    });
+
+    it('rejects an empty photoUri for an authenticated user', () => {
+      const result = AuthenticatedUserSchema.safeParse({
+        type: 'authenticated',
+        id: VALID_UUID,
+        email: 'test@example.com',
+        displayName: 'Jean',
+        photoUri: '',
+        provider: 'google',
         createdAt: VALID_DATETIME,
       });
 

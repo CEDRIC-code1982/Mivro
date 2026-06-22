@@ -1,7 +1,7 @@
 # PROGRESS.md — Mivro
 
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-06-20 (F7 Profil passe 1, non commitée).
+> Dernière mise à jour : 2026-06-20 (F7 Profil passe 2 — photo — livrée/testée/reviewée, non commitée).
 
 ## Tableau des sprints
 
@@ -17,6 +17,7 @@
 | QA P0          | 2026-05-25         | ✅ Fait    | `f520911`                     |
 | QA P1          | 2026-06-15         | ✅ Fait    | `786a4e9` `ed7b0ee` `c01e29c` |
 | F7 Profil (P1) | 2026-06-20         | ✅ Fait\*  | non commité                   |
+| F7 Profil (P2) | 2026-06-20         | ✅ Fait\*  | non commité                   |
 | F4 Temps réel  | —                  | 📋 Backlog | —                             |
 | F5 Partage     | —                  | 📋 Backlog | —                             |
 | F8 Biométrie   | —                  | 📋 Backlog | —                             |
@@ -25,7 +26,7 @@
 | PostHog        | —                  | 📋 Backlog | —                             |
 | Beta           | —                  | 📋 Backlog | —                             |
 
-\*F7 passe 1 livrée/testée/reviewée (APPROVED), pas encore commitée au moment de cette mise à jour. La passe 2 (photo picker, `avatarId` à la création de session) reste à faire — voir TODO.md.
+\*F7 passes 1 **et** 2 livrées/testées/reviewées (APPROVED), pas encore commitées au moment de cette mise à jour. **F7 est désormais entièrement implémentée** (édition nom + avatars emoji + photo). Reste uniquement la vérification sur device (voir TODO.md). Prochaine feature : F5 Partage (ou F4 si Firebase prêt).
 
 ---
 
@@ -99,6 +100,27 @@ Première passe de la feature Profil : édition du `displayName` + sélection d'
 - **Tests** : 7 fichiers touchés (~80 cas) — nouveaux : `Avatar.test.ts` (entité), `UpdateProfileUseCase.test.ts`, `Avatar.test.tsx` (atom), `AvatarPicker.test.tsx`, `ProfileScreen.test.tsx` (intégration) ; modifiés : `ParticipantCard.test.tsx`, `useAuthStore.test.ts`. `npm run check` vert (**661 tests**), seuils de coverage respectés.
 - **Reporté en passe 2** : photo picker (`react-native-image-picker` — npm install + pod install + permissions Info.plist/AndroidManifest) ; `avatarId` ajouté à `Participant` mais **pas encore peuplé** à la création de session (`useCreateSessionFlow`) — `ParticipantCard` l'affichera dès qu'il sera fourni.
 
+### F7 — Profil, passe 2 : photo (2026-06-20, non commité)
+
+Seconde passe de F7 : ajout d'une **photo de profil optionnelle** (galerie / caméra), en plus des avatars emoji. F7 est désormais **entièrement livrée**.
+
+- **Libs ajoutées** : `react-native-image-picker` + `@dr.pogodin/react-native-fs` (npm install + `pod install` OK).
+- **Architecture (découplage natif via port)** :
+  - Port `IProfilePhotoService` (core) + adapter `ImagePickerProfilePhotoService` (infra, `src/infrastructure/media/`), reçoit le `crashReporter` par constructeur, câblé dans le container (`profilePhotoService`).
+  - Hook `useProfilePhoto` (presentation) : orchestre pick → persist `photoUri` → cleanup, expose loading/error.
+  - La presentation **n'importe jamais** les libs natives : tout passe par le port → testable sans device (mocks typés image-picker + FS).
+- **Stockage FileSystem** (cf. CLAUDE.md > STORAGE, acté en **ADR-013**) : photo resize **200×200** (resize natif du picker via `maxWidth/maxHeight`) copiée dans `Documents/profile-photos/<uuid>.jpg` ; **seul le chemin** est stocké dans `User.photoUri` (Zod) et persisté MMKV. Cleanup best-effort de l'ancien fichier au remplacement / à la suppression.
+- **Core** : `User.photoUri?` (Zod, `min(1)`) sur les deux variantes guest/auth ; `UpdateProfileUseCase` gère set (chemin) / clear (`photoUri: null` → champ retiré).
+- **Presentation** :
+  - Atom `Avatar` étendu : priorité de rendu **photo (`<Image>`) > emoji (`avatarId`) > initiale**.
+  - `ProfileScreen` : boutons galerie / caméra / supprimer + états loading / erreur (via `useProfilePhoto`).
+  - `useCreateSessionFlow` : le participant ajouté via GPS « ma position » reçoit l'`avatarId` (emoji) du user courant — **jamais la photo** (cohérence légère + vie privée).
+- **Permissions natives** : iOS `NSCameraUsageDescription` + `NSPhotoLibraryUsageDescription` (Info.plist) ; Android `CAMERA` (la galerie utilise le Photo Picker système, sans permission de lecture).
+- **i18n** : namespace `profile.photo` FR + EN (boutons, loading, erreurs typées).
+- **Fichiers clés** : `core/ports/IProfilePhotoService.ts`, `infrastructure/media/ImagePickerProfilePhotoService.ts`, `hooks/useProfilePhoto.ts`, `core/entities/User.ts`, `core/usecases/UpdateProfileUseCase.ts`, `atoms/Avatar/`, `screens/ProfileScreen.tsx`, `hooks/useCreateSessionFlow.ts`, `di/container.ts`, `i18n/locales/{fr,en}/profile.json`, `ios/.../Info.plist`, `android/.../AndroidManifest.xml`.
+- **Tests** : ~133 cas F7 au total ; suite globale **718 tests** (63 suites) verts, seuils de coverage respectés. Nouveaux/étendus : entité `User.photoUri`, `UpdateProfileUseCase` clear, adapter (mock image-picker + FS), hook `useProfilePhoto`, atom `Avatar` (photo), intégration `ProfileScreen`.
+- **Reste** : vérification sur device (permissions réelles, resize effectif, persistance du chemin après kill, cleanup FS réel, ouverture du picker) — voir TODO.md.
+
 ---
 
 ## Historique des commits (annoté)
@@ -128,22 +150,22 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 
 ## Métriques actuelles (2026-06-20)
 
-| Métrique                           | Valeur                    |
-| ---------------------------------- | ------------------------- |
-| Fichiers code (`src/`, hors tests) | 94                        |
-| Fichiers de tests                  | 57                        |
-| Tests (cas) — `npm run check`      | 661                       |
-| Entités core                       | 7 (+`Avatar`)             |
-| Ports                              | 5                         |
-| Use cases                          | 6 (+`UpdateProfile`)      |
-| Adapters infrastructure            | 5 (+3 placeholders vides) |
-| Stores Zustand                     | 3                         |
-| Hooks custom                       | 7                         |
-| Atoms / Molecules / Templates      | 5 / 10 / 1                |
-| Écrans                             | 5                         |
-| Namespaces i18n × langues          | 7 × 2 (FR/EN)             |
+| Métrique                           | Valeur                      |
+| ---------------------------------- | --------------------------- |
+| Fichiers code (`src/`, hors tests) | 95                          |
+| Fichiers de tests                  | 59                          |
+| Tests (cas) — `npm run check`      | 718                         |
+| Entités core                       | 7 (+`Avatar`)               |
+| Ports                              | 6 (+`IProfilePhotoService`) |
+| Use cases                          | 6 (+`UpdateProfile`)        |
+| Adapters infrastructure            | 6 (+3 placeholders vides)   |
+| Stores Zustand                     | 3                           |
+| Hooks custom                       | 8 (+`useProfilePhoto`)      |
+| Atoms / Molecules / Templates      | 5 / 10 / 1                  |
+| Écrans                             | 5                           |
+| Namespaces i18n × langues          | 7 × 2 (FR/EN)               |
 
-> Atoms : +`Avatar`. Molecules : +`AvatarPicker`.
+> Atoms : +`Avatar`. Molecules : +`AvatarPicker`. Ports : +`IProfilePhotoService` (adapter `ImagePickerProfilePhotoService`). Hooks : +`useProfilePhoto`.
 > ⚠️ Coverage par couche **non mesurée ici** : `coverage/coverage-summary.json` absent. La review F7 indique seuils respectés ; lancer `npm run test:coverage` pour les chiffres réels (seuils CI : core 90% / infra 70% / presentation 50% / global 70%).
 
 ---
@@ -161,4 +183,7 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 - **Avatars emoji plutôt que SVG (F7)** : pour le MVP, des avatars emoji rendus via `<Text>` évitent toute dépendance native / asset bundling, tout en restant accessibles (label par avatar). Décision actée en ADR-012.
 - **Use case pur sans port** : `UpdateProfileUseCase` ne prend aucun port (transformation pure `User + patch → User`). Pas besoin d'injecter un port quand il n'y a pas d'I/O — mais on le câble quand même dans le container pour rester cohérent et faciliter un futur port (ex : sync serveur).
 - **Double validation Zod défensive** : `UpdateProfileUseCase` valide le patch ET re-valide le `User` complet (`UserSchema`) — la discriminated union guest/auth peut casser si on patche naïvement. `getAvatarById` fait du `safeParse` pour tolérer un `avatarId` inconnu venant du storage (robustesse, pas de throw).
+- **Découpler les libs natives derrière un port (F7 p2)** : `react-native-image-picker` / `@dr.pogodin/react-native-fs` ne sont importés QUE par l'adapter `ImagePickerProfilePhotoService` (infra). La presentation passe par `IProfilePhotoService` (DI) → testable sans device (mocks typés), et un futur backend (upload S3) ne touche pas l'UI. Le contrat « ne pas faire fuiter de type natif au-delà de l'infra » est ce qui rend la couche substituable.
+- **Stocker un chemin, pas un binaire (F7 p2)** : la photo de profil est copiée sur le FileSystem (`Documents/profile-photos/<uuid>.jpg`) et seul le **chemin** est persisté MMKV (`User.photoUri`). Évite de gonfler le store (pas de base64), survit aux redémarrages (≠ URI `tmp/` du picker qui peut être purgée). Voir ADR-013.
+- **Cleanup FileSystem best-effort (F7 p2)** : `deletePhoto` (suppression de l'ancien fichier au remplacement / à la suppression) **ne doit jamais rejeter** — un fichier déjà absent ou non supprimable ne doit pas faire échouer la mise à jour du profil. À durcir côté contrat (TSDoc) et `normalizePath` (voir TODO dette F7).
 - **`BottomSheet` ≠ `BottomSheetModal`** (@gorhom) : `BottomSheet` n'est PAS un portail — placé dans un `ScrollView`, il se positionne dans le flux du scroll et son contenu « fermé » s'affiche en bas du contenu (champ fantôme F1). Pour un sheet par-dessus un écran scrollable, utiliser `BottomSheetModal` + `BottomSheetModalProvider` (rendu en portail racine). `present()`/`dismiss()` au lieu de `snapToIndex(0)`/`close()`, `onDismiss` au lieu de `onClose`, pas de prop `index`.

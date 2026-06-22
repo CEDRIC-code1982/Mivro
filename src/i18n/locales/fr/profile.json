@@ -18,6 +18,22 @@
     "save": "Enregistrer le nom",
     "saveHint": "Met à jour ton nom affiché"
   },
+  "photo": {
+    "label": "Photo de profil",
+    "choose": "Choisir une photo",
+    "chooseHint": "Ouvre ta galerie pour choisir une photo de profil",
+    "take": "Prendre une photo",
+    "takeHint": "Ouvre l'appareil photo pour prendre une photo de profil",
+    "remove": "Supprimer la photo",
+    "removeHint": "Retire ta photo de profil actuelle",
+    "loading": "Traitement de la photo…",
+    "errors": {
+      "permission_denied": "Accès à l'appareil photo ou à la galerie refusé. Autorise-le dans les réglages pour ajouter une photo.",
+      "camera_unavailable": "L'appareil photo n'est pas disponible sur cet appareil.",
+      "processing_failed": "Impossible d'enregistrer la photo. Réessaie.",
+      "unknown": "Une erreur est survenue. Réessaie."
+    }
+  },
   "avatarPicker": {
     "label": "Choisis ton avatar",
     "selectHint": "Sélectionne l'avatar {{name}}"

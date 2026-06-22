@@ -5,19 +5,29 @@
  *
  *              Permet (utilisateur connecté) :
  *              - Éditer le nom affiché (displayName) avec validation.
+ *              - Choisir / prendre / supprimer une photo de profil.
  *              - Choisir un avatar parmi 20 avatars emoji prédéfinis.
  *              - Cycler le thème, se connecter en invité, se déconnecter.
  *
- *              F7 (1re passe) : pas de photo picker (avatars prédéfinis seuls).
- *              F7 (first pass): no photo picker (predefined avatars only).
+ *              F7 passe 2 : photo de profil via IProfilePhotoService (port DI).
+ *              L'écran n'importe PAS image-picker ni le FileSystem directement.
+ *              F7 pass 2: profile photo via IProfilePhotoService (DI port).
+ *              The screen does NOT import image-picker nor FileSystem directly.
  *
  * @module presentation/screens/ProfileScreen
  */
 
-// [MODIFIED] F7 — édition displayName + grille d'avatars emoji
+// [MODIFIED] F7 passe 2 — photo de profil + édition displayName + grille d'avatars
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import type { AvatarId } from '@core/entities/Avatar';
 import { useTheme, type Theme } from '@core/theme';
 import { Avatar, Screen, Text } from '@presentation/components/atoms';
@@ -28,6 +38,7 @@ import {
   useIsGuest,
   useAuthActions,
 } from '@presentation/hooks/useAuth';
+import { useProfilePhoto } from '@presentation/hooks/useProfilePhoto';
 import { usePreferencesStore, type ThemeMode } from '@presentation/stores/usePreferencesStore';
 
 // [ADDED] Ordre de cycle du thème / Theme cycle order
@@ -63,6 +74,15 @@ const ProfileScreen: React.FC = () => {
   const isAuthenticated = useIsAuthenticated();
   const isGuest = useIsGuest();
   const { signInAsGuest, signOut, updateProfile } = useAuthActions();
+
+  // [ADDED] F7 passe 2 — orchestration photo de profil (port DI, jamais image-picker direct)
+  const {
+    photoUri,
+    isBusy: isPhotoBusy,
+    error: photoError,
+    pickPhoto,
+    removePhoto,
+  } = useProfilePhoto();
 
   // [ADDED] Sélecteurs préférences
   const themeMode = usePreferencesStore((s) => s.themeMode);
@@ -110,6 +130,24 @@ const ProfileScreen: React.FC = () => {
     [updateProfile],
   );
 
+  // [ADDED] F7 passe 2 — handlers photo (galerie / caméra / suppression).
+  // pickPhoto/removePhoto capturent toutes leurs erreurs en interne (état error),
+  // la promesse ne rejette jamais : fire-and-forget sûr.
+  const handlePickFromLibrary = useCallback((): void => {
+    pickPhoto('library').catch(() => undefined);
+  }, [pickPhoto]);
+
+  const handlePickFromCamera = useCallback((): void => {
+    pickPhoto('camera').catch(() => undefined);
+  }, [pickPhoto]);
+
+  const handleRemovePhoto = useCallback((): void => {
+    removePhoto().catch(() => undefined);
+  }, [removePhoto]);
+
+  // [ADDED] F7 passe 2 — message d'erreur localisé selon le code (ERR-003)
+  const photoErrorMessage = photoError != null ? t(`photo.errors.${photoError}`) : null;
+
   // [ADDED] Label localisé du thème courant
   const themeModeLabel = t(`themeLabels.${themeMode}`);
   // [REVIEW P1] Primitive directe — pas de useMemo (rien à mémoïser)
@@ -132,6 +170,7 @@ const ProfileScreen: React.FC = () => {
               accessibilityLabel={t('signedInAs', { name: user.displayName })}
             >
               <Avatar
+                photoUri={photoUri ?? undefined}
                 avatarId={currentAvatarId}
                 fallbackName={user.displayName}
                 size={HEADER_AVATAR_SIZE}
@@ -146,6 +185,100 @@ const ProfileScreen: React.FC = () => {
                     {t('guestBadge')}
                   </Text>
                 </View>
+              ) : null}
+            </View>
+
+            {/* [ADDED] F7 passe 2 — Section photo de profil */}
+            <View style={styles.field}>
+              <Text variant="small" weight="semibold" color="secondary" accessibilityRole="header">
+                {t('photo.label')}
+              </Text>
+
+              <View style={styles.photoActions}>
+                <Pressable
+                  onPress={handlePickFromLibrary}
+                  disabled={isPhotoBusy}
+                  style={({ pressed }) => [
+                    styles.buttonSecondary,
+                    isPhotoBusy ? styles.buttonDisabled : undefined,
+                    pressed ? styles.buttonPressed : undefined,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isPhotoBusy, busy: isPhotoBusy }}
+                  accessibilityLabel={t('photo.choose')}
+                  accessibilityHint={t('photo.chooseHint')}
+                  testID="profile-photo-library"
+                >
+                  <Text variant="body" weight="semibold">
+                    {t('photo.choose')}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={handlePickFromCamera}
+                  disabled={isPhotoBusy}
+                  style={({ pressed }) => [
+                    styles.buttonSecondary,
+                    isPhotoBusy ? styles.buttonDisabled : undefined,
+                    pressed ? styles.buttonPressed : undefined,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isPhotoBusy, busy: isPhotoBusy }}
+                  accessibilityLabel={t('photo.take')}
+                  accessibilityHint={t('photo.takeHint')}
+                  testID="profile-photo-camera"
+                >
+                  <Text variant="body" weight="semibold">
+                    {t('photo.take')}
+                  </Text>
+                </Pressable>
+
+                {photoUri != null ? (
+                  <Pressable
+                    onPress={handleRemovePhoto}
+                    disabled={isPhotoBusy}
+                    style={({ pressed }) => [
+                      styles.buttonDanger,
+                      isPhotoBusy ? styles.buttonDisabled : undefined,
+                      pressed ? styles.buttonPressed : undefined,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: isPhotoBusy, busy: isPhotoBusy }}
+                    accessibilityLabel={t('photo.remove')}
+                    accessibilityHint={t('photo.removeHint')}
+                    testID="profile-photo-remove"
+                  >
+                    <Text variant="body" weight="semibold" color="onBrand">
+                      {t('photo.remove')}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+
+              {/* État loading (ERR-003) */}
+              {isPhotoBusy ? (
+                <View style={styles.photoStatus} accessibilityLiveRegion="polite">
+                  <ActivityIndicator
+                    color={theme.color.interactive.brand.default}
+                    accessibilityLabel={t('photo.loading')}
+                    testID="profile-photo-loading"
+                  />
+                  <Text variant="caption" color="secondary">
+                    {t('photo.loading')}
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* État erreur (ERR-003) */}
+              {!isPhotoBusy && photoErrorMessage != null ? (
+                <Text
+                  variant="caption"
+                  color="error"
+                  accessibilityLiveRegion="polite"
+                  testID="profile-photo-error"
+                >
+                  {photoErrorMessage}
+                </Text>
               ) : null}
             </View>
 
@@ -304,6 +437,16 @@ const buildStyles = (theme: Theme) =>
     },
     field: {
       width: '100%',
+      gap: theme.spacing.sm,
+    },
+    // [ADDED] F7 passe 2 — boutons photo empilés (robuste Dynamic Type) / stacked photo buttons
+    photoActions: {
+      gap: theme.spacing.sm,
+    },
+    // [ADDED] F7 passe 2 — ligne d'état loading photo / photo loading status row
+    photoStatus: {
+      flexDirection: 'row',
+      alignItems: 'center',
       gap: theme.spacing.sm,
     },
     input: {

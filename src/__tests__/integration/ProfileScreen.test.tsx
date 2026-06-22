@@ -38,6 +38,22 @@ jest.mock('react-i18next', () => ({
         'hints.signOut': 'Supprime ta session',
         'hints.cycleTheme': 'Alterne les thèmes',
       };
+      // [ADDED] F7 passe 2 — clés photo
+      const photoTranslations: Record<string, string> = {
+        'photo.label': 'Photo de profil',
+        'photo.choose': 'Choisir une photo',
+        'photo.chooseHint': 'Ouvre ta galerie',
+        'photo.take': 'Prendre une photo',
+        'photo.takeHint': 'Ouvre la caméra',
+        'photo.remove': 'Supprimer la photo',
+        'photo.removeHint': 'Retire ta photo',
+        'photo.loading': 'Traitement de la photo…',
+        'photo.errors.permission_denied': 'Permission refusée',
+        'photo.errors.camera_unavailable': 'Caméra indisponible',
+        'photo.errors.processing_failed': 'Échec du traitement',
+        'photo.errors.unknown': 'Erreur inconnue',
+      };
+      if (key in photoTranslations) return photoTranslations[key] ?? key;
       if (key.startsWith('avatarNames.')) return key.replace('avatarNames.', '');
       if (key === 'avatarPicker.selectHint') return `Select ${params?.name ?? ''}`;
       if (key === 'signedInAs') return `Connecté en tant que ${params?.name ?? ''}`;
@@ -76,6 +92,27 @@ jest.mock('@presentation/hooks/useAuth', () => ({
   }),
 }));
 
+// ─── Mock useProfilePhoto (F7 passe 2) ──────────────────────
+const mockPickPhoto = jest.fn();
+const mockRemovePhoto = jest.fn();
+
+let mockPhotoState: {
+  photoUri: string | null;
+  isBusy: boolean;
+  error: string | null;
+} = { photoUri: null, isBusy: false, error: null };
+
+jest.mock('@presentation/hooks/useProfilePhoto', () => ({
+  useProfilePhoto: () => ({
+    photoUri: mockPhotoState.photoUri,
+    isBusy: mockPhotoState.isBusy,
+    error: mockPhotoState.error,
+    pickPhoto: mockPickPhoto,
+    removePhoto: mockRemovePhoto,
+    clearError: jest.fn(),
+  }),
+}));
+
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
 const VALID_DATETIME = '2026-01-15T10:30:00.000Z';
 
@@ -90,6 +127,9 @@ describe('ProfileScreen (F7)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockUser = null;
+    mockPhotoState = { photoUri: null, isBusy: false, error: null };
+    mockPickPhoto.mockResolvedValue(undefined);
+    mockRemovePhoto.mockResolvedValue(undefined);
   });
 
   // ─── Non connecté ─────────────────────────────────────────
@@ -187,6 +227,84 @@ describe('ProfileScreen (F7)', () => {
 
       expect(getByText('Se déconnecter')).toBeTruthy();
       expect(queryByText('Continuer en invité')).toBeNull();
+    });
+  });
+
+  // ─── F7 passe 2 — section photo ───────────────────────────
+  describe('profile photo (F7 pass 2)', () => {
+    beforeEach(() => {
+      mockUser = guestUser;
+    });
+
+    it('renders the gallery and camera buttons', () => {
+      const { getByTestId } = render(<ProfileScreen />);
+
+      expect(getByTestId('profile-photo-library')).toBeTruthy();
+      expect(getByTestId('profile-photo-camera')).toBeTruthy();
+    });
+
+    it('hides the remove button when no photo is set', () => {
+      mockPhotoState = { photoUri: null, isBusy: false, error: null };
+      const { queryByTestId } = render(<ProfileScreen />);
+
+      expect(queryByTestId('profile-photo-remove')).toBeNull();
+    });
+
+    it('shows the remove button only when a photo is present', () => {
+      mockPhotoState = { photoUri: '/p.jpg', isBusy: false, error: null };
+      const { getByTestId } = render(<ProfileScreen />);
+
+      expect(getByTestId('profile-photo-remove')).toBeTruthy();
+    });
+
+    it('calls pickPhoto("library") when the gallery button is pressed', () => {
+      const { getByTestId } = render(<ProfileScreen />);
+
+      fireEvent.press(getByTestId('profile-photo-library'));
+
+      expect(mockPickPhoto).toHaveBeenCalledWith('library');
+    });
+
+    it('calls pickPhoto("camera") when the camera button is pressed', () => {
+      const { getByTestId } = render(<ProfileScreen />);
+
+      fireEvent.press(getByTestId('profile-photo-camera'));
+
+      expect(mockPickPhoto).toHaveBeenCalledWith('camera');
+    });
+
+    it('calls removePhoto when the remove button is pressed', () => {
+      mockPhotoState = { photoUri: '/p.jpg', isBusy: false, error: null };
+      const { getByTestId } = render(<ProfileScreen />);
+
+      fireEvent.press(getByTestId('profile-photo-remove'));
+
+      expect(mockRemovePhoto).toHaveBeenCalled();
+    });
+
+    it('shows the loading indicator while a photo operation is busy', () => {
+      mockPhotoState = { photoUri: null, isBusy: true, error: null };
+      const { getByTestId, queryByTestId } = render(<ProfileScreen />);
+
+      expect(getByTestId('profile-photo-loading')).toBeTruthy();
+      // L'erreur n'est pas affichée pendant le loading
+      expect(queryByTestId('profile-photo-error')).toBeNull();
+    });
+
+    it('shows the localized error message for an error code', () => {
+      mockPhotoState = { photoUri: null, isBusy: false, error: 'permission_denied' };
+      const { getByTestId, getByText } = render(<ProfileScreen />);
+
+      expect(getByTestId('profile-photo-error')).toBeTruthy();
+      expect(getByText('Permission refusée')).toBeTruthy();
+    });
+
+    it('disables the photo buttons while busy', () => {
+      mockPhotoState = { photoUri: '/p.jpg', isBusy: true, error: null };
+      const { getByTestId } = render(<ProfileScreen />);
+
+      expect(getByTestId('profile-photo-library').props.accessibilityState.disabled).toBe(true);
+      expect(getByTestId('profile-photo-remove').props.accessibilityState.disabled).toBe(true);
     });
   });
 });

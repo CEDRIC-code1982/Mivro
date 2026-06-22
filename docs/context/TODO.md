@@ -40,11 +40,18 @@ _Estimation : M. Décision avatars tranchée : **emoji-based** (ADR-012, pas de 
 _Estimation : S. **Étape native** : npm install + pod install + permissions._
 **⚠️ BLOCKER** : permissions caméra/galerie (`NSCameraUsageDescription` / `NSPhotoLibraryUsageDescription` dans `Info.plist` + `AndroidManifest`).
 
-- [ ] Installer `react-native-image-picker` (npm install + `pod install`)
-- [ ] Photo picker + resize 200×200 (stockage FileSystem, cf. STORAGE)
-- [ ] Intégrer la photo dans l'atom `Avatar` (photo > emoji > initiale)
-- [ ] Peupler `avatarId` du `Participant` à la création de session (`useCreateSessionFlow`) — `ParticipantCard` l'affichera dès qu'il sera fourni
-- [ ] Tests + update docs
+- [x] Installer `react-native-image-picker` + `@dr.pogodin/react-native-fs` (npm install + `pod install` — faits)
+- [x] Photo picker + resize 200×200 (resize natif `maxWidth/maxHeight`), copie FileSystem (`Documents/profile-photos/`) — port `IProfilePhotoService` + adapter `ImagePickerProfilePhotoService` (infra), câblé DI
+- [x] Entité `User.photoUri?` (Zod) + `UpdateProfileUseCase` gère set/clear (`photoUri: null` = effacer)
+- [x] Intégrer la photo dans l'atom `Avatar` (photo > emoji > initiale, via `<Image>`)
+- [x] `ProfileScreen` : boutons galerie/caméra/supprimer + états loading/erreur (hook `useProfilePhoto`, cleanup ancien fichier au remplacement/suppression)
+- [x] Permissions natives : iOS `NSCameraUsageDescription` + `NSPhotoLibraryUsageDescription` ; Android `CAMERA`
+- [x] Peupler `avatarId` du `Participant` à la création de session via GPS « ma position » (`useCreateSessionFlow` → avatar emoji du user courant, PAS la photo)
+- [x] i18n namespace `profile.photo` FR + EN (boutons, loading, erreurs typées)
+- [x] Tests (entité User.photoUri, UpdateProfileUseCase clear, adapter mock IP+FS, hook useProfilePhoto, Avatar photo, ProfileScreen intégration) — `npm run check` vert (**718 tests**) + update PROGRESS.md
+- [ ] **À tester sur device** : permissions iOS/Android réelles, resize effectif 200×200, persistance MMKV du chemin après kill, cleanup FileSystem réel, ouverture réelle du picker
+
+> **F7 entièrement livrée** (passes 1 + 2, testée + reviewée APPROVED). Reste uniquement la vérif device ci-dessus.
 
 ## P1 — F4 Temps réel Firebase (S09-10)
 
@@ -145,6 +152,9 @@ _Estimation : L. Dépendances : comptes stores._
 - [ ] **react-native-maps shim** : `skipLibCheck` désactive le check des `.d.ts` libs — surveiller les régressions de types externes.
 - [ ] **`borderWidth: 1` en dur** (magic number) répandu dans plusieurs écrans — relevé par la review F7, **non introduit par F7**. Envisager un token `borderWidth` dans le thème (DS-001). (P2)
 - [ ] **`AvatarPicker` `fallbackName={avatar.emoji}`** : fallback inatteignable pour un id connu (cosmétique / robustesse défensive). Relevé par la review F7 — à nettoyer ou documenter. (P3)
+- [ ] **`normalizePath` (F7 p2)** : `ImagePickerProfilePhotoService.normalizePath` fait `uri.replace('file://', '')` ; utiliser plutôt `decodeURIComponent(uri.replace(/^file:\/\//, ''))` pour gérer les chemins avec caractères encodés (espaces, accents). Relevé par la review F7 — durcissement. (P3)
+- [ ] **Contrat `IProfilePhotoService.deletePhoto` (F7 p2)** : renforcer la TSDoc pour stipuler que la méthode **ne doit JAMAIS rejeter** (best-effort : un fichier absent / non supprimable ne casse pas la mise à jour du profil). Relevé par la review F7. (P3)
+- [ ] **`cameraType: 'front'` (F7 p2)** : choix de la caméra frontale par défaut dans `ImagePickerProfilePhotoService` = décision produit implicite → à confirmer avec Cédric. (P3)
 
 ---
 

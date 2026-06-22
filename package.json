@@ -5,6 +5,8 @@
   "scripts": {
     "android": "react-native run-android",
     "ios": "react-native run-ios",
+    "ios-release": "react-native run-ios --configuration Release",
+    "android-release": "cd android && ./gradlew assembleRelease",
     "start": "react-native start",
     "test": "jest --watch",
     "test:ci": "jest --ci",
@@ -17,7 +19,11 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run test:ci",
-    "prepare": "husky"
+    "prepare": "husky",
+    "pods": "cd ios && rm -rf Pods/ && rm -rf build && rm -rf Podfile.lock && bundle install && bundle exec pod install && cd ..",
+    "android-clean": "cd android && rm -rf app/.cxx && rm -rf app/build && ./gradlew --stop && ./gradlew clean && cd ..",
+    "ios-clean": "cd ios && rm -rf build/ && rm -rf Pods/ && rm -rf Podfile.lock && cd ..",
+    "clear": "rm -rf $TMPDIR/react-native-packager-cache-* &&  rm -rf $TMPDIR/metro-bundler-cache-* && rm -rf node_modules/ && npm cache clean --force &&  npm install && npm start -- --reset-cache"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
@@ -29,6 +35,7 @@
     ]
   },
   "dependencies": {
+    "@dr.pogodin/react-native-fs": "^2.39.0",
     "@gorhom/bottom-sheet": "^5.2.13",
     "@react-native-community/geolocation": "^3.4.0",
     "@react-native/new-app-screen": "0.85.2",
@@ -45,6 +52,7 @@
     "react-native-config": "^1.6.1",
     "react-native-gesture-handler": "^2.31.2",
     "react-native-get-random-values": "^2.0.0",
+    "react-native-image-picker": "^8.2.1",
     "react-native-keychain": "^10.0.0",
     "react-native-localize": "^3.7.0",
     "react-native-maps": "^1.26.0",

@@ -3,23 +3,29 @@
  * @description Atome Avatar — affiche un avatar emoji sur fond coloré.
  *              Avatar atom — renders an emoji avatar on a colored background.
  *
- *              F7 (1re passe) : avatars emoji prédéfinis, aucune dépendance
- *              native. Si aucun avatar n'est fourni, affiche l'initiale du nom
- *              en fallback (cohérent avec l'ancien rendu de ParticipantCard).
- *              F7 (first pass): predefined emoji avatars, no native dependency.
- *              If no avatar is provided, falls back to the name initial.
+ *              Ordre de rendu : photo (`photoUri`) > emoji (`avatarId`) > initiale.
+ *              F7 passe 2 : photo de profil locale (FileSystem) prioritaire ;
+ *              sinon avatar emoji prédéfini ; sinon initiale du nom en fallback.
+ *              Render order: photo (`photoUri`) > emoji (`avatarId`) > initial.
+ *              F7 pass 2: local profile photo (FileSystem) first; otherwise a
+ *              predefined emoji avatar; otherwise the name initial fallback.
  *
  * @example
  * ```tsx
- * <Avatar avatarId={user.avatarId} fallbackName={user.displayName} size={40} />
+ * <Avatar
+ *   photoUri={user.photoUri}
+ *   avatarId={user.avatarId}
+ *   fallbackName={user.displayName}
+ *   size={40}
+ * />
  * ```
  *
  * @module presentation/components/atoms/Avatar
  */
 
-// [ADDED] F7 — Atome Avatar (emoji prédéfini + fallback initiale)
+// [MODIFIED] F7 passe 2 — Atome Avatar (photo > emoji > initiale)
 import React from 'react';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Image, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { getAvatarById } from '@core/entities/Avatar';
 import { useTheme, type Theme } from '@core/theme';
 import Text from '@presentation/components/atoms/Text';
@@ -29,6 +35,11 @@ import Text from '@presentation/components/atoms/Text';
  * Avatar component props.
  */
 export interface AvatarProps {
+  /**
+   * Chemin local d'une photo de profil (prioritaire sur l'emoji).
+   * Local profile photo path (takes priority over the emoji).
+   */
+  photoUri?: string | undefined;
   /** Id d'avatar emoji prédéfini (optionnel) / Predefined emoji avatar id (optional) */
   avatarId?: string | undefined;
   /** Nom utilisé pour le fallback initiale / Name used for the initial fallback */
@@ -60,10 +71,14 @@ const EMOJI_SIZE_RATIO = 0.55;
  * Atome Avatar du Design System Mivro.
  * Mivro Design System Avatar atom.
  *
- * Affiche l'emoji de l'avatar prédéfini si `avatarId` correspond à un avatar
- * connu, sinon l'initiale de `fallbackName` sur fond brand.
- * Renders the predefined avatar emoji if `avatarId` maps to a known avatar,
- * otherwise the `fallbackName` initial on a brand background.
+ * Ordre de rendu : photo (`photoUri`) > emoji (`avatarId`) > initiale.
+ * Affiche la photo de profil locale si fournie, sinon l'emoji de l'avatar
+ * prédéfini si `avatarId` correspond à un avatar connu, sinon l'initiale de
+ * `fallbackName` sur fond brand.
+ * Render order: photo (`photoUri`) > emoji (`avatarId`) > initial.
+ * Renders the local profile photo if provided, otherwise the predefined
+ * avatar emoji if `avatarId` maps to a known avatar, otherwise the
+ * `fallbackName` initial on a brand background.
  *
  * Décoratif par défaut (`accessibilityElementsHidden`) : le label porteur de
  * sens est sur le conteneur parent (ParticipantCard, ligne de profil…).
@@ -72,10 +87,52 @@ const EMOJI_SIZE_RATIO = 0.55;
  * @param props - {@link AvatarProps}
  * @returns Composant Avatar / Avatar component
  */
-const Avatar: React.FC<AvatarProps> = ({ avatarId, fallbackName, size = 40, style, testID }) => {
+const Avatar: React.FC<AvatarProps> = ({
+  photoUri,
+  avatarId,
+  fallbackName,
+  size = 40,
+  style,
+  testID,
+}) => {
   const theme = useTheme();
   const avatar = getAvatarById(avatarId);
+  const hasPhoto = photoUri != null && photoUri.length > 0;
   const styles = buildStyles(theme, size, avatar?.backgroundColor);
+
+  /**
+   * Sélectionne le contenu selon l'ordre photo > emoji > initiale.
+   * Picks the content following the photo > emoji > initial order.
+   */
+  const renderContent = (): React.ReactElement => {
+    if (hasPhoto) {
+      return (
+        <Image
+          source={{ uri: photoUri }}
+          style={styles.photo}
+          resizeMode="cover"
+          testID={testID ? `${testID}-photo` : undefined}
+        />
+      );
+    }
+    if (avatar) {
+      return (
+        <Text variant="body" style={styles.emoji} testID={testID ? `${testID}-emoji` : undefined}>
+          {avatar.emoji}
+        </Text>
+      );
+    }
+    return (
+      <Text
+        variant="body"
+        weight="bold"
+        color="onBrand"
+        testID={testID ? `${testID}-initial` : undefined}
+      >
+        {getInitial(fallbackName)}
+      </Text>
+    );
+  };
 
   return (
     <View
@@ -84,20 +141,7 @@ const Avatar: React.FC<AvatarProps> = ({ avatarId, fallbackName, size = 40, styl
       importantForAccessibility="no-hide-descendants"
       testID={testID}
     >
-      {avatar ? (
-        <Text variant="body" style={styles.emoji} testID={testID ? `${testID}-emoji` : undefined}>
-          {avatar.emoji}
-        </Text>
-      ) : (
-        <Text
-          variant="body"
-          weight="bold"
-          color="onBrand"
-          testID={testID ? `${testID}-initial` : undefined}
-        >
-          {getInitial(fallbackName)}
-        </Text>
-      )}
+      {renderContent()}
     </View>
   );
 };
@@ -113,11 +157,18 @@ const buildStyles = (theme: Theme, size: number, backgroundColor: string | undef
       backgroundColor: backgroundColor ?? theme.color.interactive.brand.default,
       justifyContent: 'center',
       alignItems: 'center',
+      // Clippe la photo au cercle / clips the photo to the circle
+      overflow: 'hidden',
     },
     emoji: {
       fontSize: size * EMOJI_SIZE_RATIO,
       lineHeight: size * EMOJI_SIZE_RATIO * theme.typography.lineHeight.tight,
       textAlign: 'center',
+    },
+    // [ADDED] F7 passe 2 — photo de profil remplit le cercle / photo fills the circle
+    photo: {
+      width: size,
+      height: size,
     },
   });
 

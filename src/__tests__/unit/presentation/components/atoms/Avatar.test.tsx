@@ -47,6 +47,37 @@ describe('Avatar atom', () => {
     expect(getByTestId('avatar-initial', { includeHiddenElements: true }).props.children).toBe('?');
   });
 
+  // ─── F7 passe 2 — priorité photo > emoji > initiale ───────
+  it('renders the photo when photoUri is provided (over emoji)', () => {
+    const { getByTestId, queryByTestId } = render(
+      <Avatar photoUri="/profile.jpg" avatarId="fox" fallbackName="Léa" testID="avatar" />,
+    );
+
+    const photo = getByTestId('avatar-photo', { includeHiddenElements: true });
+    expect(photo.props.source).toEqual({ uri: '/profile.jpg' });
+    // La photo prime : ni emoji ni initiale
+    expect(queryByTestId('avatar-emoji', { includeHiddenElements: true })).toBeNull();
+    expect(queryByTestId('avatar-initial', { includeHiddenElements: true })).toBeNull();
+  });
+
+  it('ignores an empty photoUri and falls back to the emoji', () => {
+    const { getByTestId, queryByTestId } = render(
+      <Avatar photoUri="" avatarId="fox" fallbackName="Léa" testID="avatar" />,
+    );
+
+    expect(getByTestId('avatar-emoji', { includeHiddenElements: true }).props.children).toBe('🦊');
+    expect(queryByTestId('avatar-photo', { includeHiddenElements: true })).toBeNull();
+  });
+
+  it('renders the photo over the initial when there is no avatarId', () => {
+    const { getByTestId, queryByTestId } = render(
+      <Avatar photoUri="/p.jpg" fallbackName="Marc" testID="avatar" />,
+    );
+
+    expect(getByTestId('avatar-photo', { includeHiddenElements: true })).toBeTruthy();
+    expect(queryByTestId('avatar-initial', { includeHiddenElements: true })).toBeNull();
+  });
+
   it('is hidden from the accessibility tree (decorative)', () => {
     const { getByTestId } = render(<Avatar avatarId="cat" fallbackName="Léa" testID="avatar" />);
 

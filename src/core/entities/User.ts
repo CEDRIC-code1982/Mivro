@@ -27,6 +27,8 @@ export const GuestUserSchema = z.object({
   displayName: z.string().min(1).max(50),
   // [ADDED] F7 — id de l'avatar emoji prédéfini choisi / chosen predefined emoji avatar id
   avatarId: AvatarIdSchema.optional(),
+  // [ADDED] F7 passe 2 — chemin local de la photo de profil (FileSystem) / local profile photo path
+  photoUri: z.string().min(1).optional(),
   createdAt: z.string().datetime(),
 });
 
@@ -41,6 +43,9 @@ export const AuthenticatedUserSchema = z.object({
   displayName: z.string().min(1).max(50),
   // [ADDED] F7 — id de l'avatar emoji prédéfini choisi / chosen predefined emoji avatar id
   avatarId: AvatarIdSchema.optional(),
+  // [ADDED] F7 passe 2 — chemin local de la photo de profil (FileSystem) / local profile photo path
+  // Distinct de avatarUrl (photo distante du provider OAuth) / distinct from remote provider avatarUrl
+  photoUri: z.string().min(1).optional(),
   avatarUrl: z.string().url().optional(),
   provider: z.enum(['google', 'apple']),
   createdAt: z.string().datetime(),

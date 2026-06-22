@@ -131,6 +131,68 @@ describe('UpdateProfileUseCase', () => {
     });
   });
 
+  // ─── F7 passe 2 — photoUri (set / clear / inchangé) ───────
+  describe('photoUri', () => {
+    const PHOTO = '/mock/Documents/profile-photos/abc.jpg';
+
+    it('sets photoUri from a string', () => {
+      const current = makeGuest();
+
+      const updated = useCase.execute(current, { photoUri: PHOTO });
+
+      expect(updated.photoUri).toBe(PHOTO);
+    });
+
+    it('clears photoUri when null (field removed)', () => {
+      const current = makeGuest({ photoUri: PHOTO });
+
+      const updated = useCase.execute(current, { photoUri: null });
+
+      expect(updated.photoUri).toBeUndefined();
+      expect('photoUri' in updated).toBe(false);
+    });
+
+    it('leaves photoUri untouched when field is absent', () => {
+      const current = makeGuest({ photoUri: PHOTO });
+
+      const updated = useCase.execute(current, { displayName: 'Léo' });
+
+      expect(updated.photoUri).toBe(PHOTO);
+      expect(updated.displayName).toBe('Léo');
+    });
+
+    it('rejects an empty-string photoUri with ZodError', () => {
+      const current = makeGuest();
+
+      expect(() => useCase.execute(current, { photoUri: '' })).toThrow(ZodError);
+    });
+
+    it('combines photoUri with displayName and avatarId', () => {
+      const current = makeGuest();
+
+      const updated = useCase.execute(current, {
+        displayName: 'Max',
+        avatarId: 'dragon',
+        photoUri: PHOTO,
+      });
+
+      expect(updated.displayName).toBe('Max');
+      expect(updated.avatarId).toBe('dragon');
+      expect(updated.photoUri).toBe(PHOTO);
+    });
+
+    it('clears photoUri on an authenticated user without losing other fields', () => {
+      const current = makeAuthenticated({ photoUri: PHOTO, avatarUrl: 'https://x.test/a.png' });
+
+      const updated = useCase.execute(current, { photoUri: null });
+
+      expect(updated.photoUri).toBeUndefined();
+      if (updated.type !== 'authenticated') throw new Error('expected authenticated user');
+      expect(updated.email).toBe('lea@example.com');
+      expect(updated.avatarUrl).toBe('https://x.test/a.png');
+    });
+  });
+
   // ─── Préservation de la discriminated union ───────────────
   describe('discriminated union preservation', () => {
     it('preserves the guest type and createdAt', () => {

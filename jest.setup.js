@@ -213,6 +213,23 @@ jest.mock('react-native-maps', () => {
   };
 });
 
+// [ADDED] F7 passe 2 — Mock react-native-image-picker (native module unavailable in Jest)
+// Les tests d'adapter surchargent ces mocks via jest.mocked(...).mockResolvedValue(...).
+jest.mock('react-native-image-picker', () => ({
+  launchCamera: jest.fn(),
+  launchImageLibrary: jest.fn(),
+}));
+
+// [ADDED] F7 passe 2 — Mock @dr.pogodin/react-native-fs (native module unavailable in Jest)
+// DocumentDirectoryPath est une constante ; les fonctions FS sont des jest.fn surchargeables.
+jest.mock('@dr.pogodin/react-native-fs', () => ({
+  DocumentDirectoryPath: '/mock/Documents',
+  copyFile: jest.fn().mockResolvedValue(undefined),
+  exists: jest.fn().mockResolvedValue(false),
+  mkdir: jest.fn().mockResolvedValue(undefined),
+  unlink: jest.fn().mockResolvedValue(undefined),
+}));
+
 // [ADDED] Mock react-native-localize (native module unavailable in Jest)
 jest.mock('react-native-localize', () => ({
   getLocales: () => [{ languageCode: 'fr', countryCode: 'FR', languageTag: 'fr-FR', isRTL: false }],

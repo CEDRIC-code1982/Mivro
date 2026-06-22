@@ -6,7 +6,7 @@
 
 # Ne pas modifier sans créer un ADR correspondant.
 
-# Version 8.3 — 2026-06-20 (F7 Profil passe 1 livrée ; pointeur sprint → F4)
+# Version 8.4 — 2026-06-20 (F7 Profil entièrement livrée — passes 1 & 2 ; ADR-013 ; pointeur sprint → F5, ou F4 si Firebase prêt)
 
 ## PROJET
 
@@ -357,7 +357,8 @@ docs-site/docs/
 │   ├── ADR-009-external-apis-scaling.md
 │   ├── ADR-010-sentry-posthog.md
 │   ├── ADR-011-rename-midpoint-to-mivro.md
-│   └── ADR-012-emoji-avatars-vs-svg.md
+│   ├── ADR-012-emoji-avatars-vs-svg.md
+│   └── ADR-013-profile-photo-filesystem-vs-base64.md
 └── api/                       # Généré par TypeDoc
 ```
 
@@ -404,17 +405,17 @@ Alternatives écartées : Avec raisons
 | QA P0   | Fix 7 bugs critiques device QA                               | `f520911`                               |
 | QA P1   | Accessibilité & robustesse (VoiceOver, erreurs réseau, GPS)  | `786a4e9` `ed7b0ee` `c01e29c`           |
 | F7 (P1) | Profil : `displayName` + 20 avatars emoji (passe 1)          | non commité (2026-06-20)                |
+| F7 (P2) | Profil : photo (picker + FileSystem) — F7 complète (ADR-013) | non commité (2026-06-20)                |
 
 Atoms livrés : `Text`, `Screen`, `TabBarIcon`, `CategoryChip`, `Avatar`
 Molecules livrés : `ParticipantCard`, `EmptyState`, `AddressAutocomplete`, `AvatarPicker`, `SessionMapView`, `POICard`, `POIDetailSheet`, `POIListView`, `POIMapView`, `POIScreenHeader`
 
 > ⚠️ Divergence à corriger : le README/anciennes notes mentionnaient des atoms `Button`/`Input`/`IconButton`/`Card`/`Spinner` — **ils n'existent pas encore**. À créer au besoin via le skill `create-atom`.
 
-### 🔜 Sprint en cours / suivant — F4 Temps réel
+### 🔜 Sprint en cours / suivant — F5 Partage (ou F4 si Firebase prêt)
 
-F7 Profil **passe 1** ✅ faite (2026-06-20) : `displayName` + 20 avatars emoji (décision emoji-based, ADR-012). Non encore commitée — voir `docs/context/PROGRESS.md`.
-Prochaine feature : **F4 Temps réel Firebase** (⚠️ **PAUSE OBLIGATOIRE** : projet Firebase + fichiers de config natifs requis avant l'adapter).
-En attendant le déblocage F4, candidat sans blocker : **F7 passe 2** (photo picker `react-native-image-picker` — étape native : install + pods + permissions) puis F5/F8. Voir `docs/context/TODO.md`.
+**F7 Profil entièrement livrée** ✅ (2026-06-20) : passe 1 (`displayName` + 20 avatars emoji, ADR-012) **et** passe 2 (photo picker + stockage FileSystem, ADR-013). Testée (718 tests) + reviewée APPROVED. Non encore commitée — voir `docs/context/PROGRESS.md`. Reste uniquement la **vérif device** (permissions, resize, persistance, cleanup FS — voir `docs/context/TODO.md`).
+Prochaine feature sans blocker : **F5 Partage deep link** (scheme `mivro://`). **F4 Temps réel Firebase** reste prioritaire dès que le projet Firebase + les fichiers de config natifs sont fournis (⚠️ **PAUSE OBLIGATOIRE**).
 ⚠️ Restent à re-vérifier sur device (QA P1) : layout Dynamic Type 200 % et champ fantôme F1 (fixes posés).
 
 ### 📋 Backlog priorisé
@@ -437,7 +438,7 @@ Pour chaque feature : objectif · couches · composants · dépendances · déci
 - **Done** : les 5 points validés, `npm run check` vert, cas testés.
 - **Complexité** : S (M pour VoiceOver Map).
 
-#### F7 — Profil
+#### F7 — Profil — ✅ FAIT (2026-06-20, passes 1 & 2 ; ADR-012 + ADR-013 ; reste vérif device)
 
 - **Objectif** : permettre à l'user de personnaliser son identité. `ProfileScreen.tsx` (232 l.) existe déjà → enrichir, pas créer de zéro.
 - **Couches** : presentation (principalement) + `UpdateProfileUseCase` (core).

@@ -18,6 +18,22 @@
     "save": "Save name",
     "saveHint": "Updates your display name"
   },
+  "photo": {
+    "label": "Profile photo",
+    "choose": "Choose a photo",
+    "chooseHint": "Opens your library to choose a profile photo",
+    "take": "Take a photo",
+    "takeHint": "Opens the camera to take a profile photo",
+    "remove": "Remove photo",
+    "removeHint": "Removes your current profile photo",
+    "loading": "Processing photo…",
+    "errors": {
+      "permission_denied": "Camera or library access denied. Allow it in Settings to add a photo.",
+      "camera_unavailable": "The camera is not available on this device.",
+      "processing_failed": "Could not save the photo. Please try again.",
+      "unknown": "Something went wrong. Please try again."
+    }
+  },
   "avatarPicker": {
     "label": "Choose your avatar",
     "selectHint": "Select the {{name}} avatar"

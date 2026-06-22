@@ -11,6 +11,7 @@
 import { renderHook, act, waitFor } from '@testing-library/react-native';
 import type { GeocodeResult } from '@core/entities/GeocodeResult';
 import type { Location } from '@core/entities/Location';
+import type { User } from '@core/entities/User';
 import { GeolocationError } from '@core/ports/IGeolocationService';
 import { useCreateSessionFlow } from '@presentation/hooks/useCreateSessionFlow';
 import { useSessionStore } from '@presentation/stores/useSessionStore';
@@ -23,6 +24,13 @@ jest.mock('uuid', () => ({
     mockUuidCounter++;
     return `test-uuid-${String(mockUuidCounter).padStart(4, '0')}`;
   },
+}));
+
+// ─── Mock auth (F7 passe 2 — avatarId du user courant) ──────
+let mockUser: User | null = null;
+
+jest.mock('@presentation/hooks/useAuth', () => ({
+  useAuthUser: () => mockUser,
 }));
 
 // ─── Mock DI container ──────────────────────────────────────
@@ -64,6 +72,7 @@ describe('useCreateSessionFlow', () => {
     mockUuidCounter = 0;
     jest.clearAllMocks();
     resetStores();
+    mockUser = null;
   });
 
   // ─── Initialisation ─────────────────────────────────────
@@ -383,6 +392,54 @@ describe('useCreateSessionFlow', () => {
       });
       expect(result.current.gpsError).toBeNull();
       errorSpy.mockRestore();
+    });
+
+    // ─── F7 passe 2 — avatarId du user courant porté sur le participant GPS ──
+    it('carries the current user avatarId onto the GPS participant', async () => {
+      mockUser = {
+        type: 'guest',
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        displayName: 'Léa',
+        avatarId: 'fox',
+        createdAt: '2026-01-15T10:30:00.000Z',
+      };
+      mockGetCurrentLocationExecute.mockResolvedValueOnce(fakeGpsResult);
+      const { result } = renderHook(() => useCreateSessionFlow());
+
+      await act(async () => {
+        await result.current.addByGps();
+      });
+
+      expect(result.current.participants[0]?.avatarId).toBe('fox');
+    });
+
+    it('does not set an avatarId when the current user has none', async () => {
+      mockUser = {
+        type: 'guest',
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        displayName: 'Léa',
+        createdAt: '2026-01-15T10:30:00.000Z',
+      };
+      mockGetCurrentLocationExecute.mockResolvedValueOnce(fakeGpsResult);
+      const { result } = renderHook(() => useCreateSessionFlow());
+
+      await act(async () => {
+        await result.current.addByGps();
+      });
+
+      expect(result.current.participants[0]?.avatarId).toBeUndefined();
+    });
+
+    it('does not set an avatarId when no user is signed in', async () => {
+      mockUser = null;
+      mockGetCurrentLocationExecute.mockResolvedValueOnce(fakeGpsResult);
+      const { result } = renderHook(() => useCreateSessionFlow());
+
+      await act(async () => {
+        await result.current.addByGps();
+      });
+
+      expect(result.current.participants[0]?.avatarId).toBeUndefined();
     });
 
     it('sets session_full error when session is full', async () => {
