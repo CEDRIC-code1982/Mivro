@@ -20,6 +20,8 @@ import { RNGeolocationService } from '@infrastructure/geolocation/RNGeolocationS
 
 const mockSetRNConfiguration = Geolocation.setRNConfiguration as jest.Mock;
 const mockGetCurrentPosition = Geolocation.getCurrentPosition as jest.Mock;
+const mockWatchPosition = Geolocation.watchPosition as jest.Mock;
+const mockClearWatch = Geolocation.clearWatch as jest.Mock;
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -304,6 +306,162 @@ describe('RNGeolocationService', () => {
 
       expect(requestSpy).not.toHaveBeenCalled();
       requestSpy.mockRestore();
+    });
+  });
+
+  // ─── watchPosition (F4) ─────────────────────────────────
+  describe('watchPosition', () => {
+    /** Construit une réponse native de watch / Builds a native watch response */
+    const watchResponse = (
+      coords: Partial<{
+        latitude: number;
+        longitude: number;
+        speed: number | null;
+        heading: number | null;
+      }> = {},
+    ) => ({
+      coords: {
+        latitude: 48.8566,
+        longitude: 2.3522,
+        speed: 10,
+        heading: 90,
+        accuracy: 5,
+        ...coords,
+      },
+      timestamp: Date.now(),
+    });
+
+    beforeEach(() => {
+      mockWatchPosition.mockReturnValue(42);
+    });
+
+    it('returns a clearWatch function that calls Geolocation.clearWatch with the watch id', () => {
+      const clear = service.watchPosition(jest.fn());
+
+      clear();
+
+      expect(mockClearWatch).toHaveBeenCalledWith(42);
+    });
+
+    it('normalizes speed m/s → km/h (×3.6)', () => {
+      mockWatchPosition.mockImplementation((success: (r: unknown) => void) => {
+        success(watchResponse({ speed: 10 })); // 10 m/s
+        return 42;
+      });
+      const onSample = jest.fn();
+
+      service.watchPosition(onSample);
+
+      expect(onSample).toHaveBeenCalledWith(
+        expect.objectContaining({ speed: 36 }), // 10 * 3.6
+      );
+    });
+
+    it('coerces negative/null speed to 0', () => {
+      mockWatchPosition.mockImplementation((success: (r: unknown) => void) => {
+        success(watchResponse({ speed: -1 }));
+        return 42;
+      });
+      const onSample = jest.fn();
+
+      service.watchPosition(onSample);
+
+      expect(onSample).toHaveBeenCalledWith(expect.objectContaining({ speed: 0 }));
+    });
+
+    it('clamps heading into [0, 360) (modulo)', () => {
+      mockWatchPosition.mockImplementation((success: (r: unknown) => void) => {
+        success(watchResponse({ heading: 540 })); // 540 % 360 = 180
+        return 42;
+      });
+      const onSample = jest.fn();
+
+      service.watchPosition(onSample);
+
+      expect(onSample).toHaveBeenCalledWith(expect.objectContaining({ heading: 180 }));
+    });
+
+    it('coerces negative/null heading to 0', () => {
+      mockWatchPosition.mockImplementation((success: (r: unknown) => void) => {
+        success(watchResponse({ heading: null }));
+        return 42;
+      });
+      const onSample = jest.fn();
+
+      service.watchPosition(onSample);
+
+      expect(onSample).toHaveBeenCalledWith(expect.objectContaining({ heading: 0 }));
+    });
+
+    it('forwards validated coordinates', () => {
+      mockWatchPosition.mockImplementation((success: (r: unknown) => void) => {
+        success(watchResponse({ latitude: 48.85, longitude: 2.35 }));
+        return 42;
+      });
+      const onSample = jest.fn();
+
+      service.watchPosition(onSample);
+
+      expect(onSample).toHaveBeenCalledWith(
+        expect.objectContaining({ latitude: 48.85, longitude: 2.35 }),
+      );
+    });
+
+    it('skips invalid native response shape (no sample emitted)', () => {
+      mockWatchPosition.mockImplementation((success: (r: unknown) => void) => {
+        success({ invalid: 'data' });
+        return 42;
+      });
+      const onSample = jest.fn();
+
+      service.watchPosition(onSample);
+
+      expect(onSample).not.toHaveBeenCalled();
+      expect(mockCrashReporter.captureException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'Geolocation watch response invalid' }),
+        expect.objectContaining({ tags: { feature: 'gps' } }),
+      );
+    });
+
+    it('skips out-of-range coordinates (Zod) without emitting', () => {
+      mockWatchPosition.mockImplementation((success: (r: unknown) => void) => {
+        success(watchResponse({ latitude: 200 }));
+        return 42;
+      });
+      const onSample = jest.fn();
+
+      service.watchPosition(onSample);
+
+      expect(onSample).not.toHaveBeenCalled();
+    });
+
+    it('maps native errors to the typed onError callback', () => {
+      mockWatchPosition.mockImplementation(
+        (_success: unknown, error: (e: { code: number; message: string }) => void) => {
+          error({ code: 1, message: 'denied' });
+          return 42;
+        },
+      );
+      const onError = jest.fn();
+
+      service.watchPosition(jest.fn(), onError);
+
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: 'permission_denied' }));
+    });
+
+    it('does NOT leak raw coordinates into logs', () => {
+      const logSpy = jest.spyOn(console, 'log').mockImplementation();
+      mockWatchPosition.mockImplementation((success: (r: unknown) => void) => {
+        success(watchResponse({ latitude: 48.8566, longitude: 2.3522 }));
+        return 42;
+      });
+
+      service.watchPosition(jest.fn());
+
+      const logged = logSpy.mock.calls.map((c) => c.join(' ')).join('\n');
+      expect(logged).not.toContain('48.8566');
+      expect(logged).not.toContain('2.3522');
+      logSpy.mockRestore();
     });
   });
 

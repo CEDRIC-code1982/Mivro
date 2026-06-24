@@ -1,7 +1,7 @@
 # PROGRESS.md — Mivro
 
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-06-20 (F7 Profil passe 2 — photo — livrée/testée/reviewée, non commitée).
+> Dernière mise à jour : 2026-06-20 (F4 Temps réel Firebase — livrée/testée/reviewée APPROVED, non commitée).
 
 ## Tableau des sprints
 
@@ -16,9 +16,9 @@
 | S07-08 (F3)    | 2026-05-10 → 05-11 | ✅ Fait    | `0bca95f` `4804539`           |
 | QA P0          | 2026-05-25         | ✅ Fait    | `f520911`                     |
 | QA P1          | 2026-06-15         | ✅ Fait    | `786a4e9` `ed7b0ee` `c01e29c` |
-| F7 Profil (P1) | 2026-06-20         | ✅ Fait\*  | non commité                   |
-| F7 Profil (P2) | 2026-06-20         | ✅ Fait\*  | non commité                   |
-| F4 Temps réel  | —                  | 📋 Backlog | —                             |
+| F7 Profil (P1) | 2026-06-20         | ✅ Fait    | `0ade2e2`                     |
+| F7 Profil (P2) | 2026-06-22         | ✅ Fait    | `ebf1215`                     |
+| F4 Temps réel  | 2026-06-20         | ✅ Fait\*  | non commité                   |
 | F5 Partage     | —                  | 📋 Backlog | —                             |
 | F8 Biométrie   | —                  | 📋 Backlog | —                             |
 | F6 Auth        | —                  | 📋 Backlog | —                             |
@@ -26,7 +26,8 @@
 | PostHog        | —                  | 📋 Backlog | —                             |
 | Beta           | —                  | 📋 Backlog | —                             |
 
-\*F7 passes 1 **et** 2 livrées/testées/reviewées (APPROVED), pas encore commitées au moment de cette mise à jour. **F7 est désormais entièrement implémentée** (édition nom + avatars emoji + photo). Reste uniquement la vérification sur device (voir TODO.md). Prochaine feature : F5 Partage (ou F4 si Firebase prêt).
+F7 (passes 1 & 2) est désormais **commitée** (`0ade2e2`, `ebf1215`).
+\*F4 Temps réel Firebase : code applicatif **livré + testé (865 tests) + reviewé APPROVED** (après 1 tour de corrections review), pas encore commité au moment de cette mise à jour. **PAUSE OBLIGATOIRE non levée** : reste la fourniture du projet Firebase + des 2 fichiers de config natifs + Security Rules RTDB par Cédric, puis la vérif device (voir TODO.md). Prochaine feature débloquable : **F5 Partage** (ou F8 Biométrie).
 
 ---
 
@@ -123,9 +124,46 @@ Seconde passe de F7 : ajout d'une **photo de profil optionnelle** (galerie / cam
 
 ---
 
+### F4 — Temps réel Firebase (multi-participants live) — livrée + testée + reviewée APPROVED (2026-06-20, non commité)
+
+> Transport tranché : **Firebase Realtime Database** (`@react-native-firebase/app` + `/database` v25, **API modulaire**) — décision actée en **ADR-006**. Code applicatif **livré + testé (865 tests) + reviewé APPROVED** (1 tour de corrections review appliqué). ⚠️ **PAUSE OBLIGATOIRE non levée** : le projet Firebase + `GoogleService-Info.plist` (iOS) + `google-services.json` (Android) ne sont pas encore fournis. Le code est prêt à fonctionner dès leur ajout ; aucun faux fichier de config n'a été créé.
+
+- **Core** :
+  - Entité `RealtimeParticipant` (Zod strict) : `participantId`, `latitude`, `longitude`, `updatedAt` (epoch ms serveur), `speed` (km/h), `heading` [0,360), `isOnline`. + `RealtimeLocationUpdate` (sous-ensemble publié par le device).
+  - Port `IRealtimeService` : `subscribeToSession → unsubscribe`, `publishLocation`, `leaveSession` + `RealtimeError` typée (`not_configured`/`network`/`permission_denied`/`invalid_data`/`unknown`).
+  - `TrackParticipantsUseCase` : orchestre subscribe/publish/leave, valide les entrées (Zod sur la position), **aucune dépendance infra**.
+  - Port `IGeolocationService` étendu : `watchPosition(onSample, onError?, options?) → clearWatch` + types `PositionSample` (coordonnées + speed km/h + heading), `WatchPositionOptions`.
+- **Infrastructure** :
+  - `FirebaseRealtimeService` (`infrastructure/realtime/`) : implémente le port via l'API modulaire (`getDatabase/ref/onValue/onDisconnect/update/remove/serverTimestamp`). Structure exacte `sessions/{sessionId}/participants/{participantId}`. **Valide chaque entrée lue via Zod** (TS-004, entrées invalides ignorées + reportées), try/catch partout (ERR-001), mapping erreurs → `RealtimeError`, crashReporter, logs LOG-001 **sans coordonnées brutes**. `onDisconnect → isOnline=false` armé avant l'écriture ; `leaveSession` annule l'`onDisconnect` puis `remove` le nœud (RGPD).
+  - `RNGeolocationService.watchPosition` : normalise la vitesse native m/s → km/h, borne le cap [0,360), valide via Zod, expose une fonction d'arrêt (`clearWatch`).
+- **Presentation** :
+  - `useRealtimeStore` (Zustand, **NON persisté** — RGPD) : map `participantId → RealtimeParticipant`, `status` (idle/connecting/connected/error), `hasSharingConsent`, actions start/stop/setParticipants/setStatus/setSharingConsent. `stopTracking` purge l'état (aucune position en mémoire).
+  - Hook `useRealtimeTracking` : relie `geoloc.watchPosition → publish` et `subscribe → store`. **Opti batterie** : publication throttlée 5s si speed>5 km/h / 30s à l'arrêt ; **coupée si l'app passe en arrière-plan (AppState)**. La publication n'a lieu **que si `hasSharingConsent=true`** (RGPD) ; l'abonnement (voir les autres) reste autorisé sans consentement. `stop()` → `leaveSession` (remove du nœud). N'importe jamais firebase (passe par le port + DI).
+  - UI : `SessionMapView` étendu avec des **markers live distincts** (halo online/offline) des points de départ ; molecule `LiveParticipantsList` (vue liste a11y A11Y-006 : nom, statut online/offline, distance au midpoint) ; molecule `RealtimeConsentModal` (consentement RGPD **explicite et séparé**). `MapScreen` orchestre : bouton « Partager / Arrêter », modal de consentement, markers live + section liste live dans la modal a11y, `leaveSession` au démontage.
+- **DI** : `IRealtimeService → FirebaseRealtimeService` + `TrackParticipantsUseCase` câblés dans `di/container.ts` (swap = 1 ligne).
+- **i18n** : namespace `realtime` FR + EN (consentement, statut online/offline, liste, actions, a11y, erreurs typées). Zéro string hardcodée.
+- **Config native (préparée pour Cédric)** :
+  - iOS `Podfile` : ajout de `use_modular_headers!` (requis par les pods Swift Firebase).
+  - Android : classpath `com.google.gms:google-services:4.4.2` (`android/build.gradle`) + `apply plugin: "com.google.gms.google-services"` (`android/app/build.gradle`).
+  - iOS init Firebase : **aucun `[FIRApp configure]` manuel** — RNFirebase v25 auto-configure via `GoogleService-Info.plist` au build (AppDelegate inchangé).
+- **Fichiers clés** : `core/entities/RealtimeParticipant.ts`, `core/ports/IRealtimeService.ts`, `core/ports/IGeolocationService.ts` (watchPosition), `core/usecases/TrackParticipantsUseCase.ts`, `infrastructure/realtime/FirebaseRealtimeService.ts`, `infrastructure/geolocation/RNGeolocationService.ts`, `presentation/stores/useRealtimeStore.ts`, `presentation/hooks/useRealtimeTracking.ts`, `presentation/components/molecules/{LiveParticipantsList,RealtimeConsentModal}/`, `presentation/components/molecules/SessionMapView/SessionMapView.tsx`, `presentation/screens/MapScreen.tsx`, `di/container.ts`, `i18n/locales/{fr,en}/realtime.json`, `ios/Podfile`, `android/build.gradle`, `android/app/build.gradle`.
+- **Tests** : ~168 cas F4 ajoutés ; suite globale **865 tests** (71 suites) verts, seuils de coverage respectés. Firebase mocké via le port `IRealtimeService`, `watchPosition` mocké via le port geoloc (zéro `any`). Nouveaux fichiers : `RealtimeParticipant.test.ts`, `IRealtimeService.test.ts`, `TrackParticipantsUseCase.test.ts`, `infrastructure/realtime/` (adapter), `useRealtimeStore.test.ts`, `useRealtimeTracking.test.tsx`, `LiveParticipantsList.test.tsx`, `RealtimeConsentModal.test.tsx` ; modifiés : `RNGeolocationService.test.ts` (watchPosition), `SessionMapView.test.tsx` (markers live), `MapScreen.test.tsx` (orchestration). `npm run check` vert.
+- **Bug corrigé (1)** : **boucle de rendu Zustand v5** — un sélecteur de `useRealtimeStore` renvoyant un **nouvel objet** à chaque appel provoquait des re-renders infinis (« Maximum update depth exceeded »). Corrigé en mémoïsant la dérivation (`useMemo`) / en sélectionnant des références stables. Voir « Appris ».
+- **3 corrections de review** appliquées (après 1 tour) : (1) le **watch GPS** est désormais **conditionné au consentement** (`hasSharingConsent`) — on n'arme plus le capteur GPS tant que l'utilisateur n'a pas consenti au partage, pas seulement la publication ; (2) + (3) corrections de robustesse/cohérence remontées par la review (mapping erreurs / cycle de vie du watch).
+- **tsc** : `npx tsc --noEmit` à **0 erreur** ; lint + prettier verts sur les fichiers touchés.
+- **Reste** : **PAUSE OBLIGATOIRE Cédric** — créer le projet Firebase + activer la Realtime DB, fournir `GoogleService-Info.plist` (iOS) + `google-services.json` (android/app/), définir les **Security Rules** RTDB (restreindre `sessions/{sessionId}`), `pod install` (iOS), puis vérif device (live multi-appareils + opti batterie réelle).
+
+---
+
 ## Historique des commits (annoté)
 
 ```
+(F4 Temps réel — livrée/testée/reviewée APPROVED, PAS encore commitée)
+ebf1215  2026-06-22  feat(f7)        profile photo (picker + FileSystem) ← F7 p2 (ADR-013)
+0ade2e2  2026-06-20  feat(f7)        profile name + emoji avatars      ← F7 p1 (ADR-012)
+c01e29c  2026-06-15  fix(qa-p1)      autocomplete au-dessus du clavier ← QA P1
+ed7b0ee  2026-06-15  fix(qa-p1)      bottom sheet portal + footer map  ← QA P1
+786a4e9  2026-06-15  fix(qa-p1)      a11y + erreurs réseau + GPS notice ← QA P1
 f520911  2026-05-25  fix(qa-p0)      7 bugs critiques device
 4804539  2026-05-11  feat(poi-ui)    POI screen liste/carte           ← F3
 0bca95f  2026-05-10  feat(poi)       Overpass POI service             ← F3
@@ -150,23 +188,23 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 
 ## Métriques actuelles (2026-06-20)
 
-| Métrique                           | Valeur                      |
-| ---------------------------------- | --------------------------- |
-| Fichiers code (`src/`, hors tests) | 95                          |
-| Fichiers de tests                  | 59                          |
-| Tests (cas) — `npm run check`      | 718                         |
-| Entités core                       | 7 (+`Avatar`)               |
-| Ports                              | 6 (+`IProfilePhotoService`) |
-| Use cases                          | 6 (+`UpdateProfile`)        |
-| Adapters infrastructure            | 6 (+3 placeholders vides)   |
-| Stores Zustand                     | 3                           |
-| Hooks custom                       | 8 (+`useProfilePhoto`)      |
-| Atoms / Molecules / Templates      | 5 / 10 / 1                  |
-| Écrans                             | 5                           |
-| Namespaces i18n × langues          | 7 × 2 (FR/EN)               |
+| Métrique                           | Valeur                                    |
+| ---------------------------------- | ----------------------------------------- |
+| Fichiers code (`src/`, hors tests) | 107                                       |
+| Suites de tests                    | 71                                        |
+| Tests (cas) — `npm run check`      | 865                                       |
+| Entités core                       | 8 (+`RealtimeParticipant`)                |
+| Ports                              | 7 (+`IRealtimeService`)                   |
+| Use cases                          | 7 (+`TrackParticipants`)                  |
+| Adapters infrastructure            | 7 (+2 placeholders vides : eta/analytics) |
+| Stores Zustand                     | 4 (+`useRealtimeStore`)                   |
+| Hooks custom                       | 9 (+`useRealtimeTracking`)                |
+| Atoms / Molecules / Templates      | 5 / 12 / 1                                |
+| Écrans                             | 5                                         |
+| Namespaces i18n × langues          | 8 × 2 (FR/EN)                             |
 
-> Atoms : +`Avatar`. Molecules : +`AvatarPicker`. Ports : +`IProfilePhotoService` (adapter `ImagePickerProfilePhotoService`). Hooks : +`useProfilePhoto`.
-> ⚠️ Coverage par couche **non mesurée ici** : `coverage/coverage-summary.json` absent. La review F7 indique seuils respectés ; lancer `npm run test:coverage` pour les chiffres réels (seuils CI : core 90% / infra 70% / presentation 50% / global 70%).
+> F4 : +entité `RealtimeParticipant`, +port `IRealtimeService` (adapter `FirebaseRealtimeService`), +usecase `TrackParticipants`, +store `useRealtimeStore`, +hook `useRealtimeTracking`, +molecules `LiveParticipantsList` & `RealtimeConsentModal`, +namespace i18n `realtime`. Le dossier `infrastructure/realtime/` n'est plus vide (restent `eta/` et `analytics/`).
+> ⚠️ Coverage par couche **non mesurée ici** : `coverage/coverage-summary.json` absent. Les reviews F7 et F4 indiquent seuils respectés ; lancer `npm run test:coverage` pour les chiffres réels (seuils CI : core 90% / infra 70% / presentation 50% / global 70%).
 
 ---
 
@@ -187,3 +225,10 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 - **Stocker un chemin, pas un binaire (F7 p2)** : la photo de profil est copiée sur le FileSystem (`Documents/profile-photos/<uuid>.jpg`) et seul le **chemin** est persisté MMKV (`User.photoUri`). Évite de gonfler le store (pas de base64), survit aux redémarrages (≠ URI `tmp/` du picker qui peut être purgée). Voir ADR-013.
 - **Cleanup FileSystem best-effort (F7 p2)** : `deletePhoto` (suppression de l'ancien fichier au remplacement / à la suppression) **ne doit jamais rejeter** — un fichier déjà absent ou non supprimable ne doit pas faire échouer la mise à jour du profil. À durcir côté contrat (TSDoc) et `normalizePath` (voir TODO dette F7).
 - **`BottomSheet` ≠ `BottomSheetModal`** (@gorhom) : `BottomSheet` n'est PAS un portail — placé dans un `ScrollView`, il se positionne dans le flux du scroll et son contenu « fermé » s'affiche en bas du contenu (champ fantôme F1). Pour un sheet par-dessus un écran scrollable, utiliser `BottomSheetModal` + `BottomSheetModalProvider` (rendu en portail racine). `present()`/`dismiss()` au lieu de `snapToIndex(0)`/`close()`, `onDismiss` au lieu de `onClose`, pas de prop `index`.
+- **RNFirebase v25 = API modulaire** : importer `getDatabase/ref/onValue/onDisconnect/update/remove/serverTimestamp` directement depuis `@react-native-firebase/database` (tree-shakable, recommandé v22+). Pas de `[FIRApp configure]` manuel : la config se fait via `GoogleService-Info.plist` / `google-services.json` au build. Les types du SDK suffisent : **`tsc` compile à 0 erreur sans les fichiers de config** (ils ne sont nécessaires qu'au runtime).
+- **Pods Swift Firebase → `use_modular_headers!`** : sans cette directive dans le Podfile, `pod install` échoue (« Swift pod cannot yet be integrated as a static library… depends upon … which do not define modules »). À placer juste après `prepare_react_native_project!`.
+- **`onDisconnect` AVANT l'écriture** (RTDB) : armer `onDisconnect(ref).update({ isOnline:false })` _avant_ le `update` de la position garantit que le serveur repasse le participant offline en cas de coupure brutale. `leaveSession` doit `cancel()` l'onDisconnect puis `remove()` (sinon le onDisconnect ré-écrirait un nœud qu'on vient de supprimer — RGPD).
+- **Opti batterie côté presentation, pas dans l'adapter geoloc** : `watchPosition` (infra) émet brut ; le throttling 5s/30s + la coupure en arrière-plan (AppState) vivent dans `useRealtimeTracking`. Garde l'adapter simple et substituable ; la politique batterie reste une décision applicative.
+- **RGPD — consentement de partage séparé et non persisté** : `hasSharingConsent` vit dans `useRealtimeStore` (non persisté). On peut **voir** les autres sans consentement (abonnement), mais on ne **publie** jamais sa position tant qu'il est `false`. Choix par session, jamais stocké. **Corrigé en review** : on ne se contente pas de bloquer la publication — le **watch GPS lui-même n'est armé que si le consentement est donné** (ne pas allumer le capteur sans raison ni consentement).
+- **Boucle de rendu Zustand v5 (sélecteur renvoyant un nouvel objet)** : avec Zustand v5, un sélecteur qui **construit un nouvel objet/array à chaque appel** (ex : `s => ({ ...derived })` ou `Object.values(map)`) casse l'égalité référentielle → React re-render en boucle (« Maximum update depth exceeded »). Bug rencontré sur `useRealtimeStore` (F4). Fix : sélectionner des **références stables** (sélecteurs atomiques) et **mémoïser** la dérivation côté composant (`useMemo`), ou passer un comparateur (`useShallow`). Régression silencieuse jusqu'au montage du composant — d'où l'intérêt des tests d'intégration.
+- **Firebase confiné à l'infra (F4)** : `@react-native-firebase/*` n'est importé que par `FirebaseRealtimeService`. Le `tsc` compile à 0 erreur **sans** les fichiers de config natifs (nécessaires seulement au runtime), et le core/presentation restent testables via le port mocké. Transport substituable (swap = 1 ligne DI). Décision actée en ADR-006.

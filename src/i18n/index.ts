@@ -8,6 +8,7 @@ import mapEn from './locales/en/map.json';
 import navigationEn from './locales/en/navigation.json';
 import poiEn from './locales/en/poi.json'; // [ADDED]
 import profileEn from './locales/en/profile.json';
+import realtimeEn from './locales/en/realtime.json'; // [ADDED] F4
 import sessionsEn from './locales/en/sessions.json';
 import commonFr from './locales/fr/common.json';
 import createFr from './locales/fr/create.json';
@@ -15,6 +16,7 @@ import mapFr from './locales/fr/map.json';
 import navigationFr from './locales/fr/navigation.json';
 import poiFr from './locales/fr/poi.json'; // [ADDED]
 import profileFr from './locales/fr/profile.json';
+import realtimeFr from './locales/fr/realtime.json'; // [ADDED] F4
 import sessionsFr from './locales/fr/sessions.json';
 
 // [MODIFIED] Namespace definitions per CLAUDE.md — added navigation, map, sessions, create, profile
@@ -26,6 +28,7 @@ const resources = {
     navigation: navigationFr,
     poi: poiFr, // [ADDED]
     profile: profileFr,
+    realtime: realtimeFr, // [ADDED] F4
     sessions: sessionsFr,
   },
   en: {
@@ -35,6 +38,7 @@ const resources = {
     navigation: navigationEn,
     poi: poiEn, // [ADDED]
     profile: profileEn,
+    realtime: realtimeEn, // [ADDED] F4
     sessions: sessionsEn,
   },
 } as const;

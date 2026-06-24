@@ -1,10 +1,10 @@
 # TODO.md — Mivro
 
 > Tâches restantes priorisées. Cocher au fur et à mesure, ajouter les découvertes (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-06-20.
+> Dernière mise à jour : 2026-06-20 (F4 Temps réel Firebase livrée/testée/reviewée APPROVED).
 
 Priorités : **P0** bloquant/immédiat · **P1** important · **P2** souhaitable · **P3** plus tard.
-Ordre d'exécution recommandé : Fix QA P1 → F7 → F4 → F5 → F8 → F6 → ADR → PostHog → Beta.
+Ordre d'exécution recommandé : Fix QA P1 → F7 → F4 → **F5** → F8 → F6 → ADR → PostHog → Beta. (Fix QA P1, F7, F4 faits — F4 attend config Firebase + device par Cédric ; prochaine : F5 ou F8.)
 
 ---
 
@@ -53,20 +53,27 @@ _Estimation : S. **Étape native** : npm install + pod install + permissions._
 
 > **F7 entièrement livrée** (passes 1 + 2, testée + reviewée APPROVED). Reste uniquement la vérif device ci-dessus.
 
-## P1 — F4 Temps réel Firebase (S09-10)
+## P1 — F4 Temps réel Firebase (S09-10) — ✅ CODE + TESTS FAITS (2026-06-20, reviewé APPROVED, non commité) ; reste config Firebase + device (Cédric)
 
-_Estimation : L. Dépendances : `@react-native-firebase/app` + `/database`._
-**⚠️ BLOCKER / PAUSE OBLIGATOIRE** : création projet Firebase + `GoogleService-Info.plist` (iOS) + `google-services.json` (Android) → à fournir par Cédric.
+_Estimation : L. Dépendances : `@react-native-firebase/app` + `/database` (v25, API modulaire). Décision : ADR-006._
+**⚠️ BLOCKER / PAUSE OBLIGATOIRE NON LEVÉE** : création projet Firebase + `GoogleService-Info.plist` (iOS) + `google-services.json` (Android) → **à fournir par Cédric**. Code prêt à fonctionner dès leur ajout ; aucun faux fichier de config créé.
 
-- [ ] Entité `RealtimeParticipant` (Zod)
-- [ ] Port `IRealtimeService` (`subscribeToSession` / `publishLocation` / `leaveSession`)
-- [ ] `TrackParticipantsUseCase` (core)
-- [ ] Adapter `FirebaseRealtimeService` → `src/infrastructure/realtime/` (Realtime DB, pas Firestore)
-- [ ] Store `useRealtimeStore` (Zustand, **NON persisté** — RGPD)
-- [ ] Affichage live sur carte + **vue liste alternative a11y** (A11Y-006)
-- [ ] Optimisations batterie (5s en mouvement / 30s arrêt / off en background)
-- [ ] Consentement partage explicite + suppression positions en fin de session (RGPD)
-- [ ] Tests (Firebase mocké via le port) + update docs
+- [x] Entité `RealtimeParticipant` (Zod strict) + `RealtimeLocationUpdate`
+- [x] Port `IRealtimeService` (`subscribeToSession` / `publishLocation` / `leaveSession`) + `RealtimeError`
+- [x] `TrackParticipantsUseCase` (core, sans dépendance infra)
+- [x] Port `IGeolocationService.watchPosition` + adapter `RNGeolocationService.watchPosition` (m/s→km/h, heading borné, Zod)
+- [x] Adapter `FirebaseRealtimeService` → `src/infrastructure/realtime/` (Realtime DB, API modulaire, Zod sur les lectures, onDisconnect)
+- [x] Store `useRealtimeStore` (Zustand, **NON persisté** — RGPD)
+- [x] Affichage live sur carte (markers halo distincts) + **vue liste alternative a11y** `LiveParticipantsList` (A11Y-006)
+- [x] Optimisations batterie (5s en mouvement / 30s arrêt / off en background via AppState) — dans `useRealtimeTracking`
+- [x] Consentement partage explicite et SÉPARÉ (`RealtimeConsentModal` + `hasSharingConsent`) + suppression positions en fin de session (`leaveSession` + remove) (RGPD)
+- [x] DI câblé (`di/container.ts`) + i18n namespace `realtime` FR/EN + config native (Podfile `use_modular_headers!`, Android google-services plugin)
+- [x] `npx tsc --noEmit` 0 erreur + lint/prettier verts
+- [x] Tests (Firebase mocké via le port `IRealtimeService`, watchPosition mocké via le port geoloc) — ~168 cas F4, **865 tests** au total, `npm run check` vert, seuils respectés
+- [x] Review APPROVED (1 tour de corrections appliqué) : 1 bug corrigé (boucle de rendu Zustand v5 — sélecteur renvoyant un nouvel objet, fix `useMemo`/références stables) + 3 corrections review (dont **watch GPS conditionné au consentement**)
+- [ ] **À fournir par Cédric** : créer le projet Firebase + activer la Realtime DB + 2 fichiers de config natifs (`GoogleService-Info.plist` iOS, `google-services.json` dans `android/app/`) + **Security Rules RTDB** (restreindre l'accès au nœud `sessions/{sessionId}`)
+- [ ] **iOS** : `pod install` (récupère les pods Firebase via `use_modular_headers!`) après ajout du plist
+- [ ] **À tester sur device / par Cédric** : live multi-appareils (positions qui bougent en temps réel) ; consentement explicite ; suppression des positions en fin de session ; **opti batterie réelle** (5s/30s + coupure background)
 
 ## P1 — F5 Partage deep link (S11)
 
@@ -109,7 +116,7 @@ _Estimation : M (rédaction). Dépendances : aucune. ADR-011 déjà écrit._
 - [ ] ADR-003 Expo vs RN CLI
 - [ ] ADR-004 Guest-first auth
 - [ ] ADR-005 Zustand vs Redux
-- [ ] ADR-006 Firebase Realtime
+- [x] ADR-006 Firebase Realtime — **écrit** (2026-06-20, rédigé avec F4)
 - [ ] ADR-007 New Architecture
 - [ ] ADR-008 MMKV storage
 - [ ] ADR-009 External APIs scaling
@@ -147,7 +154,7 @@ _Estimation : L. Dépendances : comptes stores._
 - [ ] **Re-vérif device** : confirmer sur iPhone que (a) le champ fantôme F1 a disparu, (b) le footer carte tient en Dynamic Type 200 %. Vérifier aussi qu'aucun autre écran ne casse en 200 %.
 - [ ] **Coverage non mesurée** : `coverage/coverage-summary.json` absent → lancer `npm run test:coverage` et reporter les chiffres dans PROGRESS.md.
 - [ ] **Atoms manquants** : `Button`, `Input`, `IconButton`, `Card`, `Spinner` n'existent pas — à créer via skill `create-atom` quand une feature les requiert.
-- [ ] **Ports placeholders** : dossiers `infrastructure/{realtime,eta,analytics}` vides — à remplir (F4 / V1 / PostHog).
+- [ ] **Ports placeholders** : dossiers `infrastructure/{eta,analytics}` encore vides — à remplir (V1 OSRM / PostHog). `realtime/` rempli par F4.
 - [ ] **`SessionsScreen`** : squelette 72 l. — historique sessions à implémenter (AsyncStorage, cf. STORAGE).
 - [ ] **react-native-maps shim** : `skipLibCheck` désactive le check des `.d.ts` libs — surveiller les régressions de types externes.
 - [ ] **`borderWidth: 1` en dur** (magic number) répandu dans plusieurs écrans — relevé par la review F7, **non introduit par F7**. Envisager un token `borderWidth` dans le thème (DS-001). (P2)
@@ -155,13 +162,14 @@ _Estimation : L. Dépendances : comptes stores._
 - [ ] **`normalizePath` (F7 p2)** : `ImagePickerProfilePhotoService.normalizePath` fait `uri.replace('file://', '')` ; utiliser plutôt `decodeURIComponent(uri.replace(/^file:\/\//, ''))` pour gérer les chemins avec caractères encodés (espaces, accents). Relevé par la review F7 — durcissement. (P3)
 - [ ] **Contrat `IProfilePhotoService.deletePhoto` (F7 p2)** : renforcer la TSDoc pour stipuler que la méthode **ne doit JAMAIS rejeter** (best-effort : un fichier absent / non supprimable ne casse pas la mise à jour du profil). Relevé par la review F7. (P3)
 - [ ] **`cameraType: 'front'` (F7 p2)** : choix de la caméra frontale par défaut dans `ImagePickerProfilePhotoService` = décision produit implicite → à confirmer avec Cédric. (P3)
+- [ ] **Label midpoint hardcodé (I18N-001, pré-existant — pas F4)** : le marker midpoint dans `SessionMapView.tsx` (`accessibilityLabel="Point de rencontre"`) est une string en dur → passer par `useTranslation()`. Relevé pendant la review F4 mais antérieur à F4. (P3)
 
 ---
 
 ## Décisions en attente (input Cédric requis)
 
 - [x] ⚠️ **Avatars F7** : ~~SVG vectoriels custom **ou** emoji-based ?~~ → **tranché : emoji-based** (passe 1, 2026-06-20, ADR-012).
-- [ ] ⚠️ **Firebase F4** : créer le projet Firebase + fournir les fichiers de config natifs.
+- [ ] ⚠️ **Firebase F4** : créer le projet Firebase + activer la Realtime DB + fournir les fichiers de config natifs + Security Rules RTDB. _(Code F4 livré/testé/reviewé ; décision transport actée ADR-006 ; reste cette action externe de Cédric.)_
 - [ ] ⚠️ **F5 universal links** : MVP en scheme `mivro://` seul, ou config domaine (AASA/assetlinks) dès maintenant ?
 - [ ] ⚠️ **Comptes dev F6** : Google Cloud + Apple Developer prêts ?
 - [ ] ⚠️ **PostHog** : VPS d'auto-hébergement provisionné ?

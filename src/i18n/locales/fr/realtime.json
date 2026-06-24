@@ -1,0 +1,44 @@
+{
+  "consent": {
+    "title": "Partager ma position",
+    "question": "Acceptes-tu de partager ta position avec les participants ?",
+    "description": "Ta position sera visible en temps réel par les autres participants pendant la session. Elle est supprimée dès que tu quittes la session et n'est jamais conservée.",
+    "accept": "Accepter et partager",
+    "decline": "Non, juste voir les autres",
+    "note": "Tu peux arrêter le partage à tout moment."
+  },
+  "status": {
+    "online": "En ligne",
+    "offline": "Hors ligne",
+    "connecting": "Connexion…",
+    "connected": "Connecté",
+    "idle": "Inactif"
+  },
+  "list": {
+    "title": "Participants en direct",
+    "empty": "Aucun participant en direct pour le moment.",
+    "distanceFromMidpoint": "À {{distance}} du point de rencontre",
+    "you": "Toi"
+  },
+  "actions": {
+    "startSharing": "Partager ma position",
+    "stopSharing": "Arrêter le partage",
+    "viewLiveList": "Vue liste (direct)"
+  },
+  "accessibility": {
+    "liveMapLabel": "Carte en direct avec {{participantCount}} participants. Ouvre la vue liste pour lire les détails en texte.",
+    "participantStatus": "{{name}}, {{status}}, à {{distance}} du point de rencontre",
+    "viewLiveListHint": "Affiche les participants en direct sous forme de liste textuelle"
+  },
+  "errors": {
+    "not_configured": "Le temps réel n'est pas encore disponible. Réessaie plus tard.",
+    "network": "Connexion perdue. Vérifie ta connexion internet.",
+    "permission_denied": "Accès refusé au service temps réel.",
+    "invalid_data": "Données de position invalides reçues.",
+    "permission_blocked": "La localisation est bloquée. Active-la dans les réglages.",
+    "unavailable": "Service de localisation indisponible.",
+    "timeout": "Impossible d'obtenir ta position à temps.",
+    "inaccurate": "Position GPS trop imprécise.",
+    "unknown": "Une erreur inattendue est survenue."
+  }
+}

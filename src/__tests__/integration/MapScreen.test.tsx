@@ -19,6 +19,7 @@ import { createQueryClientWrapper } from '@/__tests__/helpers/queryClientWrapper
 import type { Coordinates } from '@core/entities/Location';
 import type { MidpointSession, Participant } from '@core/entities/MidpointSession';
 import MapScreen from '@presentation/screens/MapScreen';
+import { useRealtimeStore } from '@presentation/stores/useRealtimeStore';
 import { useSessionStore } from '@presentation/stores/useSessionStore';
 
 // ─── Mock i18n ──────────────────────────────────────────────
@@ -41,11 +42,36 @@ jest.mock('react-i18next', () => ({
         'list.title': 'Participants',
         'list.midpoint': 'Point de rencontre',
         'list.close': 'Fermer',
+        // [ADDED] F4 — namespace realtime:* + accessibilité
+        'accessibility.mapLabel': `Carte avec ${String(opts?.participantCount ?? '')} participants`,
+        'realtime:accessibility.liveMapLabel': `Carte en direct avec ${String(
+          opts?.participantCount ?? '',
+        )} participants`,
+        'realtime:actions.startSharing': 'Partager ma position',
+        'realtime:actions.stopSharing': 'Arrêter le partage',
+        'realtime:list.title': 'Participants en direct',
+        'realtime:consent.note': 'Tu peux arrêter le partage à tout moment.',
+        'consent.title': 'Partager ma position',
+        'consent.accept': 'Accepter et partager',
+        'consent.decline': 'Non, juste voir les autres',
+        'list.empty': 'Aucun participant en direct pour le moment.',
       };
       return translations[key] ?? key;
     },
     i18n: { language: 'fr' },
   }),
+}));
+
+// ─── Mock F4 — hook temps réel + auth ───────────────────────
+const mockStart = jest.fn();
+const mockStop = jest.fn();
+jest.mock('@presentation/hooks/useRealtimeTracking', () => ({
+  useRealtimeTracking: () => ({ start: mockStart, stop: mockStop }),
+}));
+
+const mockAuthUser = { type: 'guest', id: 'p-alice', displayName: 'Alice', createdAt: 'now' };
+jest.mock('@presentation/hooks/useAuth', () => ({
+  useAuthUser: () => mockAuthUser,
 }));
 
 // ─── Mock lucide-react-native ───────────────────────────────
@@ -136,7 +162,16 @@ describe('MapScreen integration', () => {
   beforeEach(() => {
     jest.spyOn(console, 'log').mockImplementation();
     mockNavigate.mockClear();
+    mockStart.mockClear();
+    mockStop.mockClear();
     useSessionStore.setState({ session: null });
+    useRealtimeStore.setState({
+      sessionId: null,
+      participants: {},
+      status: 'idle',
+      errorCode: null,
+      hasSharingConsent: false,
+    });
   });
 
   afterEach(() => {
@@ -224,5 +259,121 @@ describe('MapScreen integration', () => {
     fireEvent.press(screen.getByTestId('map-list-close'));
 
     expect(screen.queryByTestId('map-list-midpoint')).toBeNull();
+  });
+
+  // ─── F4 — Temps réel ──────────────────────────────────────
+  describe('F4 — real-time sharing', () => {
+    it('opens the consent modal when "Partager ma position" is pressed', () => {
+      useSessionStore.setState({ session: computedSession });
+
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+
+      fireEvent.press(screen.getByTestId('map-btn-share'));
+
+      expect(screen.getByTestId('map-consent-modal-card')).toBeTruthy();
+    });
+
+    it('grants consent and starts tracking on accept', () => {
+      useSessionStore.setState({ session: computedSession });
+
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+
+      fireEvent.press(screen.getByTestId('map-btn-share'));
+      fireEvent.press(screen.getByTestId('map-consent-modal-accept'));
+
+      expect(useRealtimeStore.getState().hasSharingConsent).toBe(true);
+      expect(mockStart).toHaveBeenCalledWith('session-001', 'p-alice');
+    });
+
+    it('subscribes (to view others) but does NOT grant consent on decline', () => {
+      useSessionStore.setState({ session: computedSession });
+
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+
+      fireEvent.press(screen.getByTestId('map-btn-share'));
+      fireEvent.press(screen.getByTestId('map-consent-modal-decline'));
+
+      expect(useRealtimeStore.getState().hasSharingConsent).toBe(false);
+      expect(mockStart).toHaveBeenCalledWith('session-001', 'p-alice');
+    });
+
+    it('renders live markers on the map when tracking', () => {
+      useSessionStore.setState({ session: computedSession });
+      useRealtimeStore.setState({
+        sessionId: 'session-001',
+        participants: {
+          'p-bob': {
+            participantId: 'p-bob',
+            latitude: 47.31,
+            longitude: 3.59,
+            updatedAt: 1,
+            speed: 5,
+            heading: 0,
+            isOnline: true,
+          },
+        },
+      });
+
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+
+      expect(screen.getByTestId('map-session-live-marker-p-bob')).toBeTruthy();
+    });
+
+    it('shows the a11y live list in the list modal when tracking', () => {
+      useSessionStore.setState({ session: computedSession });
+      useRealtimeStore.setState({ sessionId: 'session-001' });
+
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+
+      fireEvent.press(screen.getByTestId('map-btn-list'));
+
+      expect(screen.getByTestId('map-list-live')).toBeTruthy();
+      expect(screen.getByText('Participants en direct')).toBeTruthy();
+    });
+
+    it('calls stop() on unmount (leaveSession — RGPD)', () => {
+      useSessionStore.setState({ session: computedSession });
+
+      const { unmount } = render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+      unmount();
+
+      expect(mockStop).toHaveBeenCalled();
+    });
+
+    it('stops SHARING (not the subscription) when toggling off while sharing', () => {
+      // Partage actif : abonné + consentement donné.
+      useSessionStore.setState({ session: computedSession });
+      useRealtimeStore.setState({ sessionId: 'session-001', hasSharingConsent: true });
+
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+
+      fireEvent.press(screen.getByTestId('map-btn-share'));
+
+      // [FIXED] Le toggle off coupe le PARTAGE (setSharingConsent(false)) mais
+      // CONSERVE l'abonnement (mode voir-seulement) → stop() n'est PAS appelé.
+      expect(useRealtimeStore.getState().hasSharingConsent).toBe(false);
+      expect(mockStop).not.toHaveBeenCalled();
+    });
+
+    it('share button label is based on hasSharingConsent — "Partager ma position" without consent', () => {
+      useSessionStore.setState({ session: computedSession });
+      // Suivi actif mais sans consentement (mode voir-seulement).
+      useRealtimeStore.setState({ sessionId: 'session-001', hasSharingConsent: false });
+
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+
+      expect(screen.getByText('Partager ma position')).toBeTruthy();
+      expect(screen.queryByText('Arrêter le partage')).toBeNull();
+    });
+
+    it('share button label is based on hasSharingConsent — "Arrêter le partage" with consent', () => {
+      useSessionStore.setState({ session: computedSession });
+      useRealtimeStore.setState({ sessionId: 'session-001', hasSharingConsent: true });
+
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+
+      expect(screen.getByText('Arrêter le partage')).toBeTruthy();
+      expect(screen.queryByText('Partager ma position')).toBeNull();
+    });
   });
 });

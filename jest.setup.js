@@ -230,6 +230,40 @@ jest.mock('@dr.pogodin/react-native-fs', () => ({
   unlink: jest.fn().mockResolvedValue(undefined),
 }));
 
+// [ADDED] F4 — Mock @react-native-firebase/app (native module unavailable in Jest)
+jest.mock('@react-native-firebase/app', () => ({
+  __esModule: true,
+  getApp: jest.fn(() => ({ name: '[DEFAULT]' })),
+  getApps: jest.fn(() => [{ name: '[DEFAULT]' }]),
+  initializeApp: jest.fn(() => ({ name: '[DEFAULT]' })),
+}));
+
+// [ADDED] F4 — Mock @react-native-firebase/database (API modulaire v25 — native module unavailable in Jest)
+// Expose les exports modulaires utilisés par FirebaseRealtimeService :
+// getDatabase, ref, onValue, onDisconnect, update, remove, serverTimestamp, get.
+// Les tests d'adapter surchargent ces mocks via jest.mocked(...).mockImplementation(...).
+jest.mock('@react-native-firebase/database', () => {
+  // serverTimestamp() retourne un sentinel reconnaissable (le natif renvoie un placeholder).
+  const SERVER_TIMESTAMP_SENTINEL = { '.sv': 'timestamp' };
+  return {
+    __esModule: true,
+    getDatabase: jest.fn(() => ({ __mockDatabase: true })),
+    ref: jest.fn((_db, path) => ({ __mockRef: true, path })),
+    onValue: jest.fn(() => jest.fn()),
+    onDisconnect: jest.fn(() => ({
+      update: jest.fn().mockResolvedValue(undefined),
+      cancel: jest.fn().mockResolvedValue(undefined),
+      remove: jest.fn().mockResolvedValue(undefined),
+      set: jest.fn().mockResolvedValue(undefined),
+    })),
+    update: jest.fn().mockResolvedValue(undefined),
+    set: jest.fn().mockResolvedValue(undefined),
+    remove: jest.fn().mockResolvedValue(undefined),
+    get: jest.fn().mockResolvedValue({ val: () => null, exists: () => false }),
+    serverTimestamp: jest.fn(() => SERVER_TIMESTAMP_SENTINEL),
+  };
+});
+
 // [ADDED] Mock react-native-localize (native module unavailable in Jest)
 jest.mock('react-native-localize', () => ({
   getLocales: () => [{ languageCode: 'fr', countryCode: 'FR', languageTag: 'fr-FR', isRTL: false }],

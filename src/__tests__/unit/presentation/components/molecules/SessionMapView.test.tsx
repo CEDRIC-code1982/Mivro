@@ -12,6 +12,7 @@ import { render } from '@testing-library/react-native';
 import React from 'react';
 import type { Coordinates } from '@core/entities/Location';
 import type { Participant } from '@core/entities/MidpointSession';
+import type { RealtimeParticipant } from '@core/entities/RealtimeParticipant';
 import SessionMapView from '@presentation/components/molecules/SessionMapView';
 
 // ─── Mock react-native-maps ────────────────────────────────
@@ -128,5 +129,54 @@ describe('SessionMapView', () => {
     const { getByTestId } = render(<SessionMapView {...defaultProps} testID="map" />);
 
     expect(getByTestId('map').props.accessible).toBeUndefined();
+  });
+
+  // ─── F4 — liveParticipants ────────────────────────────────
+  describe('liveParticipants (F4)', () => {
+    const makeLive = (
+      participantId: string,
+      overrides: Partial<RealtimeParticipant> = {},
+    ): RealtimeParticipant => ({
+      participantId,
+      latitude: 47.31,
+      longitude: 3.6,
+      updatedAt: 1_700_000_000_000,
+      speed: 8,
+      heading: 90,
+      isOnline: true,
+      ...overrides,
+    });
+
+    it('renders no live markers when liveParticipants is omitted (F2 backward-compat)', () => {
+      const { queryByTestId } = render(<SessionMapView {...defaultProps} testID="map" />);
+
+      expect(queryByTestId('map-live-marker-p1')).toBeNull();
+    });
+
+    it('renders a live marker per live participant', () => {
+      const { getByTestId } = render(
+        <SessionMapView
+          {...defaultProps}
+          liveParticipants={[makeLive('p1'), makeLive('p2')]}
+          testID="map"
+        />,
+      );
+
+      expect(getByTestId('map-live-marker-p1')).toBeTruthy();
+      expect(getByTestId('map-live-marker-p2')).toBeTruthy();
+    });
+
+    it('renders both online and offline live markers', () => {
+      const { getByTestId } = render(
+        <SessionMapView
+          {...defaultProps}
+          liveParticipants={[makeLive('on'), makeLive('off', { isOnline: false })]}
+          testID="map"
+        />,
+      );
+
+      expect(getByTestId('map-live-marker-on')).toBeTruthy();
+      expect(getByTestId('map-live-marker-off')).toBeTruthy();
+    });
   });
 });

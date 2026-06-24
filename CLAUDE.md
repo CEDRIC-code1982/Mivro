@@ -6,7 +6,7 @@
 
 # Ne pas modifier sans créer un ADR correspondant.
 
-# Version 8.4 — 2026-06-20 (F7 Profil entièrement livrée — passes 1 & 2 ; ADR-013 ; pointeur sprint → F5, ou F4 si Firebase prêt)
+# Version 8.5 — 2026-06-20 (F4 Temps réel Firebase — code livré + testé 865 + reviewé APPROVED ; ADR-006 ; pointeur sprint → F5, ou F8)
 
 ## PROJET
 
@@ -404,23 +404,25 @@ Alternatives écartées : Avec raisons
 | F3      | POI Overpass + écran liste/carte toggle                      | `0bca95f` `4804539`                     |
 | QA P0   | Fix 7 bugs critiques device QA                               | `f520911`                               |
 | QA P1   | Accessibilité & robustesse (VoiceOver, erreurs réseau, GPS)  | `786a4e9` `ed7b0ee` `c01e29c`           |
-| F7 (P1) | Profil : `displayName` + 20 avatars emoji (passe 1)          | non commité (2026-06-20)                |
-| F7 (P2) | Profil : photo (picker + FileSystem) — F7 complète (ADR-013) | non commité (2026-06-20)                |
+| F7 (P1) | Profil : `displayName` + 20 avatars emoji (passe 1)          | `0ade2e2`                               |
+| F7 (P2) | Profil : photo (picker + FileSystem) — F7 complète (ADR-013) | `ebf1215`                               |
+| F4      | Temps réel Firebase (RTDB) — code complet, testé, reviewé    | non commité (2026-06-20)                |
 
 Atoms livrés : `Text`, `Screen`, `TabBarIcon`, `CategoryChip`, `Avatar`
 Molecules livrés : `ParticipantCard`, `EmptyState`, `AddressAutocomplete`, `AvatarPicker`, `SessionMapView`, `POICard`, `POIDetailSheet`, `POIListView`, `POIMapView`, `POIScreenHeader`
 
 > ⚠️ Divergence à corriger : le README/anciennes notes mentionnaient des atoms `Button`/`Input`/`IconButton`/`Card`/`Spinner` — **ils n'existent pas encore**. À créer au besoin via le skill `create-atom`.
 
-### 🔜 Sprint en cours / suivant — F5 Partage (ou F4 si Firebase prêt)
+### 🔜 Sprint en cours / suivant — F5 Partage (ou F8 Biométrie)
 
-**F7 Profil entièrement livrée** ✅ (2026-06-20) : passe 1 (`displayName` + 20 avatars emoji, ADR-012) **et** passe 2 (photo picker + stockage FileSystem, ADR-013). Testée (718 tests) + reviewée APPROVED. Non encore commitée — voir `docs/context/PROGRESS.md`. Reste uniquement la **vérif device** (permissions, resize, persistance, cleanup FS — voir `docs/context/TODO.md`).
-Prochaine feature sans blocker : **F5 Partage deep link** (scheme `mivro://`). **F4 Temps réel Firebase** reste prioritaire dès que le projet Firebase + les fichiers de config natifs sont fournis (⚠️ **PAUSE OBLIGATOIRE**).
+**F4 Temps réel Firebase** ✅ (2026-06-20) : **code complet, testé (865 tests) + reviewé APPROVED** (1 tour de corrections review ; transport tranché = Firebase RTDB, **ADR-006**). Non commité. ⚠️ **Attend le projet Firebase + les fichiers de config natifs + les Security Rules RTDB (Cédric) pour run/device** — PAUSE OBLIGATOIRE non levée (voir `docs/context/TODO.md`).
+**F7 Profil entièrement livrée** ✅ (commitée `0ade2e2` + `ebf1215`) : passe 1 (avatars emoji, ADR-012) + passe 2 (photo FileSystem, ADR-013). Reste la **vérif device** (permissions, resize, persistance, cleanup FS).
+Prochaine feature sans blocker : **F5 Partage deep link** (scheme `mivro://`), ou **F8 Biométrie**.
 ⚠️ Restent à re-vérifier sur device (QA P1) : layout Dynamic Type 200 % et champ fantôme F1 (fixes posés).
 
 ### 📋 Backlog priorisé
 
-Ordre recommandé : **Fix QA P1 → F7 → F4 → F5 → F8 → F6 → ADR → PostHog → Beta**.
+Ordre recommandé : **Fix QA P1 → F7 → F4 → F5 → F8 → F6 → ADR → PostHog → Beta**. _(Fix QA P1, F7, F4 faits — F4 attend la config Firebase + device par Cédric ; prochaine : F5 ou F8.)_
 Pour chaque feature : objectif · couches · composants · dépendances · décisions tranchées · done · complexité.
 
 ---
@@ -451,7 +453,7 @@ Pour chaque feature : objectif · couches · composants · dépendances · déci
 - **Done** : profil éditable, persisté MMKV, avatar affiché dans `ParticipantCard`.
 - **Complexité** : M.
 
-#### F4 — Temps réel Firebase (S09-10)
+#### F4 — Temps réel Firebase (S09-10) — ✅ FAIT (2026-06-20 ; code+tests+review APPROVED ; ADR-006 ; reste config Firebase + device par Cédric)
 
 - **Objectif** : voir les positions GPS live des participants sur la carte.
 - **Couches** : core (`IRealtimeService` port + `TrackParticipantsUseCase` + entité `RealtimeParticipant`), infrastructure (`FirebaseRealtimeService` → `src/infrastructure/realtime/`), presentation (`useRealtimeStore`).
@@ -492,8 +494,8 @@ Pour chaque feature : objectif · couches · composants · dépendances · déci
 
 #### ADR rattrapage
 
-- **Objectif** : documenter rétroactivement les décisions déjà prises. **ADR-011 existe déjà** ; il manque **ADR-001 → ADR-010** (référencés dans la section DOCUMENTATION).
-- **À écrire** : ADR-001 Nominatim vs Google, ADR-002 Clean Architecture, ADR-003 Expo vs RN CLI, ADR-004 Guest-first auth, ADR-005 Zustand vs Redux, ADR-006 Firebase Realtime, ADR-007 New Architecture, ADR-008 MMKV, ADR-009 External APIs scaling, ADR-010 Sentry+PostHog.
+- **Objectif** : documenter rétroactivement les décisions déjà prises. **ADR-006, ADR-011, ADR-012, ADR-013 existent déjà** ; il manque **ADR-001 → ADR-005, ADR-007 → ADR-010** (référencés dans la section DOCUMENTATION).
+- **À écrire** : ADR-001 Nominatim vs Google, ADR-002 Clean Architecture, ADR-003 Expo vs RN CLI, ADR-004 Guest-first auth, ADR-005 Zustand vs Redux, ~~ADR-006 Firebase Realtime~~ (écrit avec F4), ADR-007 New Architecture, ADR-008 MMKV, ADR-009 External APIs scaling, ADR-010 Sentry+PostHog.
 - **Format** : voir DOCUMENTATION > Format ADR. Emplacement `docs-site/docs/adr/`.
 - **Done** : `npm run docs` passe ; chaque ADR au format imposé.
 - **Complexité** : M (rédaction).

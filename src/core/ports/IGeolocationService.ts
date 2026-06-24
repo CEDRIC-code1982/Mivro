@@ -32,6 +32,60 @@ export interface GetCurrentPositionOptions {
 }
 
 /**
+ * Échantillon de position retourné par le suivi continu (watch).
+ * Position sample returned by continuous tracking (watch).
+ *
+ * Étend {@link Coordinates} avec les métriques de mouvement nécessaires au
+ * temps réel (F4 — opti batterie côté store : 5s en mouvement / 30s à l'arrêt).
+ * Extends {@link Coordinates} with movement metrics needed for real-time (F4).
+ *
+ * @param speed - Vitesse en km/h (>= 0, 0 si inconnue) / Speed in km/h (0 if unknown)
+ * @param heading - Cap en degrés [0, 360) (0 si inconnu) / Heading in degrees (0 if unknown)
+ */
+export interface PositionSample extends Coordinates {
+  /** Vitesse instantanée en km/h (>= 0) / Instantaneous speed in km/h */
+  speed: number;
+  /** Cap / orientation en degrés [0, 360) / Heading in degrees [0, 360) */
+  heading: number;
+}
+
+/**
+ * Options pour le suivi continu de position (watchPosition).
+ * Options for continuous position tracking (watchPosition).
+ *
+ * @param accuracyMeters - Précision souhaitée en mètres (défaut 100) / Desired accuracy in meters
+ * @param distanceFilterMeters - Distance min (m) entre deux events natifs (défaut 10) / Min distance between native events
+ */
+export interface WatchPositionOptions {
+  /** Précision souhaitée en mètres (défaut 100) / Desired accuracy in meters */
+  accuracyMeters?: number;
+  /** Distance minimale (m) entre deux notifications natives (défaut 10) / Min distance between native notifications */
+  distanceFilterMeters?: number;
+}
+
+/**
+ * Callback de réception d'un échantillon de position en continu.
+ * Callback receiving a continuous position sample.
+ *
+ * @param sample - Échantillon de position validé / Validated position sample
+ */
+export type WatchPositionCallback = (sample: PositionSample) => void;
+
+/**
+ * Callback d'erreur du suivi continu.
+ * Continuous tracking error callback.
+ *
+ * @param error - Erreur typée / Typed error
+ */
+export type WatchErrorCallback = (error: GeolocationError) => void;
+
+/**
+ * Fonction d'arrêt du suivi continu, retournée par {@link IGeolocationService.watchPosition}.
+ * Function to stop continuous tracking, returned by {@link IGeolocationService.watchPosition}.
+ */
+export type ClearWatch = () => void;
+
+/**
  * Port abstrait pour le service de géolocalisation.
  * Abstract port for the geolocation service.
  *
@@ -56,6 +110,30 @@ export interface IGeolocationService {
    * @throws GeolocationError selon le cas / depending on the case
    */
   getCurrentPosition(options?: GetCurrentPositionOptions): Promise<Coordinates>;
+
+  /**
+   * Suit la position GPS en continu (pour le temps réel — F4).
+   * Continuously watches the GPS position (for real-time — F4).
+   *
+   * Émet un {@link PositionSample} (coordonnées + vitesse km/h + cap) à chaque
+   * changement significatif. Demande la permission native si nécessaire.
+   * Le throttling « 5s en mouvement / 30s à l'arrêt » et la désactivation en
+   * arrière-plan (AppState) sont gérés par la couche présentation, pas ici.
+   *
+   * Emits a {@link PositionSample} (coordinates + speed km/h + heading) on each
+   * significant change. Requests native permission if needed. Throttling and
+   * background deactivation are handled by the presentation layer, not here.
+   *
+   * @param onSample - Callback de réception d'un échantillon / Sample callback
+   * @param onError - Callback d'erreur optionnel / Optional error callback
+   * @param options - Options de suivi / Watch options
+   * @returns Fonction d'arrêt du suivi / Function to stop the watch
+   */
+  watchPosition(
+    onSample: WatchPositionCallback,
+    onError?: WatchErrorCallback,
+    options?: WatchPositionOptions,
+  ): ClearWatch;
 }
 
 /**

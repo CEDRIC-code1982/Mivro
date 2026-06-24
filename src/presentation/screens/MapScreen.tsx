@@ -13,15 +13,20 @@
 // [MODIFIED] Refactor complet — écran F2 carte interactive
 import { useNavigation } from '@react-navigation/native'; // [ADDED]
 import { MapPin, Star } from 'lucide-react-native';
-import React, { useCallback, useState } from 'react'; // [MODIFIED] removed useEffect
+import React, { useCallback, useEffect, useMemo, useState } from 'react'; // [MODIFIED] F4 — useEffect/useMemo
 import { useTranslation } from 'react-i18next';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '@core/theme';
 import { Text } from '@presentation/components/atoms';
 import EmptyState from '@presentation/components/molecules/EmptyState';
+import LiveParticipantsList from '@presentation/components/molecules/LiveParticipantsList'; // [ADDED] F4
 import ParticipantCard from '@presentation/components/molecules/ParticipantCard';
+import RealtimeConsentModal from '@presentation/components/molecules/RealtimeConsentModal'; // [ADDED] F4
 import SessionMapView from '@presentation/components/molecules/SessionMapView';
+import { useAuthUser } from '@presentation/hooks/useAuth'; // [ADDED] F4
+import { useRealtimeTracking } from '@presentation/hooks/useRealtimeTracking'; // [ADDED] F4
+import { useRealtimeStore } from '@presentation/stores/useRealtimeStore'; // [ADDED] F4
 import { useSessionStore } from '@presentation/stores/useSessionStore';
 
 /**
@@ -43,6 +48,74 @@ const MapScreen: React.FC = () => {
 
   // [ADDED] État pour la modal "Vue liste" (A11Y-006)
   const [isListVisible, setIsListVisible] = useState(false);
+
+  // ─── F4 — Temps réel (hooks appelés inconditionnellement) ──────
+  const currentUser = useAuthUser();
+  const { start, stop } = useRealtimeTracking();
+  // [FIXED] Zustand v5 (useSyncExternalStore + Object.is) : un sélecteur qui
+  // renvoie Object.values(...) crée une NOUVELLE référence de tableau à chaque
+  // rendu → snapshot toujours « différent » → boucle de rendu infinie
+  // (« Maximum update depth exceeded »). On sélectionne la map (référence
+  // stable, remplacée en bloc par setParticipants) puis on dérive le tableau
+  // via useMemo. / Select the stable map reference, then derive the array.
+  const participantsMap = useRealtimeStore((s) => s.participants);
+  const liveParticipants = useMemo(() => Object.values(participantsMap), [participantsMap]);
+  const isTracking = useRealtimeStore((s) => s.sessionId !== null);
+  const hasSharingConsent = useRealtimeStore((s) => s.hasSharingConsent);
+  const setSharingConsent = useRealtimeStore((s) => s.setSharingConsent);
+
+  // [ADDED] F4 — modal de consentement RGPD (partage de position)
+  const [isConsentVisible, setIsConsentVisible] = useState(false);
+
+  // [ADDED] F4 — résolution id participant → nom (depuis la session locale)
+  const resolveName = useMemo(() => {
+    const byId = new Map(session?.participants.map((p) => [p.id, p.displayName]) ?? []);
+    return (participantId: string): string | undefined => byId.get(participantId);
+  }, [session?.participants]);
+
+  // [ADDED] F4 — démarre/arrête le PARTAGE avec consentement séparé (RGPD).
+  // [FIXED] Le toggle pilote le partage ACTIF (hasSharingConsent), pas le suivi
+  // global : « Arrêter le partage » coupe la diffusion de ma position (et donc
+  // le watch GPS via l'effet du hook) tout en CONTINUANT de voir les autres.
+  const handleToggleSharing = useCallback(() => {
+    if (hasSharingConsent) {
+      // Arrêt du partage : ma position cesse d'être publiée (le watch GPS est
+      // stoppé par l'effet réagissant au consentement) ; l'abonnement reste
+      // actif pour continuer à voir les autres (mode voir-seulement).
+      setSharingConsent(false);
+      return;
+    }
+    // Pas encore de consentement → demander avant tout partage (RGPD).
+    setIsConsentVisible(true);
+  }, [hasSharingConsent, setSharingConsent]);
+
+  const handleAcceptConsent = useCallback(() => {
+    setIsConsentVisible(false);
+    if (session == null || currentUser == null) return;
+    // Ordre IMPORTANT : start() appelle startTracking() qui RÉINITIALISE le
+    // store (dont hasSharingConsent=false). On pose donc le consentement APRÈS
+    // pour qu'il ne soit pas écrasé ; l'effet du hook démarre alors le watch.
+    start(session.id, currentUser.id);
+    setSharingConsent(true);
+  }, [session, currentUser, setSharingConsent, start]);
+
+  const handleDeclineConsent = useCallback(() => {
+    setIsConsentVisible(false);
+    setSharingConsent(false);
+    // Refus de partager : on s'abonne quand même pour VOIR les autres.
+    // Aucun watch GPS n'est démarré tant que hasSharingConsent reste false
+    // (opti batterie) — seul l'abonnement aux positions des autres tourne.
+    if (session != null && currentUser != null) {
+      start(session.id, currentUser.id);
+    }
+  }, [session, currentUser, setSharingConsent, start]);
+
+  // [ADDED] F4 — arrêt du suivi au démontage de l'écran (RGPD : leaveSession)
+  useEffect(() => {
+    return () => {
+      stop();
+    };
+  }, [stop]);
 
   const openList = useCallback(() => {
     setIsListVisible(true);
@@ -97,9 +170,16 @@ const MapScreen: React.FC = () => {
         participants={session.participants}
         midpoint={session.midpoint}
         radius={session.midpointRadius}
-        accessibilityLabel={t('accessibility.mapLabel', {
-          participantCount: session.participants.length,
-        })}
+        liveParticipants={liveParticipants}
+        accessibilityLabel={
+          isTracking
+            ? t('realtime:accessibility.liveMapLabel', {
+                participantCount: liveParticipants.length,
+              })
+            : t('accessibility.mapLabel', {
+                participantCount: session.participants.length,
+              })
+        }
         testID="map-session"
       />
 
@@ -152,9 +232,42 @@ const MapScreen: React.FC = () => {
                 {t('actions.viewPOI')}
               </Text>
             </Pressable>
+
+            {/* [ADDED] F4 — partager / arrêter de partager ma position (RGPD).
+                [FIXED] Libellé/état basés sur hasSharingConsent (partage ACTIF)
+                et non isTracking (qui couvre aussi la visualisation seule). */}
+            <Pressable
+              onPress={handleToggleSharing}
+              style={({ pressed }) => [
+                styles.actionButton,
+                styles.secondaryButton,
+                pressed ? styles.secondaryButtonPressed : undefined,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={
+                hasSharingConsent
+                  ? t('realtime:actions.stopSharing')
+                  : t('realtime:actions.startSharing')
+              }
+              testID="map-btn-share"
+            >
+              <Text variant="small" weight="semibold" color="brand">
+                {hasSharingConsent
+                  ? t('realtime:actions.stopSharing')
+                  : t('realtime:actions.startSharing')}
+              </Text>
+            </Pressable>
           </View>
         </View>
       </View>
+
+      {/* [ADDED] F4 — consentement RGPD explicite et SÉPARÉ au partage */}
+      <RealtimeConsentModal
+        visible={isConsentVisible}
+        onAccept={handleAcceptConsent}
+        onDecline={handleDeclineConsent}
+        testID="map-consent-modal"
+      />
 
       {/* [ADDED] Modal Vue Liste — alternative a11y à la carte (A11Y-006) */}
       <Modal
@@ -204,6 +317,27 @@ const MapScreen: React.FC = () => {
                 {t('summary.radius', { km: radiusKm })}
               </Text>
             </View>
+
+            {/* [ADDED] F4 — section temps réel : vue liste a11y des positions live */}
+            {isTracking && (
+              <View style={styles.liveSection} testID="map-list-live">
+                <Text variant="body" weight="bold">
+                  {t('realtime:list.title')}
+                </Text>
+                {!hasSharingConsent && (
+                  <Text variant="caption" color="tertiary">
+                    {t('realtime:consent.note')}
+                  </Text>
+                )}
+                <LiveParticipantsList
+                  liveParticipants={liveParticipants}
+                  midpoint={session.midpoint}
+                  resolveName={resolveName}
+                  {...(currentUser?.id != null && { currentParticipantId: currentUser.id })}
+                  testID="map-live-list"
+                />
+              </View>
+            )}
 
             {/* [ADDED] Liste des participants */}
             {session.participants.map((participant) => (
@@ -322,6 +456,11 @@ const buildStyles = (theme: Theme, bottomInset: number) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: theme.spacing.sm,
+    },
+    // [ADDED] F4 — section temps réel dans la modal vue liste
+    liveSection: {
+      gap: theme.spacing.sm,
+      marginBottom: theme.spacing.sm,
     },
   });
 

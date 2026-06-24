@@ -20,18 +20,21 @@ import type { IGeocodeService } from '@core/ports/IGeocodeService'; // [ADDED]
 import type { IGeolocationService } from '@core/ports/IGeolocationService'; // [ADDED]
 import type { IPOIService } from '@core/ports/IPOIService'; // [ADDED]
 import type { IProfilePhotoService } from '@core/ports/IProfilePhotoService'; // [ADDED] F7 passe 2
+import type { IRealtimeService } from '@core/ports/IRealtimeService'; // [ADDED] F4
 import type { IStorageService } from '@core/ports/IStorageService';
 import { CalculateMidpointUseCase } from '@core/usecases/CalculateMidpointUseCase'; // [ADDED]
 import { CreateGuestUserUseCase } from '@core/usecases/CreateGuestUserUseCase';
 import { GetCurrentLocationUseCase } from '@core/usecases/GetCurrentLocationUseCase'; // [ADDED]
 import { SearchAddressUseCase } from '@core/usecases/SearchAddressUseCase'; // [ADDED]
 import { SearchPOIUseCase } from '@core/usecases/SearchPOIUseCase'; // [ADDED]
+import { TrackParticipantsUseCase } from '@core/usecases/TrackParticipantsUseCase'; // [ADDED] F4
 import { UpdateProfileUseCase } from '@core/usecases/UpdateProfileUseCase'; // [ADDED] F7
 import { SentryCrashReporter } from '@infrastructure/crash/SentryCrashReporter'; // [ADDED]
 import { NominatimGeocodeService } from '@infrastructure/geocode/NominatimGeocodeService'; // [ADDED]
 import { RNGeolocationService } from '@infrastructure/geolocation/RNGeolocationService'; // [ADDED]
 import { ImagePickerProfilePhotoService } from '@infrastructure/media/ImagePickerProfilePhotoService'; // [ADDED] F7 passe 2
 import { OverpassPOIService } from '@infrastructure/poi/OverpassPOIService'; // [ADDED]
+import { FirebaseRealtimeService } from '@infrastructure/realtime/FirebaseRealtimeService'; // [ADDED] F4
 import { MMKVStorageService } from '@infrastructure/storage/MMKVStorageService';
 import { createZustandMMKVAdapter } from '@infrastructure/storage/zustand-mmkv-adapter';
 import { createQueryClient } from './queryClient'; // [ADDED]
@@ -69,6 +72,10 @@ export interface Container {
   updateProfileUseCase: UpdateProfileUseCase; // [ADDED] F7
   /** Service de photo de profil (picker + FileSystem) / Profile photo service */ // [ADDED] F7 passe 2
   profilePhotoService: IProfilePhotoService; // [ADDED] F7 passe 2
+  /** Service temps réel (Firebase Realtime Database) / Real-time service */ // [ADDED] F4
+  realtimeService: IRealtimeService; // [ADDED] F4
+  /** Use case de suivi temps réel des participants / Real-time tracking use case */ // [ADDED] F4
+  trackParticipantsUseCase: TrackParticipantsUseCase; // [ADDED] F4
 }
 
 let containerInstance: Container | null = null;
@@ -115,6 +122,11 @@ export const initContainer = (encryptionKey: string): Container => {
   const poiService = new OverpassPOIService(crashReporter);
   const searchPOIUseCase = new SearchPOIUseCase(poiService);
 
+  // [ADDED] F4 — Temps réel (Firebase Realtime Database)
+  // ⚠️ Swap provider = remplacer FirebaseRealtimeService par un autre adapter ici.
+  const realtimeService = new FirebaseRealtimeService(crashReporter);
+  const trackParticipantsUseCase = new TrackParticipantsUseCase(realtimeService);
+
   // [ADDED] TanStack Query
   const queryClient = createQueryClient();
 
@@ -133,6 +145,8 @@ export const initContainer = (encryptionKey: string): Container => {
     searchPOIUseCase, // [ADDED]
     updateProfileUseCase: new UpdateProfileUseCase(), // [ADDED] F7
     profilePhotoService: new ImagePickerProfilePhotoService(crashReporter), // [ADDED] F7 passe 2
+    realtimeService, // [ADDED] F4
+    trackParticipantsUseCase, // [ADDED] F4
   };
 
   console.log(

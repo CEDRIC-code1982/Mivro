@@ -1,11 +1,26 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
+// [ADDED] F4 — Plugin Google Services (Firebase). DOIT être appliqué après les
+// plugins ci-dessus. Requiert le fichier google-services.json dans android/app/
+// (fourni par Cédric). Sans ce fichier, la tâche `:app:processDebugGoogleServices`
+// échoue au build — c'est attendu tant que la config n'est pas ajoutée.
+// [ADDED] F4 — Google Services (Firebase) plugin. MUST be applied after the
+// plugins above. Requires android/app/google-services.json (provided by Cédric).
+apply plugin: "com.google.gms.google-services"
 
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */
+// [ADDED] Lire le chemin node depuis local.properties (Volta non visible par Gradle)
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.newDataInputStream())
+}
+def nodeBinary = localProperties.getProperty('node.binary', 'node')
+
 react {
     /* Folders */
     //   The root of your project, i.e. where "package.json" lives. Default is '../..'
@@ -25,7 +40,8 @@ react {
 
     /* Bundling */
     //   A list containing the node command and its flags. Default is just 'node'.
-    // nodeExecutableAndArgs = ["node"]
+    // [MODIFIED] Chemin absolu vers node (Volta) lu depuis local.properties
+    nodeExecutableAndArgs = [nodeBinary]
     //
     //   The command to run when bundling. By default is 'bundle'
     // bundleCommand = "ram-bundle"
@@ -86,6 +102,8 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        // [ADDED] Placeholder Google Maps — chaîne vide en dev (watermark attendu)
+        manifestPlaceholders = [GOOGLE_MAPS_API_KEY: localProperties.getProperty('GOOGLE_MAPS_API_KEY', '')]
     }
     signingConfigs {
         debug {

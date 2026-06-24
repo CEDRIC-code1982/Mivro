@@ -31,6 +31,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 import MapView, { Circle, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import type { Coordinates } from '@core/entities/Location';
 import type { Participant } from '@core/entities/MidpointSession';
+import type { RealtimeParticipant } from '@core/entities/RealtimeParticipant';
 import { useTheme, type Theme } from '@core/theme';
 import { Text } from '@presentation/components/atoms';
 
@@ -48,6 +49,16 @@ export interface SessionMapViewProps {
   readonly participants: readonly Participant[];
   readonly midpoint: Coordinates;
   readonly radius: number;
+  /**
+   * Positions live des participants (F4 — temps réel Firebase).
+   * Live participant positions (F4 — Firebase real-time).
+   *
+   * Affichées par des markers distincts (pulsation/halo) des points de départ.
+   * Vides ou absentes = aucun marker live (rétro-compatible F2).
+   * Rendered with markers distinct (halo) from start points.
+   * Empty or absent = no live markers (backward-compatible with F2).
+   */
+  readonly liveParticipants?: readonly RealtimeParticipant[];
   /** Padding pour fitToCoordinates (défaut 80) / Padding for fitToCoordinates (default 80) */
   readonly edgePadding?: number;
   /**
@@ -76,6 +87,7 @@ const SessionMapView: React.FC<SessionMapViewProps> = ({
   participants,
   midpoint,
   radius,
+  liveParticipants = [],
   edgePadding = 80,
   accessibilityLabel,
   testID,
@@ -168,6 +180,35 @@ const SessionMapView: React.FC<SessionMapViewProps> = ({
             </Text>
           </View>
         </Marker>
+
+        {/* [ADDED] F4 — Markers live des participants (temps réel).
+            Distincts des points de départ : halo coloré online/offline. */}
+        {liveParticipants.map((live) => (
+          <Marker
+            key={`live-${live.participantId}`}
+            coordinate={{ latitude: live.latitude, longitude: live.longitude }}
+            anchor={{ x: 0.5, y: 0.5 }}
+            // [FIXED][I18N-001] Aucun accessibilityLabel sur le marker live : la
+            // carte est annoncée comme une image unique (accessibilityLabel posé
+            // sur le conteneur parent, qui est `accessible`) et les markers ne
+            // sont pas explorables individuellement. L'alternative textuelle a11y
+            // est LiveParticipantsList (A11Y-006). On évite ainsi d'exposer un
+            // UUID brut et une string non i18n (cohérent avec la doc du composant).
+            // No accessibilityLabel on the live marker: the map is a single
+            // image; LiveParticipantsList is the a11y text alternative.
+            testID={testID ? `${testID}-live-marker-${live.participantId}` : undefined}
+          >
+            <View
+              style={[
+                styles.markerCircle,
+                styles.liveMarker,
+                live.isOnline ? styles.liveMarkerOnline : styles.liveMarkerOffline,
+              ]}
+            >
+              <View style={[styles.liveDot, live.isOnline ? undefined : styles.liveDotOffline]} />
+            </View>
+          </Marker>
+        ))}
       </MapView>
     </View>
   );
@@ -201,6 +242,29 @@ const createStyles = (theme: Theme) =>
       width: 48,
       height: 48,
       backgroundColor: theme.color.interactive.brand.default,
+    },
+    // [ADDED] F4 — Marker live (halo) distinct des points de départ
+    liveMarker: {
+      width: 28,
+      height: 28,
+      borderWidth: 2,
+    },
+    liveMarkerOnline: {
+      backgroundColor: theme.color.feedback.successBg,
+      borderColor: theme.color.text.success,
+    },
+    liveMarkerOffline: {
+      backgroundColor: theme.color.surface.tertiary,
+      borderColor: theme.color.border.strong,
+    },
+    liveDot: {
+      width: theme.spacing.sm,
+      height: theme.spacing.sm,
+      borderRadius: theme.radius.full,
+      backgroundColor: theme.color.text.success,
+    },
+    liveDotOffline: {
+      backgroundColor: theme.color.text.tertiary,
     },
   });
 

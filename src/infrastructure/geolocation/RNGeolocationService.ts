@@ -23,8 +23,13 @@ import { CoordinatesSchema } from '@core/entities/Location';
 import type { Coordinates } from '@core/entities/Location';
 import type { ICrashReporter } from '@core/ports/ICrashReporter';
 import type {
+  ClearWatch,
   GetCurrentPositionOptions,
   IGeolocationService,
+  PositionSample,
+  WatchErrorCallback,
+  WatchPositionCallback,
+  WatchPositionOptions,
 } from '@core/ports/IGeolocationService';
 import { GeolocationError } from '@core/ports/IGeolocationService';
 
@@ -32,6 +37,13 @@ import { GeolocationError } from '@core/ports/IGeolocationService';
 const RN_PERMISSION_DENIED = 1;
 const RN_POSITION_UNAVAILABLE = 2;
 const RN_TIMEOUT = 3;
+
+/** Facteur de conversion m/s → km/h / Conversion factor m/s → km/h */
+const MPS_TO_KMH = 3.6;
+/** Cap par défaut si non fourni par le natif (degrés) / Default heading if not provided */
+const DEFAULT_HEADING = 0;
+/** Distance filter par défaut en mètres / Default distance filter in meters */
+const DEFAULT_DISTANCE_FILTER_M = 10;
 
 /**
  * Schéma de validation de la réponse native (TS-004 — données externes).
@@ -42,6 +54,24 @@ const PositionResponseSchema = z.object({
     latitude: z.number(),
     longitude: z.number(),
     accuracy: z.number(),
+  }),
+});
+
+/**
+ * Schéma de validation d'un échantillon de suivi continu (TS-004).
+ * Continuous-watch sample validation schema (TS-004).
+ *
+ * `speed` (m/s) et `heading` (degrés) peuvent être null/négatifs côté natif
+ * (signal indisponible) → normalisés dans {@link RNGeolocationService.watchPosition}.
+ * `speed` (m/s) and `heading` (degrees) can be null/negative natively
+ * (signal unavailable) → normalized in `watchPosition`.
+ */
+const WatchResponseSchema = z.object({
+  coords: z.object({
+    latitude: z.number(),
+    longitude: z.number(),
+    speed: z.number().nullable().optional(),
+    heading: z.number().nullable().optional(),
   }),
 });
 
@@ -155,6 +185,101 @@ export class RNGeolocationService implements IGeolocationService {
         },
       );
     });
+  }
+
+  /**
+   * Suit la position GPS en continu et émet des échantillons normalisés.
+   * Continuously watches the GPS position and emits normalized samples.
+   *
+   * Normalise la vitesse native (m/s) en km/h et borne le cap dans [0, 360).
+   * Les valeurs natives null/négatives (signal indisponible) sont ramenées à 0.
+   * Le throttling (5s/30s) et l'arrêt en arrière-plan sont gérés en amont
+   * (couche présentation), pas ici (séparation des responsabilités).
+   *
+   * Normalizes native speed (m/s) to km/h and clamps heading to [0, 360).
+   * Null/negative native values (signal unavailable) are coerced to 0.
+   * Throttling and background stop are handled upstream (presentation layer).
+   *
+   * @param onSample - Callback de réception d'un échantillon / Sample callback
+   * @param onError - Callback d'erreur optionnel / Optional error callback
+   * @param options - Options de suivi / Watch options
+   * @returns Fonction d'arrêt du suivi / Function to stop the watch
+   */
+  watchPosition(
+    onSample: WatchPositionCallback,
+    onError?: WatchErrorCallback,
+    options: WatchPositionOptions = {},
+  ): ClearWatch {
+    const accuracyMeters = options.accuracyMeters ?? 100;
+    const distanceFilter = options.distanceFilterMeters ?? DEFAULT_DISTANCE_FILTER_M;
+
+    const watchId = Geolocation.watchPosition(
+      (response) => {
+        // [ADDED] Validation stricte de la réponse native (TS-004)
+        const parsed = WatchResponseSchema.safeParse(response);
+        if (!parsed.success) {
+          console.error(
+            `[ERROR][RNGeolocationService][watchPosition][?][${this.timestamp()}] ` +
+              'Native watch response shape invalid',
+          );
+          this.crashReporter?.captureException(new Error('Geolocation watch response invalid'), {
+            tags: { feature: 'gps' },
+          });
+          return;
+        }
+
+        const { latitude, longitude, speed, heading } = parsed.data.coords;
+
+        // [ADDED] Validation range latitude/longitude (TS-004)
+        const coordsResult = CoordinatesSchema.safeParse({ latitude, longitude });
+        if (!coordsResult.success) {
+          return;
+        }
+
+        // [ADDED] Normalisation : m/s → km/h, valeurs invalides → 0
+        const speedKmh = typeof speed === 'number' && speed > 0 ? speed * MPS_TO_KMH : 0;
+        const headingDeg =
+          typeof heading === 'number' && heading >= 0 ? heading % 360 : DEFAULT_HEADING;
+
+        const sample: PositionSample = {
+          ...coordsResult.data,
+          speed: speedKmh,
+          heading: headingDeg,
+        };
+
+        // ⚠️ RGPD : log SANS coordonnées brutes (vitesse non identifiante seule)
+        console.log(
+          `[INFO][RNGeolocationService][watchPosition][?][${this.timestamp()}] ` +
+            `Watch sample | speed: ${speedKmh.toFixed(1)}km/h`,
+        );
+
+        onSample(sample);
+      },
+      (error) => {
+        // [ADDED] Mapping de l'erreur native → GeolocationError typé
+        this.handleNativeError(error, (typedError) => {
+          onError?.(typedError);
+        });
+      },
+      {
+        enableHighAccuracy: accuracyMeters <= 50,
+        distanceFilter,
+      },
+    );
+
+    console.log(
+      `[INFO][RNGeolocationService][watchPosition][?][${this.timestamp()}] ` +
+        `Watch started | id: ${watchId}`,
+    );
+
+    // [ADDED] Fonction d'arrêt idempotente
+    return () => {
+      Geolocation.clearWatch(watchId);
+      console.log(
+        `[INFO][RNGeolocationService][watchPosition][?][${this.timestamp()}] ` +
+          `Watch cleared | id: ${watchId}`,
+      );
+    };
   }
 
   /**

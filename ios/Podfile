@@ -8,6 +8,13 @@ require Pod::Executable.execute_command('node', ['-p',
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
 
+# [ADDED] F4 — Firebase (RNFirebase) : les pods Swift de Firebase exigent des
+# modular headers, sinon `pod install` échoue ("Swift pod ... depends upon ...
+# which do not define modules"). Requis par @react-native-firebase/app+database.
+# [ADDED] F4 — Firebase (RNFirebase): the Swift Firebase pods require modular
+# headers, otherwise `pod install` fails. Required by @react-native-firebase.
+use_modular_headers!
+
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil
   Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green

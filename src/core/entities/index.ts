@@ -31,3 +31,7 @@ export {
 export type { POICategory } from './POICategory';
 export { PointOfInterestSchema } from './PointOfInterest';
 export type { PointOfInterest } from './PointOfInterest';
+
+// [ADDED] F4 — Realtime participant entity
+export { RealtimeParticipantSchema, RealtimeLocationUpdateSchema } from './RealtimeParticipant';
+export type { RealtimeParticipant, RealtimeLocationUpdate } from './RealtimeParticipant';

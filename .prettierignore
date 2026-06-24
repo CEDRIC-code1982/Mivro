@@ -1,6 +1,7 @@
 # [ADDED] Prettier ignore
 node_modules/
 ios/Pods/
+ios/build/
 android/build/
 android/app/build/
 android/app/.cxx/

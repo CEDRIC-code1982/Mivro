@@ -1,0 +1,44 @@
+{
+  "consent": {
+    "title": "Share my location",
+    "question": "Do you agree to share your location with the participants?",
+    "description": "Your location will be visible in real time to the other participants during the session. It is deleted as soon as you leave the session and is never stored.",
+    "accept": "Accept and share",
+    "decline": "No, just view others",
+    "note": "You can stop sharing at any time."
+  },
+  "status": {
+    "online": "Online",
+    "offline": "Offline",
+    "connecting": "Connecting…",
+    "connected": "Connected",
+    "idle": "Idle"
+  },
+  "list": {
+    "title": "Live participants",
+    "empty": "No live participants yet.",
+    "distanceFromMidpoint": "{{distance}} from the meeting point",
+    "you": "You"
+  },
+  "actions": {
+    "startSharing": "Share my location",
+    "stopSharing": "Stop sharing",
+    "viewLiveList": "List view (live)"
+  },
+  "accessibility": {
+    "liveMapLabel": "Live map with {{participantCount}} participants. Open the list view to read the details as text.",
+    "participantStatus": "{{name}}, {{status}}, {{distance}} from the meeting point",
+    "viewLiveListHint": "Shows live participants as a text list"
+  },
+  "errors": {
+    "not_configured": "Real-time is not available yet. Please try again later.",
+    "network": "Connection lost. Check your internet connection.",
+    "permission_denied": "Access to the real-time service was denied.",
+    "invalid_data": "Invalid location data received.",
+    "permission_blocked": "Location is blocked. Enable it in settings.",
+    "unavailable": "Location service unavailable.",
+    "timeout": "Could not get your location in time.",
+    "inaccurate": "GPS position too inaccurate.",
+    "unknown": "An unexpected error occurred."
+  }
+}
