@@ -34,6 +34,7 @@
  */
 
 // [ADDED] F4 — Adapter FirebaseRealtimeService (API modulaire)
+import { getApp } from '@react-native-firebase/app';
 import {
   getDatabase,
   onValue,
@@ -43,6 +44,7 @@ import {
   serverTimestamp,
   update,
 } from '@react-native-firebase/database';
+import Config from 'react-native-config';
 import type {
   RealtimeLocationUpdate,
   RealtimeParticipant,
@@ -206,10 +208,25 @@ export class FirebaseRealtimeService implements IRealtimeService {
    * Récupère l'instance Database (lève si Firebase non configuré).
    * Gets the Database instance (throws if Firebase not configured).
    *
+   * Cible explicitement l'instance RTDB via son URL (`FIREBASE_DATABASE_URL`,
+   * région europe-west1) lue depuis react-native-config : les instances RTDB
+   * hors us-central1 EXIGENT l'URL explicite, sinon le SDK vise l'instance
+   * par défaut us-central1 (inexistante ici). Si l'URL est absente (tests/CI
+   * où l'env est vide) → fallback `getDatabase(getApp())` pour ne pas casser.
+   *
+   * Explicitly targets the RTDB instance via its URL (`FIREBASE_DATABASE_URL`,
+   * europe-west1 region) read from react-native-config: non-us-central1 RTDB
+   * instances REQUIRE the explicit URL. When absent (tests/CI with empty env)
+   * → fallback to `getDatabase(getApp())` so nothing breaks.
+   *
    * @returns Instance Database / Database instance
    */
   private db(): ReturnType<typeof getDatabase> {
-    return getDatabase();
+    const url = Config.FIREBASE_DATABASE_URL;
+    if (url !== undefined && url.length > 0) {
+      return getDatabase(getApp(), url);
+    }
+    return getDatabase(getApp());
   }
 
   /**

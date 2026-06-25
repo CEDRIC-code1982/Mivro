@@ -6,7 +6,7 @@
 
 # Ne pas modifier sans créer un ADR correspondant.
 
-# Version 8.5 — 2026-06-20 (F4 Temps réel Firebase — code livré + testé 865 + reviewé APPROVED ; ADR-006 ; pointeur sprint → F5, ou F8)
+# Version 8.6 — 2026-06-20 (F4 Temps réel Firebase — code livré + testé 867 + reviewé APPROVED ; ADR-006 ; câblage projet Firebase EU `mivro-40125` / europe-west1 ; pointeur sprint → F5, ou F8)
 
 ## PROJET
 
@@ -270,6 +270,14 @@ Backend : Firebase Realtime Database (free tier MVP)
 Lib GPS : @react-native-community/geolocation
 Lib background (V1) : react-native-background-geolocation
 
+### Projet Firebase (F4 — câblé 2026-06-20)
+
+- **Projet** : `mivro-40125` — Realtime Database région **europe-west1** (EU → RGPD OK).
+- **URL** : `https://mivro-40125-default-rtdb.europe-west1.firebasedatabase.app/` exposée via `FIREBASE_DATABASE_URL` (`.env` / `.env.example`, typée `react-native-config`). **Publique, pas un secret.**
+- ⚠️ Une instance RTDB **hors `us-central1`** exige l'URL explicite : `FirebaseRealtimeService.db()` fait `getDatabase(getApp(), url)` (fallback `getDatabase(getApp())` si vide).
+- **Rules** : `database.rules.json` (+ `database.rules.README.md`) ; `firebase.json` → `database.rules.json`. Racine fermée, `sessions/$sessionId/participants/$participantId` validés (MVP sans auth, `$sessionId` = UUID ; durcissement futur = Firebase Anonymous Auth).
+- **Code + rules prêts.** Restent à Cédric : `GoogleService-Info.plist` (iOS) + `google-services.json` (`android/app/`), déploiement des rules (`firebase deploy --only database`), `pod install`. Voir `docs/context/TODO.md`.
+
 ### Structure Firebase
 
 ```
@@ -395,18 +403,18 @@ Alternatives écartées : Avec raisons
 
 ### ✅ Fait
 
-| Sprint  | Livrable                                                     | Commit(s) clés                          |
-| ------- | ------------------------------------------------------------ | --------------------------------------- |
-| S01-02  | Setup RN, navigation, stores Zustand+MMKV, Sentry            | `7cdacc9` `c8dcb29` `a1065f2` `0e92689` |
-| S03-04  | Geocoding Nominatim + Geolocation GPS + reverse              | `593ae51` `1ff8ad6`                     |
-| F1      | Saisie 2-5 points + autocomplete + GPS (CreateSessionScreen) | `0e2db7c`                               |
-| F2      | Midpoint (centroïde + rayon) + carte react-native-maps       | `cf70fce` `eb022c9`                     |
-| F3      | POI Overpass + écran liste/carte toggle                      | `0bca95f` `4804539`                     |
-| QA P0   | Fix 7 bugs critiques device QA                               | `f520911`                               |
-| QA P1   | Accessibilité & robustesse (VoiceOver, erreurs réseau, GPS)  | `786a4e9` `ed7b0ee` `c01e29c`           |
-| F7 (P1) | Profil : `displayName` + 20 avatars emoji (passe 1)          | `0ade2e2`                               |
-| F7 (P2) | Profil : photo (picker + FileSystem) — F7 complète (ADR-013) | `ebf1215`                               |
-| F4      | Temps réel Firebase (RTDB) — code complet, testé, reviewé    | non commité (2026-06-20)                |
+| Sprint  | Livrable                                                                 | Commit(s) clés                          |
+| ------- | ------------------------------------------------------------------------ | --------------------------------------- |
+| S01-02  | Setup RN, navigation, stores Zustand+MMKV, Sentry                        | `7cdacc9` `c8dcb29` `a1065f2` `0e92689` |
+| S03-04  | Geocoding Nominatim + Geolocation GPS + reverse                          | `593ae51` `1ff8ad6`                     |
+| F1      | Saisie 2-5 points + autocomplete + GPS (CreateSessionScreen)             | `0e2db7c`                               |
+| F2      | Midpoint (centroïde + rayon) + carte react-native-maps                   | `cf70fce` `eb022c9`                     |
+| F3      | POI Overpass + écran liste/carte toggle                                  | `0bca95f` `4804539`                     |
+| QA P0   | Fix 7 bugs critiques device QA                                           | `f520911`                               |
+| QA P1   | Accessibilité & robustesse (VoiceOver, erreurs réseau, GPS)              | `786a4e9` `ed7b0ee` `c01e29c`           |
+| F7 (P1) | Profil : `displayName` + 20 avatars emoji (passe 1)                      | `0ade2e2`                               |
+| F7 (P2) | Profil : photo (picker + FileSystem) — F7 complète (ADR-013)             | `ebf1215`                               |
+| F4      | Temps réel Firebase (RTDB) — code+rules+projet EU câblés, testé, reviewé | non commité (2026-06-20)                |
 
 Atoms livrés : `Text`, `Screen`, `TabBarIcon`, `CategoryChip`, `Avatar`
 Molecules livrés : `ParticipantCard`, `EmptyState`, `AddressAutocomplete`, `AvatarPicker`, `SessionMapView`, `POICard`, `POIDetailSheet`, `POIListView`, `POIMapView`, `POIScreenHeader`
@@ -415,7 +423,7 @@ Molecules livrés : `ParticipantCard`, `EmptyState`, `AddressAutocomplete`, `Ava
 
 ### 🔜 Sprint en cours / suivant — F5 Partage (ou F8 Biométrie)
 
-**F4 Temps réel Firebase** ✅ (2026-06-20) : **code complet, testé (865 tests) + reviewé APPROVED** (1 tour de corrections review ; transport tranché = Firebase RTDB, **ADR-006**). Non commité. ⚠️ **Attend le projet Firebase + les fichiers de config natifs + les Security Rules RTDB (Cédric) pour run/device** — PAUSE OBLIGATOIRE non levée (voir `docs/context/TODO.md`).
+**F4 Temps réel Firebase** ✅ (2026-06-20) : **code complet, testé (867 tests) + reviewé APPROVED** (1 tour de corrections review ; transport tranché = Firebase RTDB, **ADR-006**). Non commité. **Projet Firebase EU câblé** : `mivro-40125`, RTDB **europe-west1** (RGPD OK), URL/env var/rules/`firebase.json` prêts. ⚠️ Restent à Cédric pour run/device : `GoogleService-Info.plist` (iOS) + `google-services.json` (Android), déploiement des rules, `pod install` (voir `docs/context/TODO.md`).
 **F7 Profil entièrement livrée** ✅ (commitée `0ade2e2` + `ebf1215`) : passe 1 (avatars emoji, ADR-012) + passe 2 (photo FileSystem, ADR-013). Reste la **vérif device** (permissions, resize, persistance, cleanup FS).
 Prochaine feature sans blocker : **F5 Partage deep link** (scheme `mivro://`), ou **F8 Biométrie**.
 ⚠️ Restent à re-vérifier sur device (QA P1) : layout Dynamic Type 200 % et champ fantôme F1 (fixes posés).
@@ -453,7 +461,7 @@ Pour chaque feature : objectif · couches · composants · dépendances · déci
 - **Done** : profil éditable, persisté MMKV, avatar affiché dans `ParticipantCard`.
 - **Complexité** : M.
 
-#### F4 — Temps réel Firebase (S09-10) — ✅ FAIT (2026-06-20 ; code+tests+review APPROVED ; ADR-006 ; reste config Firebase + device par Cédric)
+#### F4 — Temps réel Firebase (S09-10) — ✅ FAIT (2026-06-20 ; code+tests+review APPROVED ; ADR-006 ; projet Firebase EU `mivro-40125` câblé ; reste fichiers config natifs + déploiement rules + pod install par Cédric)
 
 - **Objectif** : voir les positions GPS live des participants sur la carte.
 - **Couches** : core (`IRealtimeService` port + `TrackParticipantsUseCase` + entité `RealtimeParticipant`), infrastructure (`FirebaseRealtimeService` → `src/infrastructure/realtime/`), presentation (`useRealtimeStore`).
@@ -462,7 +470,7 @@ Pour chaque feature : objectif · couches · composants · dépendances · déci
 - **Décisions tranchées** : Realtime Database (pas Firestore) pour le MVP ; positions éphémères ; TTL court ; suppression en fin de session ; opti batterie (5s en mouvement / 30s à l'arrêt / off en background — cf. LOCALISATION TEMPS RÉEL).
 - **Done** : 2 devices voient leurs positions bouger en temps réel ; vue liste a11y alternative (A11Y-006).
 - **Complexité** : L.
-- **⚠️ PAUSE OBLIGATOIRE** : nécessite création projet Firebase + `GoogleService-Info.plist` (iOS) et `google-services.json` (Android). → Demander à Cédric avant d'implémenter l'adapter.
+- **⚠️ Reste à Cédric** (PAUSE « transport » levée, projet `mivro-40125` EU câblé) : enregistrer les apps iOS/Android dans la Console → `GoogleService-Info.plist` (iOS) + `google-services.json` (`android/app/`), déployer les rules (`firebase deploy --only database`), `pod install`.
 
 #### F5 — Partage deep link (S11)
 

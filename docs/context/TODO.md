@@ -1,7 +1,7 @@
 # TODO.md — Mivro
 
 > Tâches restantes priorisées. Cocher au fur et à mesure, ajouter les découvertes (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-06-20 (F4 Temps réel Firebase livrée/testée/reviewée APPROVED).
+> Dernière mise à jour : 2026-06-20 (F4 Temps réel Firebase livrée/testée/reviewée APPROVED + câblage projet Firebase EU `mivro-40125` ; 867 tests).
 
 Priorités : **P0** bloquant/immédiat · **P1** important · **P2** souhaitable · **P3** plus tard.
 Ordre d'exécution recommandé : Fix QA P1 → F7 → F4 → **F5** → F8 → F6 → ADR → PostHog → Beta. (Fix QA P1, F7, F4 faits — F4 attend config Firebase + device par Cédric ; prochaine : F5 ou F8.)
@@ -53,10 +53,10 @@ _Estimation : S. **Étape native** : npm install + pod install + permissions._
 
 > **F7 entièrement livrée** (passes 1 + 2, testée + reviewée APPROVED). Reste uniquement la vérif device ci-dessus.
 
-## P1 — F4 Temps réel Firebase (S09-10) — ✅ CODE + TESTS FAITS (2026-06-20, reviewé APPROVED, non commité) ; reste config Firebase + device (Cédric)
+## P1 — F4 Temps réel Firebase (S09-10) — ✅ CODE + TESTS + CÂBLAGE FIREBASE EU FAITS (2026-06-20, reviewé APPROVED, non commité) ; reste actions console/natives (Cédric)
 
 _Estimation : L. Dépendances : `@react-native-firebase/app` + `/database` (v25, API modulaire). Décision : ADR-006._
-**⚠️ BLOCKER / PAUSE OBLIGATOIRE NON LEVÉE** : création projet Firebase + `GoogleService-Info.plist` (iOS) + `google-services.json` (Android) → **à fournir par Cédric**. Code prêt à fonctionner dès leur ajout ; aucun faux fichier de config créé.
+**Projet Firebase EU fourni et câblé** : `mivro-40125`, Realtime Database région **europe-west1** (RGPD OK), URL `https://mivro-40125-default-rtdb.europe-west1.firebasedatabase.app/`. La PAUSE « transport » est **levée**. Restent les actions console Firebase + fichiers de config natifs + déploiement rules + `pod install` → **à faire par Cédric** (voir ci-dessous). Aucun faux fichier de config créé.
 
 - [x] Entité `RealtimeParticipant` (Zod strict) + `RealtimeLocationUpdate`
 - [x] Port `IRealtimeService` (`subscribeToSession` / `publishLocation` / `leaveSession`) + `RealtimeError`
@@ -69,11 +69,17 @@ _Estimation : L. Dépendances : `@react-native-firebase/app` + `/database` (v25,
 - [x] Consentement partage explicite et SÉPARÉ (`RealtimeConsentModal` + `hasSharingConsent`) + suppression positions en fin de session (`leaveSession` + remove) (RGPD)
 - [x] DI câblé (`di/container.ts`) + i18n namespace `realtime` FR/EN + config native (Podfile `use_modular_headers!`, Android google-services plugin)
 - [x] `npx tsc --noEmit` 0 erreur + lint/prettier verts
-- [x] Tests (Firebase mocké via le port `IRealtimeService`, watchPosition mocké via le port geoloc) — ~168 cas F4, **865 tests** au total, `npm run check` vert, seuils respectés
+- [x] Tests (Firebase mocké via le port `IRealtimeService`, watchPosition mocké via le port geoloc) — ~168 cas F4, **867 tests** au total, `npm run check` vert, seuils respectés
 - [x] Review APPROVED (1 tour de corrections appliqué) : 1 bug corrigé (boucle de rendu Zustand v5 — sélecteur renvoyant un nouvel objet, fix `useMemo`/références stables) + 3 corrections review (dont **watch GPS conditionné au consentement**)
-- [ ] **À fournir par Cédric** : créer le projet Firebase + activer la Realtime DB + 2 fichiers de config natifs (`GoogleService-Info.plist` iOS, `google-services.json` dans `android/app/`) + **Security Rules RTDB** (restreindre l'accès au nœud `sessions/{sessionId}`)
-- [ ] **iOS** : `pod install` (récupère les pods Firebase via `use_modular_headers!`) après ajout du plist
-- [ ] **À tester sur device / par Cédric** : live multi-appareils (positions qui bougent en temps réel) ; consentement explicite ; suppression des positions en fin de session ; **opti batterie réelle** (5s/30s + coupure background)
+- [x] **Câblage URL EU + rules + `firebase.json` fait** (2026-06-20) : projet `mivro-40125` (RTDB europe-west1, RGPD OK) ; `FIREBASE_DATABASE_URL` dans `.env`/`.env.example` + typée (`react-native-config.d.ts`) ; `FirebaseRealtimeService.db()` cible l'instance EU explicitement (`getDatabase(getApp(), url)`, fallback si vide) ; `database.rules.json` (+ `database.rules.README.md`, racine fermée + validation alignée sur `RealtimeParticipantSchema` + `$other` refusé) ; `firebase.json` → `database.rules.json`
+
+**Reste à Cédric (actions console Firebase + natives) :**
+
+- [ ] **Console Firebase — app iOS** : enregistrer l'app iOS (bundle id `com.cedricpineau.midpoint`) → télécharger `GoogleService-Info.plist` → l'ajouter à la cible Xcode
+- [ ] **Console Firebase — app Android** : enregistrer l'app Android (même `applicationId` `com.cedricpineau.midpoint`) → télécharger `google-services.json` → le placer dans `android/app/`
+- [ ] **Déployer les rules** : `firebase deploy --only database` (ou copier `database.rules.json` dans Console → Realtime Database → Règles)
+- [ ] **iOS** : `cd ios && pod install` (le CDN CocoaPods avait flanché côté CI ; `use_modular_headers!` est déjà au Podfile)
+- [ ] **Vérif device** : live multi-appareils (positions qui bougent en temps réel) + **opti batterie réelle** (5s/30s + coupure background)
 
 ## P1 — F5 Partage deep link (S11)
 
@@ -169,7 +175,7 @@ _Estimation : L. Dépendances : comptes stores._
 ## Décisions en attente (input Cédric requis)
 
 - [x] ⚠️ **Avatars F7** : ~~SVG vectoriels custom **ou** emoji-based ?~~ → **tranché : emoji-based** (passe 1, 2026-06-20, ADR-012).
-- [ ] ⚠️ **Firebase F4** : créer le projet Firebase + activer la Realtime DB + fournir les fichiers de config natifs + Security Rules RTDB. _(Code F4 livré/testé/reviewé ; décision transport actée ADR-006 ; reste cette action externe de Cédric.)_
+- [ ] ⚠️ **Firebase F4** : projet `mivro-40125` (RTDB europe-west1) **fourni et câblé** (URL/env/rules/`firebase.json`) ; restent les **fichiers de config natifs** (`GoogleService-Info.plist` iOS, `google-services.json` Android), le **déploiement des rules** et `pod install` — voir la checklist « Reste à Cédric » de la section F4. _(Code F4 livré/testé/reviewé ; transport acté ADR-006.)_
 - [ ] ⚠️ **F5 universal links** : MVP en scheme `mivro://` seul, ou config domaine (AASA/assetlinks) dès maintenant ?
 - [ ] ⚠️ **Comptes dev F6** : Google Cloud + Apple Developer prêts ?
 - [ ] ⚠️ **PostHog** : VPS d'auto-hébergement provisionné ?

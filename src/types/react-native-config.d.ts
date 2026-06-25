@@ -16,6 +16,12 @@ declare module 'react-native-config' {
     SENTRY_ENVIRONMENT?: string;
     /** Sentry release identifier — auto-injecté par CI */
     SENTRY_RELEASE?: string;
+    /**
+     * URL de l'instance Firebase Realtime Database (région europe-west1).
+     * Publique (pas un secret). Requise pour cibler une instance RTDB hors
+     * us-central1 ; vide en tests/CI → fallback getDatabase(getApp()).
+     */
+    FIREBASE_DATABASE_URL?: string;
   }
 
   const Config: NativeConfig;

@@ -1,7 +1,7 @@
 # PROGRESS.md — Mivro
 
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-06-20 (F4 Temps réel Firebase — livrée/testée/reviewée APPROVED, non commitée).
+> Dernière mise à jour : 2026-06-20 (F4 Temps réel Firebase — livrée/testée/reviewée APPROVED + câblage projet Firebase EU `mivro-40125` ; 867 tests ; non commitée).
 
 ## Tableau des sprints
 
@@ -27,7 +27,7 @@
 | Beta           | —                  | 📋 Backlog | —                             |
 
 F7 (passes 1 & 2) est désormais **commitée** (`0ade2e2`, `ebf1215`).
-\*F4 Temps réel Firebase : code applicatif **livré + testé (865 tests) + reviewé APPROVED** (après 1 tour de corrections review), pas encore commité au moment de cette mise à jour. **PAUSE OBLIGATOIRE non levée** : reste la fourniture du projet Firebase + des 2 fichiers de config natifs + Security Rules RTDB par Cédric, puis la vérif device (voir TODO.md). Prochaine feature débloquable : **F5 Partage** (ou F8 Biométrie).
+\*F4 Temps réel Firebase : code applicatif **livré + testé (867 tests) + reviewé APPROVED** (après 1 tour de corrections review), pas encore commité au moment de cette mise à jour. Le **projet Firebase EU (`mivro-40125`, europe-west1) est désormais fourni et câblé** (URL, env var, rules, `firebase.json` — voir « Câblage Firebase EU » + ADR-006) : la PAUSE « transport » est levée. **Restent à Cédric** : enregistrer les apps iOS/Android (fichiers `GoogleService-Info.plist` / `google-services.json`), déployer les rules, `pod install`, puis vérif device (voir TODO.md). Prochaine feature débloquable : **F5 Partage** (ou F8 Biométrie).
 
 ---
 
@@ -126,7 +126,7 @@ Seconde passe de F7 : ajout d'une **photo de profil optionnelle** (galerie / cam
 
 ### F4 — Temps réel Firebase (multi-participants live) — livrée + testée + reviewée APPROVED (2026-06-20, non commité)
 
-> Transport tranché : **Firebase Realtime Database** (`@react-native-firebase/app` + `/database` v25, **API modulaire**) — décision actée en **ADR-006**. Code applicatif **livré + testé (865 tests) + reviewé APPROVED** (1 tour de corrections review appliqué). ⚠️ **PAUSE OBLIGATOIRE non levée** : le projet Firebase + `GoogleService-Info.plist` (iOS) + `google-services.json` (Android) ne sont pas encore fournis. Le code est prêt à fonctionner dès leur ajout ; aucun faux fichier de config n'a été créé.
+> Transport tranché : **Firebase Realtime Database** (`@react-native-firebase/app` + `/database` v25, **API modulaire**) — décision actée en **ADR-006**. Code applicatif **livré + testé (867 tests) + reviewé APPROVED** (1 tour de corrections review appliqué). Le **projet Firebase EU est désormais fourni et câblé** (`mivro-40125`, europe-west1 ; URL, env var, rules, `firebase.json` — voir « Câblage Firebase EU » ci-dessous). Restent à Cédric les fichiers de config natifs (`GoogleService-Info.plist` iOS / `google-services.json` Android), le déploiement des rules et `pod install`. Aucun faux fichier de config n'a été créé.
 
 - **Core** :
   - Entité `RealtimeParticipant` (Zod strict) : `participantId`, `latitude`, `longitude`, `updatedAt` (epoch ms serveur), `speed` (km/h), `heading` [0,360), `isOnline`. + `RealtimeLocationUpdate` (sous-ensemble publié par le device).
@@ -147,11 +147,23 @@ Seconde passe de F7 : ajout d'une **photo de profil optionnelle** (galerie / cam
   - Android : classpath `com.google.gms:google-services:4.4.2` (`android/build.gradle`) + `apply plugin: "com.google.gms.google-services"` (`android/app/build.gradle`).
   - iOS init Firebase : **aucun `[FIRApp configure]` manuel** — RNFirebase v25 auto-configure via `GoogleService-Info.plist` au build (AppDelegate inchangé).
 - **Fichiers clés** : `core/entities/RealtimeParticipant.ts`, `core/ports/IRealtimeService.ts`, `core/ports/IGeolocationService.ts` (watchPosition), `core/usecases/TrackParticipantsUseCase.ts`, `infrastructure/realtime/FirebaseRealtimeService.ts`, `infrastructure/geolocation/RNGeolocationService.ts`, `presentation/stores/useRealtimeStore.ts`, `presentation/hooks/useRealtimeTracking.ts`, `presentation/components/molecules/{LiveParticipantsList,RealtimeConsentModal}/`, `presentation/components/molecules/SessionMapView/SessionMapView.tsx`, `presentation/screens/MapScreen.tsx`, `di/container.ts`, `i18n/locales/{fr,en}/realtime.json`, `ios/Podfile`, `android/build.gradle`, `android/app/build.gradle`.
-- **Tests** : ~168 cas F4 ajoutés ; suite globale **865 tests** (71 suites) verts, seuils de coverage respectés. Firebase mocké via le port `IRealtimeService`, `watchPosition` mocké via le port geoloc (zéro `any`). Nouveaux fichiers : `RealtimeParticipant.test.ts`, `IRealtimeService.test.ts`, `TrackParticipantsUseCase.test.ts`, `infrastructure/realtime/` (adapter), `useRealtimeStore.test.ts`, `useRealtimeTracking.test.tsx`, `LiveParticipantsList.test.tsx`, `RealtimeConsentModal.test.tsx` ; modifiés : `RNGeolocationService.test.ts` (watchPosition), `SessionMapView.test.tsx` (markers live), `MapScreen.test.tsx` (orchestration). `npm run check` vert.
+- **Tests** : ~168 cas F4 ajoutés (+2 pour les branches de `db()`, voir « Câblage Firebase EU ») ; suite globale **867 tests** (71 suites) verts, seuils de coverage respectés. Firebase mocké via le port `IRealtimeService`, `watchPosition` mocké via le port geoloc (zéro `any`). Nouveaux fichiers : `RealtimeParticipant.test.ts`, `IRealtimeService.test.ts`, `TrackParticipantsUseCase.test.ts`, `infrastructure/realtime/` (adapter), `useRealtimeStore.test.ts`, `useRealtimeTracking.test.tsx`, `LiveParticipantsList.test.tsx`, `RealtimeConsentModal.test.tsx` ; modifiés : `RNGeolocationService.test.ts` (watchPosition), `SessionMapView.test.tsx` (markers live), `MapScreen.test.tsx` (orchestration). `npm run check` vert.
 - **Bug corrigé (1)** : **boucle de rendu Zustand v5** — un sélecteur de `useRealtimeStore` renvoyant un **nouvel objet** à chaque appel provoquait des re-renders infinis (« Maximum update depth exceeded »). Corrigé en mémoïsant la dérivation (`useMemo`) / en sélectionnant des références stables. Voir « Appris ».
 - **3 corrections de review** appliquées (après 1 tour) : (1) le **watch GPS** est désormais **conditionné au consentement** (`hasSharingConsent`) — on n'arme plus le capteur GPS tant que l'utilisateur n'a pas consenti au partage, pas seulement la publication ; (2) + (3) corrections de robustesse/cohérence remontées par la review (mapping erreurs / cycle de vie du watch).
 - **tsc** : `npx tsc --noEmit` à **0 erreur** ; lint + prettier verts sur les fichiers touchés.
-- **Reste** : **PAUSE OBLIGATOIRE Cédric** — créer le projet Firebase + activer la Realtime DB, fournir `GoogleService-Info.plist` (iOS) + `google-services.json` (android/app/), définir les **Security Rules** RTDB (restreindre `sessions/{sessionId}`), `pod install` (iOS), puis vérif device (live multi-appareils + opti batterie réelle).
+- **Reste** : **PAUSE OBLIGATOIRE Cédric** — enregistrer les apps iOS/Android + fournir `GoogleService-Info.plist` (iOS) + `google-services.json` (android/app/), déployer les rules, `pod install` (iOS), puis vérif device (live multi-appareils + opti batterie réelle). Voir « Câblage Firebase EU » ci-dessous + TODO.md.
+
+#### Câblage Firebase EU (2026-06-20)
+
+Le projet Firebase a été **fourni et câblé** côté code (la PAUSE OBLIGATOIRE « transport » est levée ; restent des actions console/natives pour Cédric — voir TODO.md). Livré + testé (**867 tests**) + reviewé APPROVED.
+
+- **Projet** : `mivro-40125` — Realtime Database région **europe-west1** (EU → **RGPD OK**). URL : `https://mivro-40125-default-rtdb.europe-west1.firebasedatabase.app/`.
+- **Env var** : `FIREBASE_DATABASE_URL` ajoutée à `.env` / `.env.example` (URL **publique, pas un secret**) et **typée** dans `src/types/react-native-config.d.ts` (`react-native-config`). `FirebaseRealtimeService.db()` cible l'instance EU **explicitement** : `getDatabase(getApp(), url)`, avec **fallback `getDatabase(getApp())`** si l'env est vide (tests/CI).
+- **Security Rules** : `database.rules.json` (+ `database.rules.README.md`) — **racine fermée** (`.read`/`.write` = `false`), `sessions/$sessionId/participants/$participantId` **read+write autorisés** avec validation de forme alignée sur `RealtimeParticipantSchema` (lat/lon/heading/speed bornés, `isOnline` bool, `updatedAt` présent), `$other` **refusé**. Modèle **MVP sans auth** : protection par `$sessionId` = UUID non devinable (capability URL). Durcissement futur documenté = **Firebase Anonymous Auth** (dette de sécurité connue et assumée).
+- **`firebase.json`** : `database.rules → database.rules.json`.
+- **Fichiers** : `.env`, `.env.example`, `src/types/react-native-config.d.ts`, `src/infrastructure/realtime/FirebaseRealtimeService.ts`, `database.rules.json`, `database.rules.README.md`, `firebase.json`.
+- **Tests** : suite globale **867 tests** verts (+2 vs 865 : couvre les 2 branches de `db()` — URL EU explicite vs fallback env vide). `npm run check` vert.
+- **Piège appris** : une **instance RTDB hors `us-central1`** (ici `europe-west1`) **exige l'URL explicite** passée à `getDatabase(getApp(), url)` — sans elle, le SDK cible l'instance par défaut `us-central1` (inexistante ici) et les lectures/écritures échouent silencieusement. Voir « Appris ».
 
 ---
 
@@ -186,13 +198,13 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 
 ---
 
-## Métriques actuelles (2026-06-20)
+## Métriques actuelles (2026-06-20, post-câblage Firebase EU)
 
 | Métrique                           | Valeur                                    |
 | ---------------------------------- | ----------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 107                                       |
 | Suites de tests                    | 71                                        |
-| Tests (cas) — `npm run check`      | 865                                       |
+| Tests (cas) — `npm run check`      | 867                                       |
 | Entités core                       | 8 (+`RealtimeParticipant`)                |
 | Ports                              | 7 (+`IRealtimeService`)                   |
 | Use cases                          | 7 (+`TrackParticipants`)                  |
@@ -232,3 +244,4 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 - **RGPD — consentement de partage séparé et non persisté** : `hasSharingConsent` vit dans `useRealtimeStore` (non persisté). On peut **voir** les autres sans consentement (abonnement), mais on ne **publie** jamais sa position tant qu'il est `false`. Choix par session, jamais stocké. **Corrigé en review** : on ne se contente pas de bloquer la publication — le **watch GPS lui-même n'est armé que si le consentement est donné** (ne pas allumer le capteur sans raison ni consentement).
 - **Boucle de rendu Zustand v5 (sélecteur renvoyant un nouvel objet)** : avec Zustand v5, un sélecteur qui **construit un nouvel objet/array à chaque appel** (ex : `s => ({ ...derived })` ou `Object.values(map)`) casse l'égalité référentielle → React re-render en boucle (« Maximum update depth exceeded »). Bug rencontré sur `useRealtimeStore` (F4). Fix : sélectionner des **références stables** (sélecteurs atomiques) et **mémoïser** la dérivation côté composant (`useMemo`), ou passer un comparateur (`useShallow`). Régression silencieuse jusqu'au montage du composant — d'où l'intérêt des tests d'intégration.
 - **Firebase confiné à l'infra (F4)** : `@react-native-firebase/*` n'est importé que par `FirebaseRealtimeService`. Le `tsc` compile à 0 erreur **sans** les fichiers de config natifs (nécessaires seulement au runtime), et le core/presentation restent testables via le port mocké. Transport substituable (swap = 1 ligne DI). Décision actée en ADR-006.
+- **Instance RTDB hors `us-central1` → URL explicite obligatoire (câblage Firebase EU)** : pour la conformité RGPD, l'instance Realtime Database est en **`europe-west1`**. Le SDK Firebase cible **par défaut l'instance `us-central1`** ; pour une instance dans une autre région, il **faut passer l'URL explicite** à `getDatabase(getApp(), 'https://mivro-40125-default-rtdb.europe-west1.firebasedatabase.app/')`. Sans ça, lectures/écritures partent vers une instance inexistante (échec silencieux / erreurs réseau). L'URL est exposée via `FIREBASE_DATABASE_URL` (publique, pas un secret) ; `db()` fait un **fallback** `getDatabase(getApp())` quand l'env est vide (tests/CI), d'où les 2 branches testées.

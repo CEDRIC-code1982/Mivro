@@ -53,6 +53,9 @@ jest.mock('react-native-config', () => ({
   SENTRY_DSN: '',
   SENTRY_ENVIRONMENT: 'test',
   SENTRY_RELEASE: '',
+  // [ADDED] F4 — URL RTDB EU. Vide par défaut → fallback getDatabase(getApp())
+  // (comportement des tests existants inchangé). Surchargée par test pour la branche EU.
+  FIREBASE_DATABASE_URL: '',
 }));
 
 // [ADDED] Mock @sentry/react-native (native module unavailable in Jest)

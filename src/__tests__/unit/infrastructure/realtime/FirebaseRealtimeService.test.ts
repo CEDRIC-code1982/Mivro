@@ -11,6 +11,7 @@
  */
 
 // [ADDED] F4 — Tests unitaires FirebaseRealtimeService
+import { getApp } from '@react-native-firebase/app';
 import {
   getDatabase,
   onDisconnect,
@@ -26,6 +27,7 @@ import type { ICrashReporter } from '@core/ports/ICrashReporter';
 import { FirebaseRealtimeService } from '@infrastructure/realtime/FirebaseRealtimeService';
 
 const mockGetDatabase = getDatabase as jest.Mock;
+const mockGetApp = getApp as jest.Mock;
 const mockRef = ref as jest.Mock;
 const mockOnValue = onValue as jest.Mock;
 const mockOnDisconnect = onDisconnect as jest.Mock;
@@ -311,5 +313,79 @@ describe('FirebaseRealtimeService', () => {
         bare.publishLocation(SESSION_ID, PARTICIPANT_ID, validLocation),
       ).resolves.toBeUndefined();
     });
+  });
+
+  // ─── db() target RTDB instance (F4 — câblage EU) ──────────
+  // FIREBASE_DATABASE_URL vide (mock par défaut de jest.setup.js) → fallback
+  // getDatabase(getApp()) SANS url. Branche couverte par le service importé
+  // au top du fichier (le mock react-native-config est figé à l'import).
+  describe('db() target RTDB instance — empty FIREBASE_DATABASE_URL', () => {
+    it('calls getDatabase with getApp() only (no url) → fallback default instance', () => {
+      const appHandle = { name: '[DEFAULT]' };
+      mockGetApp.mockReturnValue(appHandle);
+
+      service.subscribeToSession(SESSION_ID, jest.fn());
+
+      expect(mockGetApp).toHaveBeenCalled();
+      expect(mockGetDatabase).toHaveBeenCalledWith(appHandle);
+      // Un seul argument : aucune URL passée sur la branche fallback.
+      const lastCall = mockGetDatabase.mock.calls.at(-1);
+      expect(lastCall).toHaveLength(1);
+    });
+  });
+});
+
+// ─── db() target RTDB instance — EU URL définie ─────────────
+// Branche EU : FIREBASE_DATABASE_URL non vide → getDatabase(getApp(), url).
+// On surcharge le mock react-native-config AVANT de (ré)importer le service,
+// dans un registre de modules isolé (jest.isolateModulesAsync + doMock) pour
+// ne pas polluer les autres suites figées sur l'URL vide du jest.setup.js.
+describe('db() target RTDB instance — EU FIREBASE_DATABASE_URL defined', () => {
+  const EU_DATABASE_URL = 'https://mivro-40125-default-rtdb.europe-west1.firebasedatabase.app/';
+
+  beforeEach(() => {
+    jest.spyOn(console, 'log').mockImplementation();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    jest.resetModules();
+  });
+
+  it('calls getDatabase WITH the EU url when FIREBASE_DATABASE_URL is set', () => {
+    // L'objet renvoyé par le mock react-native-config (jest.setup.js) est figé
+    // au niveau du module ; on mute sa clé pour simuler l'env EU, puis on
+    // ré-require le service dans un registre isolé pour qu'il relise la valeur.
+    const config = require('react-native-config') as { FIREBASE_DATABASE_URL: string };
+    const original = config.FIREBASE_DATABASE_URL;
+    config.FIREBASE_DATABASE_URL = EU_DATABASE_URL;
+
+    try {
+      jest.isolateModules(() => {
+        const appHandle = { name: '[DEFAULT]' };
+        const { getApp: getAppEu } = require('@react-native-firebase/app') as {
+          getApp: jest.Mock;
+        };
+        const { getDatabase: getDatabaseEu, onValue: onValueEu } =
+          require('@react-native-firebase/database') as {
+            getDatabase: jest.Mock;
+            onValue: jest.Mock;
+          };
+        getAppEu.mockReset().mockReturnValue(appHandle);
+        getDatabaseEu.mockReset().mockReturnValue({ __mockDatabase: true });
+        onValueEu.mockReset().mockReturnValue(jest.fn());
+
+        const { FirebaseRealtimeService: ServiceEu } =
+          require('@infrastructure/realtime/FirebaseRealtimeService') as {
+            FirebaseRealtimeService: typeof FirebaseRealtimeService;
+          };
+
+        new ServiceEu().subscribeToSession(SESSION_ID, jest.fn());
+
+        expect(getDatabaseEu).toHaveBeenCalledWith(appHandle, EU_DATABASE_URL);
+      });
+    } finally {
+      config.FIREBASE_DATABASE_URL = original;
+    }
   });
 });
