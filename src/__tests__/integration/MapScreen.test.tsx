@@ -13,14 +13,23 @@
 
 // [ADDED] Tests intégration MapScreen
 
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import React from 'react';
+import { Alert, Share } from 'react-native'; // [ADDED] F5 — retour utilisateur partage
 import { createQueryClientWrapper } from '@/__tests__/helpers/queryClientWrapper'; // [MODIFIED]
 import type { Coordinates } from '@core/entities/Location';
 import type { MidpointSession, Participant } from '@core/entities/MidpointSession';
+import { SHARE_TTL_GUEST_MS } from '@core/entities/SharedSession'; // [ADDED] F5
+import type { User } from '@core/entities/User'; // [ADDED] F5
+import {
+  SessionShareError,
+  type CreateSharedSessionResult,
+} from '@core/ports/ISessionShareService'; // [ADDED] F5
 import MapScreen from '@presentation/screens/MapScreen';
+import { useAuthStore } from '@presentation/stores/useAuthStore'; // [ADDED] F5
 import { useRealtimeStore } from '@presentation/stores/useRealtimeStore';
 import { useSessionStore } from '@presentation/stores/useSessionStore';
+import { useSharedSessionStore } from '@presentation/stores/useSharedSessionStore'; // [ADDED] F5
 
 // ─── Mock i18n ──────────────────────────────────────────────
 jest.mock('react-i18next', () => ({
@@ -55,6 +64,14 @@ jest.mock('react-i18next', () => ({
         'consent.accept': 'Accepter et partager',
         'consent.decline': 'Non, juste voir les autres',
         'list.empty': 'Aucun participant en direct pour le moment.',
+        // [ADDED] F5 — namespace share:*
+        'share:actions.share': 'Partager la session',
+        'share:actions.shareHint': "Génère un lien d'invitation et ouvre le menu de partage",
+        'share:shareSheet.message': `Rejoins ma session Mivro : ${String(opts?.link ?? '')}`,
+        'share:toast.shared': "Lien d'invitation prêt à partager",
+        'share:errors.title': 'Impossible de partager la session',
+        'share:errors.network': 'Connexion perdue. Vérifie ta connexion internet.',
+        'share:errors.unknown': 'Une erreur inattendue est survenue.',
       };
       return translations[key] ?? key;
     },
@@ -123,6 +140,34 @@ jest.mock('@react-navigation/native', () => ({
   }),
 }));
 
+// ─── F5 — Mock DI container (partage + abonnement live) ─────
+// useSessionShare lit useAuthStore.getState().user (store persisté) → on expose
+// un zustandStorage in-memory pour que le middleware persist ne casse pas.
+const mockSubscribeToSharedSession = jest.fn();
+const mockShareExecute = jest.fn();
+const mockJoinExecute = jest.fn();
+const mockUnsubscribe = jest.fn();
+const mockStorageMap = new Map<string, string>();
+
+jest.mock('@/di/container', () => ({
+  getContainer: jest.fn(() => ({
+    shareSessionUseCase: { execute: mockShareExecute },
+    joinSessionUseCase: { execute: mockJoinExecute },
+    sessionShareService: {
+      subscribeToSharedSession: mockSubscribeToSharedSession,
+    },
+    zustandStorage: {
+      getItem: (key: string) => mockStorageMap.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        mockStorageMap.set(key, value);
+      },
+      removeItem: (key: string) => {
+        mockStorageMap.delete(key);
+      },
+    },
+  })),
+}));
+
 // ─── Helpers ────────────────────────────────────────────────
 
 const makeParticipant = (name: string, coords: Coordinates): Participant => ({
@@ -158,19 +203,55 @@ const draftSession: MidpointSession = {
 
 // ─── Tests ──────────────────────────────────────────────────
 
+const GUEST_USER: User = {
+  type: 'guest',
+  id: 'p-alice',
+  displayName: 'Alice',
+  createdAt: '2026-06-25T10:00:00.000Z',
+};
+
 describe('MapScreen integration', () => {
+  let alertSpy: jest.SpiedFunction<typeof Alert.alert>;
+
   beforeEach(() => {
+    jest.clearAllMocks();
     jest.spyOn(console, 'log').mockImplementation();
+    jest.spyOn(console, 'error').mockImplementation();
     mockNavigate.mockClear();
     mockStart.mockClear();
     mockStop.mockClear();
+
+    // [ADDED] F5 — abonnement live renvoie un désabonnement mockable.
+    mockSubscribeToSharedSession.mockReturnValue(mockUnsubscribe);
+    mockShareExecute.mockResolvedValue({
+      sessionId: 'session-001',
+      link: 'mivro://session/session-001',
+      expiresAt: Date.now() + SHARE_TTL_GUEST_MS,
+    } satisfies CreateSharedSessionResult);
+    // [ADDED] F5 — espion sur Alert.alert (retour utilisateur du partage).
+    alertSpy = jest.spyOn(Alert, 'alert').mockImplementation();
+    // [ADDED] F5 — share sheet native mockée (ne pas ouvrir de vraie UI).
+    jest.spyOn(Share, 'share').mockResolvedValue({ action: 'sharedAction' });
+
     useSessionStore.setState({ session: null });
+    useAuthStore.setState({ user: GUEST_USER, isAuthenticated: true });
     useRealtimeStore.setState({
       sessionId: null,
       participants: {},
       status: 'idle',
       errorCode: null,
       hasSharingConsent: false,
+    });
+    // [ADDED] F5 — pas de session partagée par défaut (hook de synchro inerte).
+    useSharedSessionStore.setState({
+      isShared: false,
+      isOwner: false,
+      sessionId: null,
+      link: null,
+      meta: null,
+      members: [],
+      status: 'idle',
+      errorCode: null,
     });
   });
 
@@ -374,6 +455,71 @@ describe('MapScreen integration', () => {
 
       expect(screen.getByText('Arrêter le partage')).toBeTruthy();
       expect(screen.queryByText('Partager ma position')).toBeNull();
+    });
+  });
+
+  // ─── F5 — Partage collaboratif (deep link) ────────────────
+  describe('F5 — collaborative sharing', () => {
+    it('does NOT subscribe to the shared session when the session is not shared', () => {
+      useSessionStore.setState({ session: computedSession });
+
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+
+      // Hook useSharedSessionSync inerte tant que isShared est false.
+      expect(mockSubscribeToSharedSession).not.toHaveBeenCalled();
+    });
+
+    it('subscribes to the shared session when in shared mode', () => {
+      useSessionStore.setState({ session: computedSession });
+      useSharedSessionStore.setState({ isShared: true, sessionId: 'session-001' });
+
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+
+      expect(mockSubscribeToSharedSession).toHaveBeenCalledWith(
+        'session-001',
+        expect.any(Function),
+      );
+    });
+
+    it('unsubscribes from the shared session on unmount (RGPD)', () => {
+      useSessionStore.setState({ session: computedSession });
+      useSharedSessionStore.setState({ isShared: true, sessionId: 'session-001' });
+
+      const { unmount } = render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+      unmount();
+
+      expect(mockUnsubscribe).toHaveBeenCalled();
+    });
+
+    it('shares the session and alerts success when the share succeeds', async () => {
+      useSessionStore.setState({ session: computedSession });
+
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+
+      fireEvent.press(screen.getByTestId('map-btn-share-session'));
+
+      await waitFor(() => {
+        expect(mockShareExecute).toHaveBeenCalled();
+      });
+      await waitFor(() => {
+        expect(alertSpy).toHaveBeenCalledWith("Lien d'invitation prêt à partager");
+      });
+    });
+
+    it('alerts a localized error when the share fails', async () => {
+      useSessionStore.setState({ session: computedSession });
+      mockShareExecute.mockRejectedValueOnce(new SessionShareError('net', 'network'));
+
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+
+      fireEvent.press(screen.getByTestId('map-btn-share-session'));
+
+      await waitFor(() => {
+        expect(alertSpy).toHaveBeenCalledWith(
+          'Impossible de partager la session',
+          'Connexion perdue. Vérifie ta connexion internet.',
+        );
+      });
     });
   });
 });

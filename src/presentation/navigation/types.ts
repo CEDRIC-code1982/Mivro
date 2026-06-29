@@ -29,6 +29,8 @@ export type BottomTabsParamList = {
 export type RootStackParamList = {
   Tabs: NavigatorScreenParams<BottomTabsParamList>;
   POI: undefined; // [ADDED] écran POI F3
+  // [ADDED] F5 — écran de jointure (ouvert par deep link mivro://session/:sessionId)
+  JoinSession: { sessionId: string };
 };
 
 // [ADDED] Déclaration globale pour le typage automatique de useNavigation()

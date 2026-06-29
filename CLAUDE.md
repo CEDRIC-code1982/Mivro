@@ -6,7 +6,7 @@
 
 # Ne pas modifier sans créer un ADR correspondant.
 
-# Version 8.6 — 2026-06-20 (F4 Temps réel Firebase — code livré + testé 867 + reviewé APPROVED ; ADR-006 ; câblage projet Firebase EU `mivro-40125` / europe-west1 ; pointeur sprint → F5, ou F8)
+# Version 8.7 — 2026-06-20 (F5 Partage de session — deep link `mivro://` + join collaboratif live ; code livré + testé 1021 + reviewé APPROVED ; étend le modèle Firebase F4 ; pointeur sprint → F8 Biométrie)
 
 ## PROJET
 
@@ -403,34 +403,36 @@ Alternatives écartées : Avec raisons
 
 ### ✅ Fait
 
-| Sprint  | Livrable                                                                 | Commit(s) clés                          |
-| ------- | ------------------------------------------------------------------------ | --------------------------------------- |
-| S01-02  | Setup RN, navigation, stores Zustand+MMKV, Sentry                        | `7cdacc9` `c8dcb29` `a1065f2` `0e92689` |
-| S03-04  | Geocoding Nominatim + Geolocation GPS + reverse                          | `593ae51` `1ff8ad6`                     |
-| F1      | Saisie 2-5 points + autocomplete + GPS (CreateSessionScreen)             | `0e2db7c`                               |
-| F2      | Midpoint (centroïde + rayon) + carte react-native-maps                   | `cf70fce` `eb022c9`                     |
-| F3      | POI Overpass + écran liste/carte toggle                                  | `0bca95f` `4804539`                     |
-| QA P0   | Fix 7 bugs critiques device QA                                           | `f520911`                               |
-| QA P1   | Accessibilité & robustesse (VoiceOver, erreurs réseau, GPS)              | `786a4e9` `ed7b0ee` `c01e29c`           |
-| F7 (P1) | Profil : `displayName` + 20 avatars emoji (passe 1)                      | `0ade2e2`                               |
-| F7 (P2) | Profil : photo (picker + FileSystem) — F7 complète (ADR-013)             | `ebf1215`                               |
-| F4      | Temps réel Firebase (RTDB) — code+rules+projet EU câblés, testé, reviewé | non commité (2026-06-20)                |
+| Sprint  | Livrable                                                                                | Commit(s) clés                          |
+| ------- | --------------------------------------------------------------------------------------- | --------------------------------------- |
+| S01-02  | Setup RN, navigation, stores Zustand+MMKV, Sentry                                       | `7cdacc9` `c8dcb29` `a1065f2` `0e92689` |
+| S03-04  | Geocoding Nominatim + Geolocation GPS + reverse                                         | `593ae51` `1ff8ad6`                     |
+| F1      | Saisie 2-5 points + autocomplete + GPS (CreateSessionScreen)                            | `0e2db7c`                               |
+| F2      | Midpoint (centroïde + rayon) + carte react-native-maps                                  | `cf70fce` `eb022c9`                     |
+| F3      | POI Overpass + écran liste/carte toggle                                                 | `0bca95f` `4804539`                     |
+| QA P0   | Fix 7 bugs critiques device QA                                                          | `f520911`                               |
+| QA P1   | Accessibilité & robustesse (VoiceOver, erreurs réseau, GPS)                             | `786a4e9` `ed7b0ee` `c01e29c`           |
+| F7 (P1) | Profil : `displayName` + 20 avatars emoji (passe 1)                                     | `0ade2e2`                               |
+| F7 (P2) | Profil : photo (picker + FileSystem) — F7 complète (ADR-013)                            | `ebf1215`                               |
+| F4      | Temps réel Firebase (RTDB) — code+rules+projet EU câblés, testé, reviewé                | non commité (2026-06-20)                |
+| F5      | Partage de session — deep link `mivro://` + join collaboratif live, testé 1021, reviewé | non commité (2026-06-20)                |
 
 Atoms livrés : `Text`, `Screen`, `TabBarIcon`, `CategoryChip`, `Avatar`
 Molecules livrés : `ParticipantCard`, `EmptyState`, `AddressAutocomplete`, `AvatarPicker`, `SessionMapView`, `POICard`, `POIDetailSheet`, `POIListView`, `POIMapView`, `POIScreenHeader`
 
 > ⚠️ Divergence à corriger : le README/anciennes notes mentionnaient des atoms `Button`/`Input`/`IconButton`/`Card`/`Spinner` — **ils n'existent pas encore**. À créer au besoin via le skill `create-atom`.
 
-### 🔜 Sprint en cours / suivant — F5 Partage (ou F8 Biométrie)
+### 🔜 Sprint en cours / suivant — F8 Biométrie (F6 Auth bloqué par comptes dev)
 
-**F4 Temps réel Firebase** ✅ (2026-06-20) : **code complet, testé (867 tests) + reviewé APPROVED** (1 tour de corrections review ; transport tranché = Firebase RTDB, **ADR-006**). Non commité. **Projet Firebase EU câblé** : `mivro-40125`, RTDB **europe-west1** (RGPD OK), URL/env var/rules/`firebase.json` prêts. ⚠️ Restent à Cédric pour run/device : `GoogleService-Info.plist` (iOS) + `google-services.json` (Android), déploiement des rules, `pod install` (voir `docs/context/TODO.md`).
+**F5 Partage de session** ✅ (2026-06-20) : **code complet, testé (1021 tests) + reviewé APPROVED** (1 tour de corrections review). Non commité. Deep link **`mivro://session/{id}`** + **join collaboratif live** (l'invité ajoute son point → midpoint recalculé → session synchronisée via RTDB) ; étend le modèle Firebase F4 (`meta` + `members`, sans toucher à `participants`). Scheme `mivro://` seul (pas d'universal links au MVP — tranché). ⚠️ Restent à Cédric pour run/device : redéployer les rules étendues (`firebase deploy --only database`), `pod install`, rebuild natif, tester l'ouverture du deep link + join multi-devices (voir `docs/context/TODO.md`).
+**F4 Temps réel Firebase** ✅ (2026-06-20) : **code complet, testé + reviewé APPROVED** (transport tranché = Firebase RTDB, **ADR-006**). Non commité. **Projet Firebase EU câblé** : `mivro-40125`, RTDB **europe-west1** (RGPD OK), URL/env var/rules/`firebase.json` prêts. ⚠️ Restent à Cédric pour run/device : `GoogleService-Info.plist` (iOS) + `google-services.json` (Android), déploiement des rules, `pod install`.
 **F7 Profil entièrement livrée** ✅ (commitée `0ade2e2` + `ebf1215`) : passe 1 (avatars emoji, ADR-012) + passe 2 (photo FileSystem, ADR-013). Reste la **vérif device** (permissions, resize, persistance, cleanup FS).
-Prochaine feature sans blocker : **F5 Partage deep link** (scheme `mivro://`), ou **F8 Biométrie**.
+Prochaine feature sans blocker : **F8 Biométrie** (F6 Auth Google/Apple reste bloqué par les comptes développeur).
 ⚠️ Restent à re-vérifier sur device (QA P1) : layout Dynamic Type 200 % et champ fantôme F1 (fixes posés).
 
 ### 📋 Backlog priorisé
 
-Ordre recommandé : **Fix QA P1 → F7 → F4 → F5 → F8 → F6 → ADR → PostHog → Beta**. _(Fix QA P1, F7, F4 faits — F4 attend la config Firebase + device par Cédric ; prochaine : F5 ou F8.)_
+Ordre recommandé : **Fix QA P1 → F7 → F4 → F5 → F8 → F6 → ADR → PostHog → Beta**. _(Fix QA P1, F7, F4, F5 faits — F4/F5 attendent la config Firebase + device par Cédric ; prochaine sans blocker : F8.)_
 Pour chaque feature : objectif · couches · composants · dépendances · décisions tranchées · done · complexité.
 
 ---
@@ -472,14 +474,15 @@ Pour chaque feature : objectif · couches · composants · dépendances · déci
 - **Complexité** : L.
 - **⚠️ Reste à Cédric** (PAUSE « transport » levée, projet `mivro-40125` EU câblé) : enregistrer les apps iOS/Android dans la Console → `GoogleService-Info.plist` (iOS) + `google-services.json` (`android/app/`), déployer les rules (`firebase deploy --only database`), `pod install`.
 
-#### F5 — Partage deep link (S11)
+#### F5 — Partage deep link (S11) — ✅ FAIT (2026-06-20 ; code + tests 1021 + review APPROVED ; reste device par Cédric)
 
 - **Objectif** : inviter des amis à rejoindre une session.
-- **Couches** : core (`ShareSessionUseCase`), presentation (config navigation + UI partage).
-- **Deep linking** : scheme `mivro://` + universal links ; config `@react-navigation` linking.
-- **Décisions tranchées** : lien valide 24h (guest) / 7j (compte) — cf. RGPD.
-- **Done** : ouvrir `mivro://session/{id}` rejoint la session.
+- **Couches** : core (`SharedSession`, `ISessionShareService`, `ShareSessionUseCase` + `JoinSessionUseCase`), infrastructure (`FirebaseSessionShareService` → RTDB EU, étend le modèle F4), presentation (`useSharedSessionStore`, `useSessionShare`, `useSharedSessionSync`, `JoinSessionScreen`, `navigation/linking.ts`).
+- **Deep linking** : scheme **`mivro://`** ; config `@react-navigation` linking + natif (iOS `CFBundleURLTypes`, Android `<intent-filter>`).
+- **Décisions tranchées** : lien valide 24h (guest) / 7j (compte) — cf. RGPD ; join = **participant collaboratif** (midpoint recalculé) → session live ; **scheme `mivro://` seul, pas d'universal links au MVP** (AASA/assetlinks reportés — exigent domaine vérifié + hébergement ; consigné en dette `docs/context/TODO.md`, pas d'ADR dédié — décision MVP réversible).
+- **Done** : ouvrir `mivro://session/{id}` rejoint la session ✅.
 - **Complexité** : M.
+- **⚠️ Reste à Cédric** : redéployer les rules étendues (`firebase deploy --only database`), `pod install`, rebuild natif, tester l'ouverture du lien (`xcrun simctl openurl booted mivro://session/<id>` / `adb shell am start -a android.intent.action.VIEW -d "mivro://session/<id>"`) + join multi-devices + recalcul live + suppression en fin de session.
 
 #### F8 — Biométrie (S12)
 

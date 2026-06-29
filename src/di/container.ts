@@ -21,12 +21,15 @@ import type { IGeolocationService } from '@core/ports/IGeolocationService'; // [
 import type { IPOIService } from '@core/ports/IPOIService'; // [ADDED]
 import type { IProfilePhotoService } from '@core/ports/IProfilePhotoService'; // [ADDED] F7 passe 2
 import type { IRealtimeService } from '@core/ports/IRealtimeService'; // [ADDED] F4
+import type { ISessionShareService } from '@core/ports/ISessionShareService'; // [ADDED] F5
 import type { IStorageService } from '@core/ports/IStorageService';
 import { CalculateMidpointUseCase } from '@core/usecases/CalculateMidpointUseCase'; // [ADDED]
 import { CreateGuestUserUseCase } from '@core/usecases/CreateGuestUserUseCase';
 import { GetCurrentLocationUseCase } from '@core/usecases/GetCurrentLocationUseCase'; // [ADDED]
+import { JoinSessionUseCase } from '@core/usecases/JoinSessionUseCase'; // [ADDED] F5
 import { SearchAddressUseCase } from '@core/usecases/SearchAddressUseCase'; // [ADDED]
 import { SearchPOIUseCase } from '@core/usecases/SearchPOIUseCase'; // [ADDED]
+import { ShareSessionUseCase } from '@core/usecases/ShareSessionUseCase'; // [ADDED] F5
 import { TrackParticipantsUseCase } from '@core/usecases/TrackParticipantsUseCase'; // [ADDED] F4
 import { UpdateProfileUseCase } from '@core/usecases/UpdateProfileUseCase'; // [ADDED] F7
 import { SentryCrashReporter } from '@infrastructure/crash/SentryCrashReporter'; // [ADDED]
@@ -35,6 +38,7 @@ import { RNGeolocationService } from '@infrastructure/geolocation/RNGeolocationS
 import { ImagePickerProfilePhotoService } from '@infrastructure/media/ImagePickerProfilePhotoService'; // [ADDED] F7 passe 2
 import { OverpassPOIService } from '@infrastructure/poi/OverpassPOIService'; // [ADDED]
 import { FirebaseRealtimeService } from '@infrastructure/realtime/FirebaseRealtimeService'; // [ADDED] F4
+import { FirebaseSessionShareService } from '@infrastructure/realtime/FirebaseSessionShareService'; // [ADDED] F5
 import { MMKVStorageService } from '@infrastructure/storage/MMKVStorageService';
 import { createZustandMMKVAdapter } from '@infrastructure/storage/zustand-mmkv-adapter';
 import { createQueryClient } from './queryClient'; // [ADDED]
@@ -76,6 +80,12 @@ export interface Container {
   realtimeService: IRealtimeService; // [ADDED] F4
   /** Use case de suivi temps réel des participants / Real-time tracking use case */ // [ADDED] F4
   trackParticipantsUseCase: TrackParticipantsUseCase; // [ADDED] F4
+  /** Service de partage de session (Firebase RTDB) / Session sharing service */ // [ADDED] F5
+  sessionShareService: ISessionShareService; // [ADDED] F5
+  /** Use case de publication de session partagée / Share session use case */ // [ADDED] F5
+  shareSessionUseCase: ShareSessionUseCase; // [ADDED] F5
+  /** Use case de jointure de session partagée / Join session use case */ // [ADDED] F5
+  joinSessionUseCase: JoinSessionUseCase; // [ADDED] F5
 }
 
 let containerInstance: Container | null = null;
@@ -127,6 +137,13 @@ export const initContainer = (encryptionKey: string): Container => {
   const realtimeService = new FirebaseRealtimeService(crashReporter);
   const trackParticipantsUseCase = new TrackParticipantsUseCase(realtimeService);
 
+  // [ADDED] F5 — Partage de session collaboratif (Firebase RTDB)
+  // ⚠️ Swap provider = remplacer FirebaseSessionShareService par un autre adapter ici.
+  const sessionShareService = new FirebaseSessionShareService(crashReporter);
+  const calculateMidpointUseCase = new CalculateMidpointUseCase();
+  const shareSessionUseCase = new ShareSessionUseCase(sessionShareService);
+  const joinSessionUseCase = new JoinSessionUseCase(sessionShareService, calculateMidpointUseCase);
+
   // [ADDED] TanStack Query
   const queryClient = createQueryClient();
 
@@ -140,13 +157,16 @@ export const initContainer = (encryptionKey: string): Container => {
     queryClient, // [ADDED]
     geolocationService, // [ADDED]
     getCurrentLocationUseCase, // [ADDED]
-    calculateMidpointUseCase: new CalculateMidpointUseCase(), // [ADDED]
+    calculateMidpointUseCase, // [ADDED] [MODIFIED] F5 — réutilisé par joinSessionUseCase
     poiService, // [ADDED]
     searchPOIUseCase, // [ADDED]
     updateProfileUseCase: new UpdateProfileUseCase(), // [ADDED] F7
     profilePhotoService: new ImagePickerProfilePhotoService(crashReporter), // [ADDED] F7 passe 2
     realtimeService, // [ADDED] F4
     trackParticipantsUseCase, // [ADDED] F4
+    sessionShareService, // [ADDED] F5
+    shareSessionUseCase, // [ADDED] F5
+    joinSessionUseCase, // [ADDED] F5
   };
 
   console.log(

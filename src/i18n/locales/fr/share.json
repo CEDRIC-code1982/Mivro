@@ -1,0 +1,37 @@
+{
+  "actions": {
+    "share": "Partager la session",
+    "shareHint": "Génère un lien d'invitation et ouvre le menu de partage"
+  },
+  "shareSheet": {
+    "title": "Rejoins ma session Mivro",
+    "message": "Rejoins ma session Mivro pour qu'on trouve notre point de rencontre : {{link}}"
+  },
+  "toast": {
+    "shared": "Lien d'invitation prêt à partager"
+  },
+  "join": {
+    "loadingTitle": "Connexion à la session…",
+    "loadingDescription": "On récupère le point de rencontre et les participants.",
+    "loadingAccessibilityLabel": "Connexion à la session en cours",
+    "successTitle": "Tu as rejoint la session",
+    "successDescription": "Le point de rencontre a été recalculé avec ta position.",
+    "openMap": "Voir la carte",
+    "retry": "Réessayer",
+    "cancel": "Annuler"
+  },
+  "errors": {
+    "title": "Impossible de rejoindre la session",
+    "not_configured": "Le partage n'est pas encore disponible. Réessaie plus tard.",
+    "not_found": "Cette session est introuvable. Le lien est peut-être invalide.",
+    "expired": "Ce lien d'invitation a expiré.",
+    "closed": "Cette session est terminée.",
+    "full": "Cette session est complète (5 participants maximum).",
+    "network": "Connexion perdue. Vérifie ta connexion internet.",
+    "permission_denied": "Accès refusé au service de partage.",
+    "invalid_data": "Données de session invalides reçues.",
+    "no_location": "Ta position de départ est requise pour rejoindre.",
+    "no_user": "Tu dois être connecté pour rejoindre une session.",
+    "unknown": "Une erreur inattendue est survenue."
+  }
+}

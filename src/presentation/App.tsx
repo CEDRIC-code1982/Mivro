@@ -23,6 +23,7 @@ import { getContainer, initContainer } from '@/di/container'; // [MODIFIED]
 import { ThemeModeProvider, useTheme } from '@core/theme'; // [FIXED P0-6]
 import { getEncryptionKey } from '@infrastructure/storage/getEncryptionKey';
 import { AppErrorBoundary } from '@presentation/components/templates/AppErrorBoundary'; // [ADDED]
+import { linking } from '@presentation/navigation/linking'; // [ADDED] F5 — deep linking
 import RootNavigator from '@presentation/navigation/RootNavigator';
 import { usePreferencesStore } from '@presentation/stores/usePreferencesStore'; // [FIXED P0-6]
 
@@ -68,7 +69,8 @@ const AppContent: React.FC = () => {
             {/* [FIXED P1] BottomSheetModalProvider — rend les sheets en overlay racine
                 (portail) plutôt que dans le flux d'un ScrollView (champ fantôme F1). */}
             <BottomSheetModalProvider>
-              <NavigationContainer>
+              {/* [ADDED] F5 — linking : ouvre mivro://session/{id} sur l'écran JoinSession */}
+              <NavigationContainer linking={linking}>
                 <RootNavigator />
               </NavigationContainer>
             </BottomSheetModalProvider>

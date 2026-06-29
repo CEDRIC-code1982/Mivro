@@ -15,6 +15,7 @@ import type { User } from '@core/entities/User';
 import { GeolocationError } from '@core/ports/IGeolocationService';
 import { useCreateSessionFlow } from '@presentation/hooks/useCreateSessionFlow';
 import { useSessionStore } from '@presentation/stores/useSessionStore';
+import { useSharedSessionStore } from '@presentation/stores/useSharedSessionStore'; // [ADDED] F5
 
 // ─── Mock uuid ──────────────────────────────────────────────
 let mockUuidCounter = 0;
@@ -35,10 +36,12 @@ jest.mock('@presentation/hooks/useAuth', () => ({
 
 // ─── Mock DI container ──────────────────────────────────────
 const mockGetCurrentLocationExecute = jest.fn();
+const mockDeleteSharedSession = jest.fn(); // [ADDED] F5 — suppression RGPD du nœud partagé
 
 jest.mock('@/di/container', () => ({
   getContainer: jest.fn(() => ({
     getCurrentLocationUseCase: { execute: mockGetCurrentLocationExecute },
+    sessionShareService: { deleteSharedSession: mockDeleteSharedSession },
   })),
 }));
 
@@ -63,6 +66,17 @@ const fakeGeocodeResult: GeocodeResult = {
 
 const resetStores = (): void => {
   useSessionStore.setState({ session: null });
+  // [ADDED] F5 — réinitialise l'état du store de session partagée.
+  useSharedSessionStore.setState({
+    isShared: false,
+    isOwner: false,
+    sessionId: null,
+    link: null,
+    meta: null,
+    members: [],
+    status: 'idle',
+    errorCode: null,
+  });
 };
 
 // ─── Tests ──────────────────────────────────────────────────
@@ -73,6 +87,7 @@ describe('useCreateSessionFlow', () => {
     jest.clearAllMocks();
     resetStores();
     mockUser = null;
+    mockDeleteSharedSession.mockResolvedValue(undefined);
   });
 
   // ─── Initialisation ─────────────────────────────────────
@@ -607,6 +622,80 @@ describe('useCreateSessionFlow', () => {
       });
       expect(result.current.gpsError).toBeNull();
       errorSpy.mockRestore();
+    });
+
+    // ─── F5 — purge RGPD de la session partagée au reset ──────
+    describe('shared session (GDPR)', () => {
+      it('deletes the shared node AND clears shared state when the OWNER resets', async () => {
+        // Owner d'une session partagée → suppression backend + purge locale.
+        useSharedSessionStore.setState({
+          isShared: true,
+          isOwner: true,
+          sessionId: 'session-001',
+        });
+        const { result } = renderHook(() => useCreateSessionFlow());
+
+        act(() => {
+          result.current.reset();
+        });
+
+        expect(mockDeleteSharedSession).toHaveBeenCalledWith('session-001');
+        await waitFor(() => {
+          expect(useSharedSessionStore.getState().isShared).toBe(false);
+        });
+        expect(useSharedSessionStore.getState().sessionId).toBeNull();
+      });
+
+      it('clears shared state WITHOUT deleting when a non-owner (joiner) resets', () => {
+        // Simple membre (join) → quitte le mode partagé sans supprimer pour les autres.
+        useSharedSessionStore.setState({
+          isShared: true,
+          isOwner: false,
+          sessionId: 'session-001',
+        });
+        const { result } = renderHook(() => useCreateSessionFlow());
+
+        act(() => {
+          result.current.reset();
+        });
+
+        expect(mockDeleteSharedSession).not.toHaveBeenCalled();
+        expect(useSharedSessionStore.getState().isShared).toBe(false);
+      });
+
+      it('does neither delete nor clear when the session is not shared', () => {
+        // Aucun mode partagé actif → reset purement local.
+        const { result } = renderHook(() => useCreateSessionFlow());
+
+        act(() => {
+          result.current.reset();
+        });
+
+        expect(mockDeleteSharedSession).not.toHaveBeenCalled();
+        expect(useSharedSessionStore.getState().isShared).toBe(false);
+      });
+
+      it('still completes the reset when the backend deletion fails (best-effort)', async () => {
+        useSharedSessionStore.setState({
+          isShared: true,
+          isOwner: true,
+          sessionId: 'session-001',
+        });
+        mockDeleteSharedSession.mockRejectedValueOnce(new Error('network'));
+        const errorSpy = jest.spyOn(console, 'error').mockImplementation();
+        const { result } = renderHook(() => useCreateSessionFlow());
+
+        act(() => {
+          result.current.reset();
+        });
+
+        // L'échec backend ne bloque pas la purge locale (RGPD best-effort).
+        await waitFor(() => {
+          expect(useSharedSessionStore.getState().isShared).toBe(false);
+        });
+        expect(mockDeleteSharedSession).toHaveBeenCalledWith('session-001');
+        errorSpy.mockRestore();
+      });
     });
   });
 });

@@ -35,3 +35,25 @@ export type { PointOfInterest } from './PointOfInterest';
 // [ADDED] F4 — Realtime participant entity
 export { RealtimeParticipantSchema, RealtimeLocationUpdateSchema } from './RealtimeParticipant';
 export type { RealtimeParticipant, RealtimeLocationUpdate } from './RealtimeParticipant';
+
+// [ADDED] F5 — Shared session entity (partage collaboratif)
+export {
+  SharedSessionSchema,
+  SharedSessionMetaSchema,
+  SharedSessionMemberSchema,
+  MemberStartLocationSchema,
+  SharedSessionOwnerTypeSchema,
+  SharedSessionStatusSchema,
+  SHARE_TTL_GUEST_MS,
+  SHARE_TTL_ACCOUNT_MS,
+  computeExpiresAt,
+  buildShareLink,
+} from './SharedSession';
+export type {
+  SharedSession,
+  SharedSessionMeta,
+  SharedSessionMember,
+  MemberStartLocation,
+  SharedSessionOwnerType,
+  SharedSessionStatus,
+} from './SharedSession';

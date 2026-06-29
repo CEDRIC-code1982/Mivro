@@ -1,7 +1,38 @@
 # PROGRESS.md — Mivro
 
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-06-20 (F4 Temps réel Firebase — livrée/testée/reviewée APPROVED + câblage projet Firebase EU `mivro-40125` ; 867 tests ; non commitée).
+> Dernière mise à jour : 2026-06-20 (F5 Partage de session — livrée + testée **1021** + reviewée APPROVED après 1 tour de corrections, non commitée).
+
+## F5 — Partage de session (deep link + join collaboratif live) — livrée + testée + reviewée APPROVED (2026-06-20, non commitée)
+
+**Décision produit** : join = **participant collaboratif** (l'invité ajoute son point de départ → midpoint **recalculé** → tous voient le nouveau midpoint + positions live F4) → **session collaborative live** synchronisée via Firebase RTDB. Session partagée sur **Firebase RTDB** (étend la structure F4 sans toucher au nœud `participants`). Lien = `mivro://session/{sessionId}`. Expiration 24h (guest) / 7j (compte), encodée dans `meta.expiresAt`, vérifiée à l'ouverture.
+
+**Modèle Firebase étendu** (distinct des positions live F4) :
+
+```text
+sessions/{sessionId}/
+  meta/                 { createdAt, expiresAt, ownerType: guest|account, status: open|closed, midpoint?, midpointRadius? }
+  members/{memberId}/   { displayName, avatarId?, startLocation: { latitude, longitude, address? } }  ← points de DÉPART
+  participants/{id}/    positions GPS live (F4 — jamais altéré par F5)
+```
+
+**Fichiers clés**
+
+- core entités : `src/core/entities/SharedSession.ts` (meta + members, Zod ; `computeExpiresAt` 24h/7j, `buildShareLink`, TTL constants `SHARE_TTL_GUEST_MS`/`SHARE_TTL_ACCOUNT_MS`)
+- core port : `src/core/ports/ISessionShareService.ts` (`shareSession`/`joinSession`/`subscribeToSharedSession`/`deleteSharedSession` + `SessionShareError` typée)
+- core usecases : `src/core/usecases/ShareSessionUseCase.ts`, `JoinSessionUseCase.ts` (vérif expiration/statut, ajout membre, **recalcul midpoint** via `CalculateMidpointUseCase` avec relecture du roster anti-race)
+- infra adapter : `src/infrastructure/realtime/FirebaseSessionShareService.ts` (API modulaire v25, réutilise l'URL EU, validation Zod, error mapping, LOG-001, **n'altère jamais** le nœud F4 `participants`)
+- presentation : `src/presentation/stores/useSharedSessionStore.ts` (non persisté, `isOwner`), `hooks/useSessionShare.ts` (share natif + Alert succès/erreur), **`hooks/useSharedSessionSync.ts`** (abonnement live RTDB monté dans `MapScreen`, désabonnement au démontage/changement de sessionId), `screens/JoinSessionScreen.tsx` (loading/success/error, a11y), `navigation/linking.ts` (scheme `mivro://`) ; bouton Partager sur `MapScreen` ; action `loadSharedSession` sur `useSessionStore` ; suppression RGPD du nœud (`deleteSharedSession`) au reset par le PROPRIÉTAIRE dans `useCreateSessionFlow`
+- i18n : `src/i18n/locales/{fr,en}/share.json` (namespace `share`)
+- DI : `sessionShareService` + `shareSessionUseCase` + `joinSessionUseCase`
+- natif : `ios/Mivro/Info.plist` (`CFBundleURLTypes` scheme `mivro`), `android/app/src/main/AndroidManifest.xml` (`<intent-filter>` scheme `mivro`)
+- rules : `database.rules.json` (+ `sessions/$sessionId/meta` + `members/$memberId`)
+
+**Qualité** : ~143 cas F5 ajoutés ; suite globale **1021 tests** (81 suites) verts, `npm run check` vert ; coverage core 100 % / infra ~98 % / presentation ~94 %.
+
+**5 corrections de review appliquées (après 1 tour)** : (1) **join live** — l'invité ne voyait pas les mises à jour collaboratives → ajout du hook `useSharedSessionSync` (abonnement RTDB monté dans `MapScreen`) ; (2) **suppression RGPD** — le nœud Firebase n'était jamais supprimé → `deleteSharedSession` déclenché explicitement au reset par le **propriétaire** (un joiner ne purge que son local) ; (3) **gestion d'erreurs** — `JoinSessionScreen` distingue `expired`/`not_found`/`closed` et états loading/error ; (4) **anti-race** — `JoinSessionUseCase` **relit le roster** avant de recalculer le midpoint (évite le lost-update quand deux invités rejoignent simultanément) ; (5) **rules** — `sessions/$sessionId/meta` + `members/$memberId` validés (forme alignée Zod, `$other` refusé aux feuilles).
+
+**Reste à Cédric** : redéployer les rules étendues (`firebase deploy --only database`), `pod install`, rebuild natif (scheme deep link), tester l'ouverture du lien (`xcrun simctl openurl booted mivro://session/<id>` / `adb shell am start -a android.intent.action.VIEW -d "mivro://session/<id>"`) + join multi-devices + recalcul live + suppression en fin de session (voir TODO.md).
 
 ## Tableau des sprints
 
@@ -19,7 +50,7 @@
 | F7 Profil (P1) | 2026-06-20         | ✅ Fait    | `0ade2e2`                     |
 | F7 Profil (P2) | 2026-06-22         | ✅ Fait    | `ebf1215`                     |
 | F4 Temps réel  | 2026-06-20         | ✅ Fait\*  | non commité                   |
-| F5 Partage     | —                  | 📋 Backlog | —                             |
+| F5 Partage     | 2026-06-20         | ✅ Fait\*  | non commité                   |
 | F8 Biométrie   | —                  | 📋 Backlog | —                             |
 | F6 Auth        | —                  | 📋 Backlog | —                             |
 | ADR rattrapage | —                  | 📋 Backlog | —                             |
@@ -27,7 +58,8 @@
 | Beta           | —                  | 📋 Backlog | —                             |
 
 F7 (passes 1 & 2) est désormais **commitée** (`0ade2e2`, `ebf1215`).
-\*F4 Temps réel Firebase : code applicatif **livré + testé (867 tests) + reviewé APPROVED** (après 1 tour de corrections review), pas encore commité au moment de cette mise à jour. Le **projet Firebase EU (`mivro-40125`, europe-west1) est désormais fourni et câblé** (URL, env var, rules, `firebase.json` — voir « Câblage Firebase EU » + ADR-006) : la PAUSE « transport » est levée. **Restent à Cédric** : enregistrer les apps iOS/Android (fichiers `GoogleService-Info.plist` / `google-services.json`), déployer les rules, `pod install`, puis vérif device (voir TODO.md). Prochaine feature débloquable : **F5 Partage** (ou F8 Biométrie).
+\*F4 Temps réel Firebase : code applicatif **livré + testé (867 tests) + reviewé APPROVED** (après 1 tour de corrections review), pas encore commité au moment de cette mise à jour. Le **projet Firebase EU (`mivro-40125`, europe-west1) est désormais fourni et câblé** (URL, env var, rules, `firebase.json` — voir « Câblage Firebase EU » + ADR-006) : la PAUSE « transport » est levée. **Restent à Cédric** : enregistrer les apps iOS/Android (fichiers `GoogleService-Info.plist` / `google-services.json`), déployer les rules, `pod install`, puis vérif device (voir TODO.md).
+\*F5 Partage de session : code applicatif + config native + rules **livrés + testés (1021 tests) + reviewés APPROVED** (après 1 tour de corrections review), pas encore commité. Bâti sur F4 (RTDB EU), étend le modèle Firebase (`meta` + `members`) sans toucher au nœud `participants`. **Restent à Cédric** : redéployer les rules étendues, `pod install`, rebuild natif, tester l'ouverture du deep link + join multi-devices (voir TODO.md). Prochaine feature sans blocker : **F8 Biométrie** (F6 Auth bloqué par comptes dev).
 
 ---
 
@@ -198,25 +230,26 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 
 ---
 
-## Métriques actuelles (2026-06-20, post-câblage Firebase EU)
+## Métriques actuelles (2026-06-20, post-F5 Partage)
 
-| Métrique                           | Valeur                                    |
-| ---------------------------------- | ----------------------------------------- |
-| Fichiers code (`src/`, hors tests) | 107                                       |
-| Suites de tests                    | 71                                        |
-| Tests (cas) — `npm run check`      | 867                                       |
-| Entités core                       | 8 (+`RealtimeParticipant`)                |
-| Ports                              | 7 (+`IRealtimeService`)                   |
-| Use cases                          | 7 (+`TrackParticipants`)                  |
-| Adapters infrastructure            | 7 (+2 placeholders vides : eta/analytics) |
-| Stores Zustand                     | 4 (+`useRealtimeStore`)                   |
-| Hooks custom                       | 9 (+`useRealtimeTracking`)                |
-| Atoms / Molecules / Templates      | 5 / 12 / 1                                |
-| Écrans                             | 5                                         |
-| Namespaces i18n × langues          | 8 × 2 (FR/EN)                             |
+| Métrique                           | Valeur                                          |
+| ---------------------------------- | ----------------------------------------------- |
+| Fichiers code (`src/`, hors tests) | 117                                             |
+| Suites de tests                    | 81                                              |
+| Tests (cas) — `npm run check`      | 1021                                            |
+| Entités core                       | 9 (+`SharedSession`)                            |
+| Ports                              | 8 (+`ISessionShareService`)                     |
+| Use cases                          | 9 (+`ShareSession`, `JoinSession`)              |
+| Adapters infrastructure            | 8 (+2 placeholders vides : eta/analytics)       |
+| Stores Zustand                     | 5 (+`useSharedSessionStore`)                    |
+| Hooks custom                       | 11 (+`useSessionShare`, `useSharedSessionSync`) |
+| Atoms / Molecules / Templates      | 5 / 12 / 1                                      |
+| Écrans                             | 6 (+`JoinSessionScreen`)                        |
+| Namespaces i18n × langues          | 9 × 2 (FR/EN)                                   |
 
-> F4 : +entité `RealtimeParticipant`, +port `IRealtimeService` (adapter `FirebaseRealtimeService`), +usecase `TrackParticipants`, +store `useRealtimeStore`, +hook `useRealtimeTracking`, +molecules `LiveParticipantsList` & `RealtimeConsentModal`, +namespace i18n `realtime`. Le dossier `infrastructure/realtime/` n'est plus vide (restent `eta/` et `analytics/`).
-> ⚠️ Coverage par couche **non mesurée ici** : `coverage/coverage-summary.json` absent. Les reviews F7 et F4 indiquent seuils respectés ; lancer `npm run test:coverage` pour les chiffres réels (seuils CI : core 90% / infra 70% / presentation 50% / global 70%).
+> F5 : +entité `SharedSession`, +port `ISessionShareService` (adapter `FirebaseSessionShareService`), +usecases `ShareSession`/`JoinSession`, +store `useSharedSessionStore`, +hooks `useSessionShare` & `useSharedSessionSync`, +écran `JoinSessionScreen`, +`navigation/linking.ts`, +namespace i18n `share`. (F4 avait ajouté `RealtimeParticipant`, `IRealtimeService`/`FirebaseRealtimeService`, `TrackParticipants`, `useRealtimeStore`, `useRealtimeTracking`, molecules `LiveParticipantsList` & `RealtimeConsentModal`, namespace `realtime`.) Restent vides : `infrastructure/{eta,analytics}/`.
+> Coverage F5 (review) : core **100 %** / infra **~98 %** / presentation **~94 %**.
+> ⚠️ `coverage/coverage-summary.json` absent (les chiffres ci-dessus viennent des reviews) ; lancer `npm run test:coverage` pour le détail réel. ⚠️ `test:ci` ne passe **pas** `--coverage` → les `coverageThreshold` de `jest.config.js` **ne sont PAS enforced** par `npm run check` (seuils CI cibles : core 90 % / infra 70 % / presentation 50 % / global 70 %) — voir TODO.
 
 ---
 
@@ -245,3 +278,8 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 - **Boucle de rendu Zustand v5 (sélecteur renvoyant un nouvel objet)** : avec Zustand v5, un sélecteur qui **construit un nouvel objet/array à chaque appel** (ex : `s => ({ ...derived })` ou `Object.values(map)`) casse l'égalité référentielle → React re-render en boucle (« Maximum update depth exceeded »). Bug rencontré sur `useRealtimeStore` (F4). Fix : sélectionner des **références stables** (sélecteurs atomiques) et **mémoïser** la dérivation côté composant (`useMemo`), ou passer un comparateur (`useShallow`). Régression silencieuse jusqu'au montage du composant — d'où l'intérêt des tests d'intégration.
 - **Firebase confiné à l'infra (F4)** : `@react-native-firebase/*` n'est importé que par `FirebaseRealtimeService`. Le `tsc` compile à 0 erreur **sans** les fichiers de config natifs (nécessaires seulement au runtime), et le core/presentation restent testables via le port mocké. Transport substituable (swap = 1 ligne DI). Décision actée en ADR-006.
 - **Instance RTDB hors `us-central1` → URL explicite obligatoire (câblage Firebase EU)** : pour la conformité RGPD, l'instance Realtime Database est en **`europe-west1`**. Le SDK Firebase cible **par défaut l'instance `us-central1`** ; pour une instance dans une autre région, il **faut passer l'URL explicite** à `getDatabase(getApp(), 'https://mivro-40125-default-rtdb.europe-west1.firebasedatabase.app/')`. Sans ça, lectures/écritures partent vers une instance inexistante (échec silencieux / erreurs réseau). L'URL est exposée via `FIREBASE_DATABASE_URL` (publique, pas un secret) ; `db()` fait un **fallback** `getDatabase(getApp())` quand l'env est vide (tests/CI), d'où les 2 branches testées.
+- **Collaboratif live = un abonnement à câbler explicitement (F5)** : « partager une session » ne suffit pas à la rendre live chez l'invité. Publier le roster sur RTDB ne fait rien tant que personne ne **s'abonne** ; le hook `useSharedSessionSync` (monté dans `MapScreen`) appelle `subscribeToSharedSession` et rebranche `loadSharedSession` à chaque update (roster + midpoint recalculé). Penser au **désabonnement** au démontage / au changement de `sessionId`, et à des sélecteurs Zustand **stables** (cf. piège boucle de rendu F4). Oubli classique : l'écran s'ouvre mais ne « bouge » jamais.
+- **Suppression RGPD à déclencher explicitement, et seulement par le propriétaire (F5)** : `expiresAt` n'efface **rien** par lui-même (pas de TTL serveur — il faudra une Cloud Function, cf. TODO). La purge du nœud Firebase se fait via `deleteSharedSession`, appelée **uniquement par le propriétaire** (`useSharedSessionStore.isOwner`) au reset de session ; un simple **joiner** ne purge que son état local (il n'est pas propriétaire des données partagées). Distinguer ces deux rôles évite qu'un invité supprime la session des autres — ou qu'on oublie de supprimer côté propriétaire.
+- **Relecture du roster anti lost-update (F5)** : `JoinSessionUseCase` ajoute le membre puis **relit le roster complet** avant de recalculer le midpoint, plutôt que de recalculer sur sa copie locale. Sans cette relecture, deux invités qui rejoignent quasi simultanément écraseraient mutuellement le midpoint (lost-update : chacun ne voit que son propre ajout). La relecture ramène l'état serveur courant avant le `CalculateMidpointUseCase`.
+- **Étendre un modèle Firebase sans casser l'existant (F5 sur F4)** : F5 ajoute `sessions/{id}/meta` + `members/{id}` **à côté** du nœud `participants` (positions live F4), sans jamais l'altérer. `members` = points de **départ** (roster collaboratif) ; `participants` = positions GPS **live**. Deux services distincts (`ISessionShareService` ≠ `IRealtimeService`) sur la même session, deux nœuds disjoints → pas de couplage, et les rules valident chaque feuille séparément.
+- **Deep link scheme `mivro://` seul pour le MVP (F5)** : `linking.ts` déclare `prefixes: ['mivro://']` + `session/:sessionId → JoinSession`, branché sur `NavigationContainer`. Config native : iOS `CFBundleURLTypes`, Android `<intent-filter>`. Pas d'universal links (AASA/assetlinks) au MVP — ils exigent un domaine vérifié et de l'hébergement de fichiers d'association ; reportés (cf. TODO « Décisions en attente »). Un lien `mivro://` n'ouvre pas l'app si elle n'est pas installée — acceptable au MVP.

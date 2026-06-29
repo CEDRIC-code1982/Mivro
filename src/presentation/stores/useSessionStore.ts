@@ -19,6 +19,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { create } from 'zustand';
 import type { Coordinates } from '@core/entities/Location';
 import type { MidpointSession, Participant, SessionStatus } from '@core/entities/MidpointSession';
+import type { SharedSession } from '@core/entities/SharedSession'; // [ADDED] F5
 
 /**
  * État de la session.
@@ -73,6 +74,17 @@ interface SessionActions {
    * Resets the session to null.
    */
   resetSession: () => void;
+  /**
+   * Charge une session PARTAGÉE (F5) dans la session locale : reconstruit les
+   * participants depuis le roster de membres + applique le midpoint recalculé.
+   * Bascule la session locale en mode « partagée » (statut 'computed' si un
+   * midpoint est présent, sinon 'draft').
+   * Loads a SHARED session (F5) into the local session: rebuilds participants
+   * from the members roster + applies the recomputed midpoint.
+   *
+   * @param shared - Session partagée (meta + members) / Shared session
+   */
+  loadSharedSession: (shared: SharedSession) => void;
 }
 
 /** Type combiné du store / Combined store type */
@@ -156,6 +168,48 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
     console.log(
       `[INFO][useSessionStore][resetSession][?][${new Date().toISOString().slice(11, 19)}] ` +
         'Session reset',
+    );
+  },
+
+  // [ADDED] F5 — charge une session partagée dans la session locale
+  loadSharedSession: (shared) => {
+    const now = new Date().toISOString();
+    const participants: Participant[] = shared.members.map((member) => ({
+      id: member.memberId,
+      displayName: member.displayName,
+      ...(member.avatarId !== undefined && { avatarId: member.avatarId }),
+      startLocation: {
+        // id local synthétique (non persisté) — la session partagée ne porte
+        // que lat/lng/adresse par membre (RGPD : minimisation).
+        id: uuidv4(),
+        coordinates: {
+          latitude: member.startLocation.latitude,
+          longitude: member.startLocation.longitude,
+        },
+        formattedAddress: member.startLocation.formattedAddress,
+      },
+    }));
+
+    const hasMidpoint =
+      shared.meta.midpoint !== undefined && shared.meta.midpointRadius !== undefined;
+
+    set({
+      session: {
+        id: shared.sessionId,
+        status: hasMidpoint ? 'computed' : 'draft',
+        participants,
+        ...(shared.meta.midpoint !== undefined && { midpoint: shared.meta.midpoint }),
+        ...(shared.meta.midpointRadius !== undefined && {
+          midpointRadius: shared.meta.midpointRadius,
+        }),
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+
+    console.log(
+      `[INFO][useSessionStore][loadSharedSession][?][${new Date().toISOString().slice(11, 19)}] ` +
+        `Shared session loaded | members: ${participants.length}`,
     );
   },
 }));

@@ -4,6 +4,68 @@
     ".write": false,
     "sessions": {
       "$sessionId": {
+        "meta": {
+          ".read": true,
+          ".write": true,
+          "createdAt": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && (!data.exists() || data.val() === newData.val())"
+          },
+          "expiresAt": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && (!data.exists() || data.val() === newData.val())"
+          },
+          "ownerType": {
+            ".validate": "newData.isString() && (newData.val() === 'guest' || newData.val() === 'account') && (!data.exists() || data.val() === newData.val())"
+          },
+          "status": {
+            ".validate": "newData.isString() && (newData.val() === 'open' || newData.val() === 'closed') && (!data.exists() || data.val() === newData.val())"
+          },
+          "midpoint": {
+            "latitude": {
+              ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90"
+            },
+            "longitude": {
+              ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180"
+            },
+            "$other": {
+              ".validate": false
+            }
+          },
+          "midpointRadius": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
+        "members": {
+          "$memberId": {
+            ".read": true,
+            ".write": true,
+            "displayName": {
+              ".validate": "newData.isString() && newData.val().length > 0"
+            },
+            "avatarId": {
+              ".validate": "newData.isString()"
+            },
+            "startLocation": {
+              "latitude": {
+                ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90"
+              },
+              "longitude": {
+                ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180"
+              },
+              "formattedAddress": {
+                ".validate": "newData.isString() && newData.val().length > 0"
+              },
+              "$other": {
+                ".validate": false
+              }
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
         "participants": {
           "$participantId": {
             ".read": true,

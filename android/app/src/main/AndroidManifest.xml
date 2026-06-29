@@ -37,6 +37,13 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
+        <!-- [ADDED] F5 — deep link scheme mivro:// (mivro://session/{id}) -->
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="mivro" />
+        </intent-filter>
       </activity>
     </application>
 </manifest>

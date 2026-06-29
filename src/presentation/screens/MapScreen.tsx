@@ -15,7 +15,7 @@ import { useNavigation } from '@react-navigation/native'; // [ADDED]
 import { MapPin, Star } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react'; // [MODIFIED] F4 — useEffect/useMemo
 import { useTranslation } from 'react-i18next';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '@core/theme';
 import { Text } from '@presentation/components/atoms';
@@ -26,8 +26,11 @@ import RealtimeConsentModal from '@presentation/components/molecules/RealtimeCon
 import SessionMapView from '@presentation/components/molecules/SessionMapView';
 import { useAuthUser } from '@presentation/hooks/useAuth'; // [ADDED] F4
 import { useRealtimeTracking } from '@presentation/hooks/useRealtimeTracking'; // [ADDED] F4
+import { useSessionShare } from '@presentation/hooks/useSessionShare'; // [ADDED] F5
+import { useSharedSessionSync } from '@presentation/hooks/useSharedSessionSync'; // [ADDED] F5
 import { useRealtimeStore } from '@presentation/stores/useRealtimeStore'; // [ADDED] F4
 import { useSessionStore } from '@presentation/stores/useSessionStore';
+import { useSharedSessionStore } from '@presentation/stores/useSharedSessionStore'; // [ADDED] F5
 
 /**
  * Écran Carte F2 — affiche le midpoint calculé sur une carte interactive.
@@ -52,6 +55,39 @@ const MapScreen: React.FC = () => {
   // ─── F4 — Temps réel (hooks appelés inconditionnellement) ──────
   const currentUser = useAuthUser();
   const { start, stop } = useRealtimeTracking();
+  // [ADDED] F5 — partage collaboratif (deep link + share sheet native)
+  const { share: shareSession, isBusy: isSharing } = useSessionShare();
+
+  // [ADDED] F5 — synchro LIVE : tant que la session est partagée, on s'abonne au
+  // roster + midpoint recalculé en direct (désabonnement au démontage géré par
+  // le hook). Inerte si la session n'est pas partagée.
+  useSharedSessionSync();
+
+  const handleShareSession = useCallback(() => {
+    // [MAJEUR 3 — ERR-003] On NE peut PLUS avaler l'échec : on attend le retour
+    // (lien ou null) + le code d'erreur, et on surface un retour utilisateur.
+    shareSession((link) => t('share:shareSheet.message', { link }))
+      .then((link) => {
+        if (link !== null) {
+          // Succès : confirme que le lien est prêt (la share sheet native s'est
+          // déjà ouverte). Clé i18n existante share:toast.shared.
+          Alert.alert(t('share:toast.shared'));
+          return;
+        }
+        // Échec : on lit le code mappé depuis le store (source à jour au moment
+        // du callback, contrairement à un errorCode capturé dans la closure) →
+        // message i18n share:errors.{code}.
+        const code = useSharedSessionStore.getState().errorCode ?? 'unknown';
+        Alert.alert(
+          t('share:errors.title'),
+          t(`share:errors.${code}`, { defaultValue: t('share:errors.unknown') }),
+        );
+      })
+      .catch(() => {
+        // Sécurité défensive : shareSession ne rejette pas normalement.
+        Alert.alert(t('share:errors.title'), t('share:errors.unknown'));
+      });
+  }, [shareSession, t]);
   // [FIXED] Zustand v5 (useSyncExternalStore + Object.is) : un sélecteur qui
   // renvoie Object.values(...) crée une NOUVELLE référence de tableau à chaque
   // rendu → snapshot toujours « différent » → boucle de rendu infinie
@@ -230,6 +266,26 @@ const MapScreen: React.FC = () => {
             >
               <Text variant="small" weight="semibold" color="onBrand">
                 {t('actions.viewPOI')}
+              </Text>
+            </Pressable>
+
+            {/* [ADDED] F5 — partager la session (deep link + share sheet native) */}
+            <Pressable
+              onPress={handleShareSession}
+              disabled={isSharing}
+              style={({ pressed }) => [
+                styles.actionButton,
+                styles.secondaryButton,
+                pressed ? styles.secondaryButtonPressed : undefined,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={t('share:actions.share')}
+              accessibilityHint={t('share:actions.shareHint')}
+              accessibilityState={{ disabled: isSharing, busy: isSharing }}
+              testID="map-btn-share-session"
+            >
+              <Text variant="small" weight="semibold" color="brand">
+                {t('share:actions.share')}
               </Text>
             </Pressable>
 

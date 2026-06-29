@@ -9,6 +9,7 @@
 // [ADDED] Root Stack Navigator avec Native Stack
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
+import JoinSessionScreen from '@presentation/screens/JoinSessionScreen'; // [ADDED] F5
 import POIScreen from '@presentation/screens/POIScreen'; // [ADDED]
 import BottomTabsNavigator from './BottomTabsNavigator';
 import type { RootStackParamList } from './types';
@@ -29,6 +30,8 @@ const RootNavigator: React.FC = () => {
       <Stack.Screen name="Tabs" component={BottomTabsNavigator} />
       {/* [ADDED] Écran POI F3 */}
       <Stack.Screen name="POI" component={POIScreen} />
+      {/* [ADDED] F5 — écran de jointure (deep link mivro://session/:sessionId) */}
+      <Stack.Screen name="JoinSession" component={JoinSessionScreen} />
     </Stack.Navigator>
   );
 };

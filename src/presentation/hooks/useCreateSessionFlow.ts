@@ -24,6 +24,7 @@ import type { Participant } from '@core/entities/MidpointSession';
 import { GeolocationError, type GeolocationErrorCode } from '@core/ports/IGeolocationService';
 import { useAuthUser } from '@presentation/hooks/useAuth'; // [ADDED] F7 passe 2 — avatarId du user courant
 import { useSessionStore } from '@presentation/stores/useSessionStore';
+import { useSharedSessionStore } from '@presentation/stores/useSharedSessionStore'; // [ADDED] F5
 
 /** Nombre minimum de participants pour continuer / Minimum participants to continue */
 const MIN_PARTICIPANTS = 2;
@@ -133,6 +134,8 @@ export const useCreateSessionFlow = (): UseCreateSessionFlowResult => {
   const addParticipant = useSessionStore((s) => s.addParticipant);
   const removeParticipantStore = useSessionStore((s) => s.removeParticipant);
   const resetSession = useSessionStore((s) => s.resetSession);
+  // [ADDED] F5 — purge RGPD de la session partagée au reset (références stables).
+  const clearShared = useSharedSessionStore((s) => s.clearShared);
 
   // [ADDED] État local GPS
   const [isAddingByGps, setIsAddingByGps] = useState(false);
@@ -285,12 +288,36 @@ export const useCreateSessionFlow = (): UseCreateSessionFlowResult => {
   /**
    * Réinitialise la session et les erreurs.
    * Resets the session and errors.
+   *
+   * [MAJEUR 2 — RGPD] Si la session était PARTAGÉE et que cet appareil en est le
+   * PROPRIÉTAIRE, on supprime le nœud partagé sur le backend (`deleteSharedSession`)
+   * AVANT de purger l'état partagé local (`clearShared`). Un simple membre (join)
+   * ne supprime pas la session des autres : il quitte juste le mode partagé.
+   * La suppression backend est best-effort (try/catch) : un échec réseau ne doit
+   * pas bloquer la réinitialisation locale.
+   * Resets the session and errors. If the session was SHARED and this device is
+   * the OWNER, deletes the shared node on the backend before purging local state.
    */
   const reset = useCallback((): void => {
+    const { isShared, isOwner, sessionId } = useSharedSessionStore.getState();
+    if (isShared && isOwner && sessionId !== null) {
+      const { sessionShareService } = getContainer();
+      // try/catch via .catch : suppression best-effort, ne bloque pas le reset.
+      sessionShareService.deleteSharedSession(sessionId).catch((error: unknown) => {
+        console.error(
+          `[ERROR][useCreateSessionFlow][reset][?][${new Date().toISOString().slice(11, 19)}] ` +
+            'Failed to delete shared session (GDPR best-effort)',
+          error,
+        );
+      });
+    }
+    if (isShared) {
+      clearShared();
+    }
     resetSession();
     setGpsError(null);
     setGpsNotice(null);
-  }, [resetSession]);
+  }, [resetSession, clearShared]);
 
   return {
     participants,

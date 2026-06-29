@@ -1,10 +1,10 @@
 # TODO.md — Mivro
 
 > Tâches restantes priorisées. Cocher au fur et à mesure, ajouter les découvertes (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-06-20 (F4 Temps réel Firebase livrée/testée/reviewée APPROVED + câblage projet Firebase EU `mivro-40125` ; 867 tests).
+> Dernière mise à jour : 2026-06-20 (F5 Partage de session livrée/testée/reviewée APPROVED ; **1021 tests**).
 
 Priorités : **P0** bloquant/immédiat · **P1** important · **P2** souhaitable · **P3** plus tard.
-Ordre d'exécution recommandé : Fix QA P1 → F7 → F4 → **F5** → F8 → F6 → ADR → PostHog → Beta. (Fix QA P1, F7, F4 faits — F4 attend config Firebase + device par Cédric ; prochaine : F5 ou F8.)
+Ordre d'exécution recommandé : Fix QA P1 → F7 → F4 → F5 → **F8** → F6 → ADR → PostHog → Beta. (Fix QA P1, F7, F4, F5 faits — F4/F5 attendent config Firebase + device par Cédric ; prochaine sans blocker : F8 Biométrie.)
 
 ---
 
@@ -81,16 +81,28 @@ _Estimation : L. Dépendances : `@react-native-firebase/app` + `/database` (v25,
 - [ ] **iOS** : `cd ios && pod install` (le CDN CocoaPods avait flanché côté CI ; `use_modular_headers!` est déjà au Podfile)
 - [ ] **Vérif device** : live multi-appareils (positions qui bougent en temps réel) + **opti batterie réelle** (5s/30s + coupure background)
 
-## P1 — F5 Partage deep link (S11)
+## P1 — F5 Partage deep link (S11) — ✅ CODE + TESTS + REVIEW APPROVED (2026-06-20, non commité) ; reste device (Cédric)
 
-_Estimation : M. Dépendances : config `@react-navigation` linking. Blockers : universal links nécessitent domaine + AASA/assetlinks (peut rester en scheme `mivro://` pour le MVP)._
+_Décision produit : join = participant collaboratif (l'invité ajoute son point de départ → midpoint recalculé → tous voient le nouveau midpoint + positions live F4) → session collaborative live. Session partagée sur Firebase RTDB (étend F4)._
 
-- [ ] `ShareSessionUseCase` (core)
-- [ ] Config scheme `mivro://` + linking `@react-navigation`
-- [ ] UI de partage (générer/copier le lien)
-- [ ] Expiration : 24h guest / 7j compte (RGPD)
-- [ ] Done : ouvrir `mivro://session/{id}` rejoint la session
-- [ ] Tests + update docs
+- [x] Entité `SharedSession` (meta + members, Zod) + helpers (`computeExpiresAt`, `buildShareLink`)
+- [x] Port `ISessionShareService` + `SessionShareError` (codes `not_found`/`expired`/`closed`/`network`/`not_configured`/…)
+- [x] UseCases `ShareSessionUseCase` + `JoinSessionUseCase` (vérif expiration + recalcul midpoint via `CalculateMidpointUseCase`)
+- [x] Adapter `FirebaseSessionShareService` (API modulaire v25, validation Zod, error mapping, LOG-001, pas de coords loggées)
+- [x] Store `useSharedSessionStore` (NON persisté, RGPD) + action `loadSharedSession` sur `useSessionStore`
+- [x] Deep linking : `linking.ts` + `NavigationContainer linking` + route `JoinSession` + `JoinSessionScreen` (loading/success/error)
+- [x] Config native : iOS `CFBundleURLTypes` (scheme `mivro`) + Android `<intent-filter>` (scheme `mivro`)
+- [x] UI : bouton « Partager la session » sur `MapScreen` → `Share` natif
+- [x] i18n namespace `share` FR + EN
+- [x] DI : `sessionShareService` + `shareSessionUseCase` + `joinSessionUseCase` câblés
+- [x] Security rules : `sessions/$sessionId/meta` + `members/$memberId` ajoutés (racine fermée, `$other` refusé aux feuilles)
+- [x] Hook `useSharedSessionSync` (abonnement live RTDB monté dans `MapScreen`, désabonnement au démontage/changement de sessionId) — branche le join collaboratif live (correction review)
+- [x] Suppression RGPD : `deleteSharedSession` déclenché au reset par le **propriétaire** (`isOwner`), joiner → purge locale seule (correction review)
+- [x] **Tests** : ~143 cas F5 (usecases Share/Join : expiration, full, recalcul, anti-race ; adapter mock firebase ; store `useSharedSessionStore` ; hooks `useSessionShare` + `useSharedSessionSync` ; `linking.ts` ; `JoinSessionScreen`) — **1021 tests** au total, `npm run check` vert, coverage core 100 / infra ~98 / presentation ~94
+- [x] Review APPROVED (1 tour) : 5 corrections — join live (abonnement), suppression RGPD, gestion d'erreurs join (expired/not_found/closed), relecture roster anti-race, rules meta/members
+- [ ] **⚠️ Reste à Cédric** : redéployer les rules étendues (`firebase deploy --only database`) ; `pod install` (déjà requis F4) ; rebuild natif (scheme deep link) ; tester `xcrun simctl openurl booted mivro://session/<id>` / `adb shell am start -a android.intent.action.VIEW -d "mivro://session/<id>"` + join multi-devices + recalcul live + suppression en fin de session
+- [ ] **Décision en attente** : universal links (AASA/assetlinks) — MVP en scheme `mivro://` seul (tranché)
+- [ ] **Limite MVP** : « Copier le lien » dédié non implémenté (pas de dép. Clipboard) → la share sheet native offre déjà « Copier ». Ajouter `@react-native-clipboard/clipboard` si un bouton dédié est voulu.
 
 ## P1 — F8 Biométrie (S12)
 
@@ -169,6 +181,9 @@ _Estimation : L. Dépendances : comptes stores._
 - [ ] **Contrat `IProfilePhotoService.deletePhoto` (F7 p2)** : renforcer la TSDoc pour stipuler que la méthode **ne doit JAMAIS rejeter** (best-effort : un fichier absent / non supprimable ne casse pas la mise à jour du profil). Relevé par la review F7. (P3)
 - [ ] **`cameraType: 'front'` (F7 p2)** : choix de la caméra frontale par défaut dans `ImagePickerProfilePhotoService` = décision produit implicite → à confirmer avec Cédric. (P3)
 - [ ] **Label midpoint hardcodé (I18N-001, pré-existant — pas F4)** : le marker midpoint dans `SessionMapView.tsx` (`accessibilityLabel="Point de rencontre"`) est une string en dur → passer par `useTranslation()`. Relevé pendant la review F4 mais antérieur à F4. (P3)
+- [ ] **Rules : `sessions/$sessionId` sans `$other: false` (F5, review — résiduel)** : le niveau `sessions/$sessionId` n'a pas de `"$other": { ".validate": false }` → un client qui connaît l'UUID pourrait écrire un **sous-nœud frère arbitraire** (au-delà de `meta`/`members`/`participants`). Risque **MVP-sans-auth assumé** (protection = UUID non devinable, capability URL ; cf. `database.rules.README.md`). À corriger avec le durcissement **Firebase Anonymous Auth**. (P2/P3)
+- [ ] **`expiresAt` sans purge automatique (F5, RGPD)** : `meta.expiresAt` est **vérifié à l'ouverture** (join refusé si expiré) mais **n'efface aucune donnée** côté serveur → les nœuds de sessions expirées **persistent** dans RTDB. Nécessite une **Cloud Function cron / TTL serveur** pour supprimer les sessions expirées. À planifier. (P2)
+- [ ] **`test:ci` ne passe pas `--coverage` (F5, tester)** : `npm run check` → `test:ci` ne mesure pas la couverture, donc les `coverageThreshold` de `jest.config.js` (core 90 / infra 70 / presentation 50 / global 70) **ne sont PAS enforced** par la CI locale. Si l'intention est que la CI **bloque** sur la couverture, ajouter `--coverage` à `test:ci`. (P2)
 
 ---
 
@@ -176,7 +191,7 @@ _Estimation : L. Dépendances : comptes stores._
 
 - [x] ⚠️ **Avatars F7** : ~~SVG vectoriels custom **ou** emoji-based ?~~ → **tranché : emoji-based** (passe 1, 2026-06-20, ADR-012).
 - [ ] ⚠️ **Firebase F4** : projet `mivro-40125` (RTDB europe-west1) **fourni et câblé** (URL/env/rules/`firebase.json`) ; restent les **fichiers de config natifs** (`GoogleService-Info.plist` iOS, `google-services.json` Android), le **déploiement des rules** et `pod install` — voir la checklist « Reste à Cédric » de la section F4. _(Code F4 livré/testé/reviewé ; transport acté ADR-006.)_
-- [ ] ⚠️ **F5 universal links** : MVP en scheme `mivro://` seul, ou config domaine (AASA/assetlinks) dès maintenant ?
+- [x] ⚠️ **F5 universal links** : ~~MVP en scheme `mivro://` seul, ou config domaine (AASA/assetlinks) dès maintenant ?~~ → **tranché : scheme `mivro://` seul** pour le MVP (pas d'universal links — exigent domaine vérifié + hébergement AASA/assetlinks). Reportés post-MVP. (F5, 2026-06-20)
 - [ ] ⚠️ **Comptes dev F6** : Google Cloud + Apple Developer prêts ?
 - [ ] ⚠️ **PostHog** : VPS d'auto-hébergement provisionné ?
 - [ ] ⚠️ **Bundle id** : iOS reste `com.cedricpineau.midpoint` malgré le rename Mivro — à figer ou migrer avant la beta ?
