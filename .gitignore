@@ -85,3 +85,10 @@ yarn-error.log
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# [ADDED] Firebase config natifs — clés client propres au projet, ne JAMAIS committer
+android/app/google-services.json
+ios/Mivro/GoogleService-Info.plist
+
+# [ADDED] Cloud Functions deps
+functions/node_modules/
