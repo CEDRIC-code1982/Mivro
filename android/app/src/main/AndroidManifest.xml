@@ -9,6 +9,11 @@
          système (Android 13+), sans permission de lecture média. -->
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- [ADDED] F8 — verrou biométrique (react-native-keychain).
+         react-native-keychain déclare déjà USE_BIOMETRIC via le merge de
+         manifeste ; on l'ajoute explicitement pour la lisibilité/robustesse. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
     <application
       android:name=".MainApplication"
       android:label="@string/app_name"

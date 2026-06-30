@@ -15,6 +15,7 @@
 // [ADDED] DI Container — wire-up des dépendances
 import type { QueryClient } from '@tanstack/react-query'; // [ADDED]
 import { createMMKV } from 'react-native-mmkv';
+import type { IBiometricService } from '@core/ports/IBiometricService'; // [ADDED] F8
 import type { ICrashReporter } from '@core/ports/ICrashReporter'; // [ADDED]
 import type { IGeocodeService } from '@core/ports/IGeocodeService'; // [ADDED]
 import type { IGeolocationService } from '@core/ports/IGeolocationService'; // [ADDED]
@@ -39,6 +40,7 @@ import { ImagePickerProfilePhotoService } from '@infrastructure/media/ImagePicke
 import { OverpassPOIService } from '@infrastructure/poi/OverpassPOIService'; // [ADDED]
 import { FirebaseRealtimeService } from '@infrastructure/realtime/FirebaseRealtimeService'; // [ADDED] F4
 import { FirebaseSessionShareService } from '@infrastructure/realtime/FirebaseSessionShareService'; // [ADDED] F5
+import { KeychainBiometricService } from '@infrastructure/security/KeychainBiometricService'; // [ADDED] F8
 import { MMKVStorageService } from '@infrastructure/storage/MMKVStorageService';
 import { createZustandMMKVAdapter } from '@infrastructure/storage/zustand-mmkv-adapter';
 import { createQueryClient } from './queryClient'; // [ADDED]
@@ -86,6 +88,8 @@ export interface Container {
   shareSessionUseCase: ShareSessionUseCase; // [ADDED] F5
   /** Use case de jointure de session partagée / Join session use case */ // [ADDED] F5
   joinSessionUseCase: JoinSessionUseCase; // [ADDED] F5
+  /** Service de biométrie (Face ID / Touch ID, react-native-keychain) / Biometric service */ // [ADDED] F8
+  biometricService: IBiometricService; // [ADDED] F8
 }
 
 let containerInstance: Container | null = null;
@@ -144,6 +148,10 @@ export const initContainer = (encryptionKey: string): Container => {
   const shareSessionUseCase = new ShareSessionUseCase(sessionShareService);
   const joinSessionUseCase = new JoinSessionUseCase(sessionShareService, calculateMidpointUseCase);
 
+  // [ADDED] F8 — Biométrie (Face ID / Touch ID via react-native-keychain)
+  // ⚠️ Swap provider = remplacer KeychainBiometricService par un autre adapter ici.
+  const biometricService = new KeychainBiometricService(crashReporter);
+
   // [ADDED] TanStack Query
   const queryClient = createQueryClient();
 
@@ -167,6 +175,7 @@ export const initContainer = (encryptionKey: string): Container => {
     sessionShareService, // [ADDED] F5
     shareSessionUseCase, // [ADDED] F5
     joinSessionUseCase, // [ADDED] F5
+    biometricService, // [ADDED] F8
   };
 
   console.log(

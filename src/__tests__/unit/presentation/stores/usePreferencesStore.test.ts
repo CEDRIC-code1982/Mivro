@@ -36,6 +36,8 @@ describe('usePreferencesStore', () => {
       themeMode: 'system',
       language: 'fr',
       analyticsEnabled: true,
+      // [ADDED] F8 — verrou biométrique (opt-in, off par défaut)
+      biometricEnabled: false,
     });
   });
 
@@ -51,6 +53,11 @@ describe('usePreferencesStore', () => {
 
     it('has analyticsEnabled set to true', () => {
       expect(usePreferencesStore.getState().analyticsEnabled).toBe(true);
+    });
+
+    // [ADDED] F8 — verrou biométrique désactivé par défaut (opt-in)
+    it('has biometricEnabled set to false (opt-in)', () => {
+      expect(usePreferencesStore.getState().biometricEnabled).toBe(false);
     });
   });
 
@@ -85,12 +92,38 @@ describe('usePreferencesStore', () => {
     });
   });
 
+  // [ADDED] F8 — setBiometricEnabled
+  describe('setBiometricEnabled', () => {
+    it('enables the biometric lock flag', () => {
+      usePreferencesStore.getState().setBiometricEnabled(true);
+
+      expect(usePreferencesStore.getState().biometricEnabled).toBe(true);
+    });
+
+    it('disables the biometric lock flag', () => {
+      usePreferencesStore.getState().setBiometricEnabled(true);
+      usePreferencesStore.getState().setBiometricEnabled(false);
+
+      expect(usePreferencesStore.getState().biometricEnabled).toBe(false);
+    });
+
+    it('persists the flag to storage (MMKV adapter)', () => {
+      usePreferencesStore.getState().setBiometricEnabled(true);
+
+      const persisted = mockStorage.get('preferences');
+      expect(persisted).toBeDefined();
+      expect(persisted).toContain('"biometricEnabled":true');
+    });
+  });
+
   describe('resetPreferences', () => {
     it('resets all preferences to initial values', () => {
       // Change all values
       usePreferencesStore.getState().setThemeMode('dark');
       usePreferencesStore.getState().setLanguage('en');
       usePreferencesStore.getState().setAnalyticsEnabled(false);
+      // [ADDED] F8
+      usePreferencesStore.getState().setBiometricEnabled(true);
 
       // Reset
       usePreferencesStore.getState().resetPreferences();
@@ -99,6 +132,8 @@ describe('usePreferencesStore', () => {
       expect(state.themeMode).toBe('system');
       expect(state.language).toBe('fr');
       expect(state.analyticsEnabled).toBe(true);
+      // [ADDED] F8
+      expect(state.biometricEnabled).toBe(false);
     });
   });
 });

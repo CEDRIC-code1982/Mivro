@@ -1,7 +1,7 @@
 /**
  * @file usePreferencesStore.ts
- * @description Préférences utilisateur persistées (thème, langue, analytics).
- *              Persisted user preferences (theme, language, analytics).
+ * @description Préférences utilisateur persistées (thème, langue, analytics, biométrie).
+ *              Persisted user preferences (theme, language, analytics, biometrics).
  *
  *              Persisté via MMKV (zustand persist middleware).
  *              Persisted via MMKV (zustand persist middleware).
@@ -37,6 +37,8 @@ interface PreferencesState {
   language: Language;
   /** Analytics opt-in (PostHog) / Analytics opt-in (PostHog) */
   analyticsEnabled: boolean;
+  /** Verrou biométrique opt-in (Face ID / Touch ID) — F8 / Biometric lock opt-in (Face ID / Touch ID) — F8 */
+  biometricEnabled: boolean;
 }
 
 /**
@@ -66,6 +68,20 @@ interface PreferencesActions {
    */
   setAnalyticsEnabled: (enabled: boolean) => void;
   /**
+   * Active ou désactive le verrou biométrique (F8).
+   * Enables or disables the biometric lock (F8).
+   *
+   * ⚠️ La vérification de disponibilité + l'authentification de confirmation
+   * à l'activation sont orchestrées en amont (ProfileScreen / useBiometricLock) ;
+   * ce setter ne fait que persister le flag.
+   * ⚠️ Availability check + confirmation authentication on enabling are
+   * orchestrated upstream (ProfileScreen / useBiometricLock); this setter only
+   * persists the flag.
+   *
+   * @param enabled - true pour activer le verrou / true to enable the lock
+   */
+  setBiometricEnabled: (enabled: boolean) => void;
+  /**
    * Réinitialise les préférences aux valeurs par défaut.
    * Resets preferences to default values.
    */
@@ -79,6 +95,8 @@ const initialState: PreferencesState = {
   themeMode: 'system',
   language: 'fr',
   analyticsEnabled: true,
+  // [ADDED] F8 — verrou biométrique désactivé par défaut (opt-in)
+  biometricEnabled: false,
 };
 
 export const usePreferencesStore = create<PreferencesStore>()(
@@ -88,6 +106,8 @@ export const usePreferencesStore = create<PreferencesStore>()(
       setThemeMode: (themeMode) => set({ themeMode }),
       setLanguage: (language) => set({ language }),
       setAnalyticsEnabled: (analyticsEnabled) => set({ analyticsEnabled }),
+      // [ADDED] F8 — persiste le flag verrou biométrique (opt-in)
+      setBiometricEnabled: (biometricEnabled) => set({ biometricEnabled }),
       resetPreferences: () => set(initialState),
     }),
     {

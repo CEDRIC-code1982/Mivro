@@ -25,6 +25,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   TextInput,
   View,
 } from 'react-native';
@@ -38,6 +39,7 @@ import {
   useIsGuest,
   useAuthActions,
 } from '@presentation/hooks/useAuth';
+import { useBiometricLock } from '@presentation/hooks/useBiometricLock'; // [ADDED] F8
 import { useProfilePhoto } from '@presentation/hooks/useProfilePhoto';
 import { usePreferencesStore, type ThemeMode } from '@presentation/stores/usePreferencesStore';
 
@@ -66,6 +68,7 @@ const nextThemeMode = (current: ThemeMode): ThemeMode => {
 
 const ProfileScreen: React.FC = () => {
   const { t } = useTranslation('profile');
+  const { t: tBio } = useTranslation('biometric'); // [ADDED] F8
   const theme = useTheme();
   const styles = buildStyles(theme);
 
@@ -87,6 +90,16 @@ const ProfileScreen: React.FC = () => {
   // [ADDED] Sélecteurs préférences
   const themeMode = usePreferencesStore((s) => s.themeMode);
   const setThemeMode = usePreferencesStore((s) => s.setThemeMode);
+
+  // [ADDED] F8 — verrou biométrique (opt-in). Passe par le hook (port DI).
+  const {
+    biometricEnabled,
+    supportedType: biometricType,
+    enableLock,
+    disableLock,
+  } = useBiometricLock();
+  const [biometricBusy, setBiometricBusy] = useState<boolean>(false);
+  const [biometricErrorCode, setBiometricErrorCode] = useState<string | null>(null);
 
   // [ADDED] F7 — état local d'édition du nom (brouillon avant validation)
   const [nameDraft, setNameDraft] = useState<string>(user?.displayName ?? '');
@@ -129,6 +142,40 @@ const ProfileScreen: React.FC = () => {
     },
     [updateProfile],
   );
+
+  // [ADDED] F8 — bascule du verrou biométrique. À l'activation, le hook vérifie
+  // la disponibilité + l'enrôlement et fait une auth de confirmation AVANT de
+  // poser le flag ; à la désactivation, il retire la sentinelle keychain.
+  const handleToggleBiometric = useCallback(
+    (next: boolean): void => {
+      if (biometricBusy) return;
+      setBiometricBusy(true);
+      setBiometricErrorCode(null);
+
+      const typeLabel = tBio(`settings.types.${biometricType ?? 'generic'}`);
+      const reason = tBio('settings.confirmReason', { type: typeLabel });
+
+      const run = async (): Promise<void> => {
+        try {
+          const result = next ? await enableLock(reason) : await disableLock();
+          if (!result.success) {
+            setBiometricErrorCode(result.errorCode ?? 'unknown');
+          }
+        } finally {
+          setBiometricBusy(false);
+        }
+      };
+      // enableLock/disableLock capturent leurs erreurs (jamais de rejet) ;
+      // fire-and-forget sûr.
+      run().catch(() => setBiometricBusy(false));
+    },
+    [biometricBusy, biometricType, tBio, enableLock, disableLock],
+  );
+
+  // [ADDED] F8 — message d'erreur localisé (ERR-003) + libellé du type biométrique
+  const biometricTypeLabel = tBio(`settings.types.${biometricType ?? 'generic'}`);
+  const biometricErrorMessage =
+    biometricErrorCode != null ? tBio(`settings.errors.${biometricErrorCode}`) : null;
 
   // [ADDED] F7 passe 2 — handlers photo (galerie / caméra / suppression).
   // pickPhoto/removePhoto capturent toutes leurs erreurs en interne (état error),
@@ -344,6 +391,57 @@ const ProfileScreen: React.FC = () => {
                 testID="profile-avatar-picker"
               />
             </View>
+
+            {/* [ADDED] F8 — Section verrou biométrique (opt-in) */}
+            <View style={styles.field}>
+              <Text variant="small" weight="semibold" color="secondary" accessibilityRole="header">
+                {tBio('settings.label')}
+              </Text>
+
+              <View style={styles.biometricRow}>
+                <View style={styles.biometricText}>
+                  <Text variant="body" weight="semibold">
+                    {tBio('settings.label')}
+                  </Text>
+                  <Text variant="caption" color="secondary">
+                    {tBio('settings.description', { type: biometricTypeLabel })}
+                  </Text>
+                </View>
+                <Switch
+                  value={biometricEnabled}
+                  onValueChange={handleToggleBiometric}
+                  disabled={biometricBusy}
+                  trackColor={{
+                    false: theme.color.interactive.neutral.default,
+                    true: theme.color.interactive.brand.default,
+                  }}
+                  accessibilityRole="switch"
+                  accessibilityLabel={tBio('settings.label')}
+                  accessibilityHint={tBio('settings.toggleHint')}
+                  accessibilityState={{ checked: biometricEnabled, disabled: biometricBusy }}
+                  testID="profile-biometric-toggle"
+                />
+              </View>
+
+              {/* État loading (ERR-003) */}
+              {biometricBusy ? (
+                <View style={styles.photoStatus} accessibilityLiveRegion="polite">
+                  <ActivityIndicator color={theme.color.interactive.brand.default} />
+                </View>
+              ) : null}
+
+              {/* État erreur (ERR-003) */}
+              {!biometricBusy && biometricErrorMessage != null ? (
+                <Text
+                  variant="caption"
+                  color="error"
+                  accessibilityLiveRegion="polite"
+                  testID="profile-biometric-error"
+                >
+                  {biometricErrorMessage}
+                </Text>
+              ) : null}
+            </View>
           </>
         ) : (
           // [ADDED] F7 — État non connecté (empty state — ERR-003)
@@ -448,6 +546,19 @@ const buildStyles = (theme: Theme) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: theme.spacing.sm,
+    },
+    // [ADDED] F8 — ligne du toggle biométrique (libellé + switch) / biometric toggle row
+    biometricRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: theme.spacing.md,
+      minHeight: theme.touchTarget.min,
+    },
+    // [ADDED] F8 — colonne texte du toggle (prend l'espace restant) / toggle text column
+    biometricText: {
+      flex: 1,
+      gap: theme.spacing.xxs,
     },
     input: {
       minHeight: theme.touchTarget.min,

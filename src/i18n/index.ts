@@ -2,6 +2,7 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { getLocales } from 'react-native-localize';
+import biometricEn from './locales/en/biometric.json'; // [ADDED] F8
 import commonEn from './locales/en/common.json';
 import createEn from './locales/en/create.json';
 import mapEn from './locales/en/map.json';
@@ -11,6 +12,7 @@ import profileEn from './locales/en/profile.json';
 import realtimeEn from './locales/en/realtime.json'; // [ADDED] F4
 import sessionsEn from './locales/en/sessions.json';
 import shareEn from './locales/en/share.json'; // [ADDED] F5
+import biometricFr from './locales/fr/biometric.json'; // [ADDED] F8
 import commonFr from './locales/fr/common.json';
 import createFr from './locales/fr/create.json';
 import mapFr from './locales/fr/map.json';
@@ -24,6 +26,7 @@ import shareFr from './locales/fr/share.json'; // [ADDED] F5
 // [MODIFIED] Namespace definitions per CLAUDE.md — added navigation, map, sessions, create, profile
 const resources = {
   fr: {
+    biometric: biometricFr, // [ADDED] F8
     common: commonFr,
     create: createFr,
     map: mapFr,
@@ -35,6 +38,7 @@ const resources = {
     share: shareFr, // [ADDED] F5
   },
   en: {
+    biometric: biometricEn, // [ADDED] F8
     common: commonEn,
     create: createEn,
     map: mapEn,
@@ -70,6 +74,7 @@ i18n.use(initReactI18next).init({
   fallbackLng: 'fr',
   // [MODIFIED] Added navigation, sessions, create namespaces
   ns: [
+    'biometric', // [ADDED] F8
     'common',
     'auth',
     'create',

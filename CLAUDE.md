@@ -6,7 +6,7 @@
 
 # Ne pas modifier sans créer un ADR correspondant.
 
-# Version 8.7 — 2026-06-20 (F5 Partage de session — deep link `mivro://` + join collaboratif live ; code livré + testé 1021 + reviewé APPROVED ; étend le modèle Firebase F4 ; pointeur sprint → F8 Biométrie)
+# Version 8.8 — 2026-06-29 (F8 Biométrie — verrou Face ID / Touch ID / empreinte, opt-in pour tout utilisateur guest inclus ; port `IBiometricService` + `KeychainBiometricService` + hook `useBiometricLock` + molecule `BiometricLockScreen` + gate dans `App.tsx` ; code livré + testé 1133 + reviewé APPROVED après 1 tour ; non commité. Il ne reste que des features à blocker externe (F6 comptes dev, PostHog VPS, Beta signing) + l'ADR rattrapage sans blocker)
 
 ## PROJET
 
@@ -403,36 +403,38 @@ Alternatives écartées : Avec raisons
 
 ### ✅ Fait
 
-| Sprint  | Livrable                                                                                | Commit(s) clés                          |
-| ------- | --------------------------------------------------------------------------------------- | --------------------------------------- |
-| S01-02  | Setup RN, navigation, stores Zustand+MMKV, Sentry                                       | `7cdacc9` `c8dcb29` `a1065f2` `0e92689` |
-| S03-04  | Geocoding Nominatim + Geolocation GPS + reverse                                         | `593ae51` `1ff8ad6`                     |
-| F1      | Saisie 2-5 points + autocomplete + GPS (CreateSessionScreen)                            | `0e2db7c`                               |
-| F2      | Midpoint (centroïde + rayon) + carte react-native-maps                                  | `cf70fce` `eb022c9`                     |
-| F3      | POI Overpass + écran liste/carte toggle                                                 | `0bca95f` `4804539`                     |
-| QA P0   | Fix 7 bugs critiques device QA                                                          | `f520911`                               |
-| QA P1   | Accessibilité & robustesse (VoiceOver, erreurs réseau, GPS)                             | `786a4e9` `ed7b0ee` `c01e29c`           |
-| F7 (P1) | Profil : `displayName` + 20 avatars emoji (passe 1)                                     | `0ade2e2`                               |
-| F7 (P2) | Profil : photo (picker + FileSystem) — F7 complète (ADR-013)                            | `ebf1215`                               |
-| F4      | Temps réel Firebase (RTDB) — code+rules+projet EU câblés, testé, reviewé                | non commité (2026-06-20)                |
-| F5      | Partage de session — deep link `mivro://` + join collaboratif live, testé 1021, reviewé | non commité (2026-06-20)                |
+| Sprint  | Livrable                                                                                                  | Commit(s) clés                          |
+| ------- | --------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| S01-02  | Setup RN, navigation, stores Zustand+MMKV, Sentry                                                         | `7cdacc9` `c8dcb29` `a1065f2` `0e92689` |
+| S03-04  | Geocoding Nominatim + Geolocation GPS + reverse                                                           | `593ae51` `1ff8ad6`                     |
+| F1      | Saisie 2-5 points + autocomplete + GPS (CreateSessionScreen)                                              | `0e2db7c`                               |
+| F2      | Midpoint (centroïde + rayon) + carte react-native-maps                                                    | `cf70fce` `eb022c9`                     |
+| F3      | POI Overpass + écran liste/carte toggle                                                                   | `0bca95f` `4804539`                     |
+| QA P0   | Fix 7 bugs critiques device QA                                                                            | `f520911`                               |
+| QA P1   | Accessibilité & robustesse (VoiceOver, erreurs réseau, GPS)                                               | `786a4e9` `ed7b0ee` `c01e29c`           |
+| F7 (P1) | Profil : `displayName` + 20 avatars emoji (passe 1)                                                       | `0ade2e2`                               |
+| F7 (P2) | Profil : photo (picker + FileSystem) — F7 complète (ADR-013)                                              | `ebf1215`                               |
+| F4      | Temps réel Firebase (RTDB) — code+rules+projet EU câblés, testé, reviewé                                  | `1c73eeb` `c9a76d1` (2026-06-29)        |
+| F5      | Partage de session — deep link `mivro://` + join collaboratif live, testé 1021, reviewé                   | `d112edb` (2026-06-29)                  |
+| F8      | Biométrie — verrou Face ID/Touch ID opt-in (guest inclus), anti-lockout double filet, testé 1133, reviewé | non commité (2026-06-29)                |
 
 Atoms livrés : `Text`, `Screen`, `TabBarIcon`, `CategoryChip`, `Avatar`
 Molecules livrés : `ParticipantCard`, `EmptyState`, `AddressAutocomplete`, `AvatarPicker`, `SessionMapView`, `POICard`, `POIDetailSheet`, `POIListView`, `POIMapView`, `POIScreenHeader`
 
 > ⚠️ Divergence à corriger : le README/anciennes notes mentionnaient des atoms `Button`/`Input`/`IconButton`/`Card`/`Spinner` — **ils n'existent pas encore**. À créer au besoin via le skill `create-atom`.
 
-### 🔜 Sprint en cours / suivant — F8 Biométrie (F6 Auth bloqué par comptes dev)
+### 🔜 Sprint en cours / suivant — plus aucune feature sans blocker hors ADR rattrapage
 
-**F5 Partage de session** ✅ (2026-06-20) : **code complet, testé (1021 tests) + reviewé APPROVED** (1 tour de corrections review). Non commité. Deep link **`mivro://session/{id}`** + **join collaboratif live** (l'invité ajoute son point → midpoint recalculé → session synchronisée via RTDB) ; étend le modèle Firebase F4 (`meta` + `members`, sans toucher à `participants`). Scheme `mivro://` seul (pas d'universal links au MVP — tranché). ⚠️ Restent à Cédric pour run/device : redéployer les rules étendues (`firebase deploy --only database`), `pod install`, rebuild natif, tester l'ouverture du deep link + join multi-devices (voir `docs/context/TODO.md`).
-**F4 Temps réel Firebase** ✅ (2026-06-20) : **code complet, testé + reviewé APPROVED** (transport tranché = Firebase RTDB, **ADR-006**). Non commité. **Projet Firebase EU câblé** : `mivro-40125`, RTDB **europe-west1** (RGPD OK), URL/env var/rules/`firebase.json` prêts. ⚠️ Restent à Cédric pour run/device : `GoogleService-Info.plist` (iOS) + `google-services.json` (Android), déploiement des rules, `pod install`.
-**F7 Profil entièrement livrée** ✅ (commitée `0ade2e2` + `ebf1215`) : passe 1 (avatars emoji, ADR-012) + passe 2 (photo FileSystem, ADR-013). Reste la **vérif device** (permissions, resize, persistance, cleanup FS).
-Prochaine feature sans blocker : **F8 Biométrie** (F6 Auth Google/Apple reste bloqué par les comptes développeur).
+**F8 Biométrie** ✅ (2026-06-29) : **code complet, testé (1133 tests) + reviewé APPROVED** (1 tour : 1 bloquant + 1 majeur + 2 mineurs corrigés). Non commité. Verrou **Face ID / Touch ID / empreinte**, **opt-in pour TOUT utilisateur (guest inclus)** — « compte requis » relâché car F6 bloqué (réversible quand F6 existera). Port `IBiometricService` + adapter `KeychainBiometricService` (secret sentinelle `BIOMETRY_ANY_OR_DEVICE_PASSCODE`, jamais loggé) + hook `useBiometricLock` (re-lock background/inactive + active ; **anti-lockout double filet** : fallback passcode device + échappatoire applicative) + molecule `BiometricLockScreen` (overlay) + gate `BiometricLockGate` dans `App.tsx` + toggle `ProfileScreen`. i18n `biometric` FR+EN ; natif iOS `NSFaceIDUsageDescription` + Android `USE_BIOMETRIC`. ⚠️ Restent à Cédric : tests device (Face ID/Touch ID, fallback passcode, échappatoire, masquage app-switcher) — voir `docs/context/TODO.md`.
+**F5 Partage de session** ✅ (2026-06-29, `d112edb`) : deep link **`mivro://session/{id}`** + **join collaboratif live** ; étend le modèle Firebase F4 (`meta` + `members`). ⚠️ Restent à Cédric : redéployer les rules étendues, `pod install`, rebuild natif, tester le deep link + join multi-devices.
+**F4 Temps réel Firebase** ✅ (2026-06-29, `1c73eeb` `c9a76d1`) : transport tranché = Firebase RTDB (**ADR-006**), projet EU `mivro-40125` (europe-west1, RGPD OK) câblé. ⚠️ Restent à Cédric : `GoogleService-Info.plist` (iOS) + `google-services.json` (Android), déploiement des rules, `pod install`.
+**F7 Profil entièrement livrée** ✅ (`0ade2e2` + `ebf1215`) : avatars emoji (ADR-012) + photo FileSystem (ADR-013). Reste la **vérif device**.
+**Plus aucune feature livrable sans blocker externe** : il ne reste que **F6 Auth** (comptes dev Google/Apple), **PostHog** (VPS auto-hébergé) et **Beta TestFlight/Play** (signing + clés prod) — toutes en ⚠️ PAUSE OBLIGATOIRE — plus l'**ADR rattrapage** (ADR-001→005, 007→010), seul chantier **sans blocker** restant.
 ⚠️ Restent à re-vérifier sur device (QA P1) : layout Dynamic Type 200 % et champ fantôme F1 (fixes posés).
 
 ### 📋 Backlog priorisé
 
-Ordre recommandé : **Fix QA P1 → F7 → F4 → F5 → F8 → F6 → ADR → PostHog → Beta**. _(Fix QA P1, F7, F4, F5 faits — F4/F5 attendent la config Firebase + device par Cédric ; prochaine sans blocker : F8.)_
+Ordre recommandé : **Fix QA P1 → F7 → F4 → F5 → F8 → F6 → ADR → PostHog → Beta**. _(Fix QA P1, F7, F4, F5, **F8 faits** — F4/F5/F8 attendent la vérif device par Cédric. Il ne reste que des features à blocker externe (F6 comptes dev, PostHog VPS, Beta signing) + l'ADR rattrapage, seul chantier sans blocker.)_
 Pour chaque feature : objectif · couches · composants · dépendances · décisions tranchées · done · complexité.
 
 ---
@@ -484,14 +486,15 @@ Pour chaque feature : objectif · couches · composants · dépendances · déci
 - **Complexité** : M.
 - **⚠️ Reste à Cédric** : redéployer les rules étendues (`firebase deploy --only database`), `pod install`, rebuild natif, tester l'ouverture du lien (`xcrun simctl openurl booted mivro://session/<id>` / `adb shell am start -a android.intent.action.VIEW -d "mivro://session/<id>"`) + join multi-devices + recalcul live + suppression en fin de session.
 
-#### F8 — Biométrie (S12)
+#### F8 — Biométrie (S12) — ✅ FAIT (2026-06-29 ; code + tests 1133 + review APPROVED ; reste vérif device par Cédric)
 
-- **Objectif** : protéger l'accès au compte par Face ID / Touch ID.
-- **Couches** : presentation (toggle Profile, unlock au lancement) + `usePreferencesStore` (flag biométrie).
-- **Dépendances** : `react-native-keychain` (déjà prévu) + `biometryType`.
-- **Décisions tranchées** : opt-in ; compte requis (pas guest).
-- **Done** : toggle dans Profile, déverrouillage biométrique au lancement.
+- **Objectif** : protéger l'accès à l'app par Face ID / Touch ID / empreinte.
+- **Couches** : core (port `IBiometricService` + `BiometricError`/types), infrastructure (`KeychainBiometricService` → `src/infrastructure/security/`), presentation (hook `useBiometricLock`, molecule `BiometricLockScreen`, gate `BiometricLockGate` dans `App.tsx`, toggle `ProfileScreen`) + `usePreferencesStore.biometricEnabled` (flag MMKV).
+- **Dépendances** : `react-native-keychain` (déjà installé) — secret sentinelle `ACCESS_CONTROL.BIOMETRY_ANY_OR_DEVICE_PASSCODE` + `WHEN_UNLOCKED_THIS_DEVICE_ONLY` (jamais loggé).
+- **Décisions tranchées** : opt-in ; **« compte requis » relâché → ouvert à TOUT utilisateur (guest inclus)** car F6 bloqué — **réversible** quand F6 existera (pas d'ADR dédié, décision MVP). Anti-lockout **double filet** (fallback passcode device natif + échappatoire applicative `disableLockAndContinue` après 3 échecs / auto-désactivation si biométrie indispo). Re-lock dès `inactive`/`background` (masque l'app-switcher) ET au retour `→ active`.
+- **Done** : toggle dans Profile + déverrouillage biométrique au lancement + re-lock au retour d'arrière-plan ✅. DI câblé, i18n `biometric` FR+EN, natif iOS `NSFaceIDUsageDescription` + Android `USE_BIOMETRIC`. ~140 tests / **1133** au total, reviewé APPROVED (1 tour).
 - **Complexité** : S.
+- **⚠️ Reste à Cédric** : tests device (Face ID / Touch ID / empreinte, fallback passcode device, échappatoire anti-lockout, masquage app-switcher) — voir `docs/context/TODO.md`. Dette P3 : edge iOS re-lock parasite `→active` sur `previous==='inactive'` (alerte permission Face ID au 1er run) à vérifier device.
 
 #### F6 — Auth Google / Apple
 

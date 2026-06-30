@@ -1,10 +1,10 @@
 # TODO.md — Mivro
 
 > Tâches restantes priorisées. Cocher au fur et à mesure, ajouter les découvertes (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-06-20 (F5 Partage de session livrée/testée/reviewée APPROVED ; **1021 tests**).
+> Dernière mise à jour : 2026-06-29 (F8 Biométrie livrée/testée/reviewée APPROVED ; **1133 tests**).
 
 Priorités : **P0** bloquant/immédiat · **P1** important · **P2** souhaitable · **P3** plus tard.
-Ordre d'exécution recommandé : Fix QA P1 → F7 → F4 → F5 → **F8** → F6 → ADR → PostHog → Beta. (Fix QA P1, F7, F4, F5 faits — F4/F5 attendent config Firebase + device par Cédric ; prochaine sans blocker : F8 Biométrie.)
+Ordre d'exécution recommandé : Fix QA P1 → F7 → F4 → F5 → F8 → F6 → ADR → PostHog → Beta. (Fix QA P1, F7, F4, F5, **F8 faits** — F4/F5 attendent device par Cédric, F8 attend device par Cédric.) **Il ne reste que des features à blocker externe (F6 comptes dev, PostHog VPS, Beta secrets/signing) + l'ADR rattrapage (sans blocker).**
 
 ---
 
@@ -104,14 +104,23 @@ _Décision produit : join = participant collaboratif (l'invité ajoute son point
 - [ ] **Décision en attente** : universal links (AASA/assetlinks) — MVP en scheme `mivro://` seul (tranché)
 - [ ] **Limite MVP** : « Copier le lien » dédié non implémenté (pas de dép. Clipboard) → la share sheet native offre déjà « Copier ». Ajouter `@react-native-clipboard/clipboard` si un bouton dédié est voulu.
 
-## P1 — F8 Biométrie (S12)
+## P1 — F8 Biométrie (S12) — ✅ CODE + TESTS + REVIEW APPROVED (2026-06-29, non commité) ; reste device (Cédric)
 
-_Estimation : S. Dépendances : `react-native-keychain` (déjà installé). Blockers : compte requis (pas guest)._
+_Estimation : S. Dépendances : `react-native-keychain` (déjà installé)._
+**Décision MVP** : « compte requis » **relâché** → verrou **opt-in pour tout utilisateur (guest inclus)**, car F6 (Auth) reste bloqué par les comptes dev. Réversible quand F6 existera (cf. « Décisions en attente »).
 
-- [ ] Flag biométrie dans `usePreferencesStore`
-- [ ] Toggle dans `ProfileScreen` (opt-in)
-- [ ] Déverrouillage biométrique au lancement (`biometryType`)
-- [ ] Tests + update docs
+- [x] Port `IBiometricService` (core) + `BiometricError` typée + types `BiometricType`/`BiometricErrorCode`
+- [x] Adapter `KeychainBiometricService` (`infra/security/`, secret sentinelle `BIOMETRY_ANY_OR_DEVICE_PASSCODE` + `WHEN_UNLOCKED_THIS_DEVICE_ONLY`, sentinelle jamais loggée, mapping erreurs heuristique) + câblé DI
+- [x] Flag `biometricEnabled` + `setBiometricEnabled` dans `usePreferencesStore` (persisté MMKV)
+- [x] Hook `useBiometricLock` (isLocked, unlock, enable/disable, re-lock `inactive`/`background` + `→ active`, anti-lockout : auto-désactivation + `disableLockAndContinue` + `showDisableEscape` après 3 échecs)
+- [x] Molecule `BiometricLockScreen` (overlay bloquant, prompt différé jusqu'au type connu, bouton « Désactiver le verrou et continuer », a11y)
+- [x] Gate `BiometricLockGate` dans `App.tsx` (enveloppe l'arbre, masquage a11y `importantForAccessibility`/`accessibilityElementsHidden` quand verrouillé)
+- [x] Toggle opt-in dans `ProfileScreen`
+- [x] i18n namespace `biometric` FR + EN ; natif : iOS `NSFaceIDUsageDescription`, Android `USE_BIOMETRIC`
+- [x] **Tests** : ~140 cas F8 (port, adapter mock keychain, hook, molecule, store, intégration ProfileScreen) — **1133 tests** au total, `npm run check` vert, seuils respectés
+- [x] Review APPROVED (1 tour) : 1 bloquant (anti-lockout double filet) + 1 majeur (masquage app-switcher) + 2 mineurs (a11y du gate, prompt différé)
+- [ ] **À tester sur device** (Cédric) : Face ID / Touch ID / empreinte réels (simulateur iOS : Features → Face ID → Enrolled/Matching), fallback passcode device, échappatoire anti-lockout, masquage app-switcher
+- [ ] **(edge iOS, P3)** Le re-lock `→ active` se déclenche aussi sur `previous==='inactive'` : au tout 1er lancement, l'alerte système de permission Face ID peut provoquer un **re-lock parasite** une fois après le 1er unlock (auto-récupérable). À vérifier sur device QA ; si confirmé, restreindre la branche `→ active` à `previous==='background'`.
 
 ---
 
@@ -192,6 +201,7 @@ _Estimation : L. Dépendances : comptes stores._
 - [x] ⚠️ **Avatars F7** : ~~SVG vectoriels custom **ou** emoji-based ?~~ → **tranché : emoji-based** (passe 1, 2026-06-20, ADR-012).
 - [ ] ⚠️ **Firebase F4** : projet `mivro-40125` (RTDB europe-west1) **fourni et câblé** (URL/env/rules/`firebase.json`) ; restent les **fichiers de config natifs** (`GoogleService-Info.plist` iOS, `google-services.json` Android), le **déploiement des rules** et `pod install` — voir la checklist « Reste à Cédric » de la section F4. _(Code F4 livré/testé/reviewé ; transport acté ADR-006.)_
 - [x] ⚠️ **F5 universal links** : ~~MVP en scheme `mivro://` seul, ou config domaine (AASA/assetlinks) dès maintenant ?~~ → **tranché : scheme `mivro://` seul** pour le MVP (pas d'universal links — exigent domaine vérifié + hébergement AASA/assetlinks). Reportés post-MVP. (F5, 2026-06-20)
+- [x] ⚠️ **F8 « compte requis »** : ~~verrou biométrique réservé aux comptes ou ouvert aux guests ?~~ → **tranché (MVP) : opt-in pour TOUT utilisateur, guest inclus** — la contrainte « compte requis » du backlog est relâchée car F6 (Auth) reste bloqué par les comptes dev. **Réversible** : à re-durcir quand F6 existera. Pas d'ADR dédié (décision MVP). (F8, 2026-06-29)
 - [ ] ⚠️ **Comptes dev F6** : Google Cloud + Apple Developer prêts ?
 - [ ] ⚠️ **PostHog** : VPS d'auto-hébergement provisionné ?
 - [ ] ⚠️ **Bundle id** : iOS reste `com.cedricpineau.midpoint` malgré le rename Mivro — à figer ou migrer avant la beta ?

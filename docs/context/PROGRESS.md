@@ -1,7 +1,36 @@
 # PROGRESS.md — Mivro
 
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-06-20 (F5 Partage de session — livrée + testée **1021** + reviewée APPROVED après 1 tour de corrections, non commitée).
+> Dernière mise à jour : 2026-06-29 (F8 Biométrie — livrée + testée **1133** + reviewée APPROVED après 1 tour de corrections, non commitée).
+
+## F8 — Verrou biométrique (Face ID / Touch ID / empreinte) — livrée + testée + reviewée APPROVED (2026-06-29, non commitée)
+
+**Décision produit (MVP, réversible)** : verrou biométrique **opt-in pour TOUT utilisateur, guest inclus** — la contrainte « compte requis » du backlog est **relâchée** car F6 (Auth) reste bloqué par les comptes dev. À re-durcir quand F6 existera (pas d'ADR dédié — décision MVP consignée en TODO « Décisions en attente »).
+
+**Architecture (keychain confiné à l'infra)** : `react-native-keychain` n'est importé QUE par l'adapter ; core et presentation passent par le port `IBiometricService` (DI) → testable sans device (port mocké), swap = 1 ligne DI.
+
+- **Core** : port `IBiometricService` (`getSupportedType`, `isEnrolled`, `authenticate(reason)`, `enableLock`, `disableLock`) + types `BiometricType` (`face`/`fingerprint`/`iris`) + `BiometricErrorCode` (`not_available`/`not_enrolled`/`cancelled`/`failed`/`unknown`) + erreur typée `BiometricError`.
+- **Infra** : `KeychainBiometricService` (`src/infrastructure/security/`) — pose un **secret sentinelle** en `ACCESS_CONTROL.BIOMETRY_ANY_OR_DEVICE_PASSCODE` + `ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY` (le passcode device sert de **secours natif** anti-lockout) ; `authenticate` relit la sentinelle (déclenche le prompt natif) et compare **sans jamais logger la valeur** (LOG-001) ; mappe `BIOMETRY_TYPE` natif → `BiometricType` ; mapping erreurs **heuristique sur le message natif** (la lib ne fournit pas de codes typés au rejet) ; reçoit le `crashReporter` (report sauf annulation/échec attendus).
+- **Presentation** :
+  - Store : `usePreferencesStore.biometricEnabled` (bool, **persisté MMKV**) + `setBiometricEnabled`.
+  - Hook `useBiometricLock` : détecte `supportedType`, gère `isLocked` au lancement, **re-lock dès `inactive`/`background`** (masque le contenu dans l'app-switcher) **ET** au retour `→ active` ; expose `unlock`, `enableLock`/`disableLock` (auth de confirmation à l'activation), et l'**échappatoire anti-lockout** `disableLockAndContinue` + `showDisableEscape` (après 3 échecs ou biométrie inutilisable) ; **auto-désactivation** si la biométrie n'est plus enrôlée/dispo au montage. Sélecteurs Zustand atomiques (évite la boucle de rendu v5).
+  - Molecule `BiometricLockScreen` (`molecules/BiometricLockScreen/`) : overlay plein écran bloquant, **auto-prompt différé jusqu'à `supportedType` connu** (libellé correct Face ID/Touch ID), message d'erreur i18n, bouton « Désactiver le verrou et continuer » (échappatoire), a11y `accessibilityViewIsModal`/live region.
+  - Gate : `App.tsx` définit `BiometricLockGate` (consomme `useBiometricLock`) enveloppant l'arbre ; quand verrouillé, masque l'arbre aux lecteurs d'écran (`importantForAccessibility="no-hide-descendants"` Android + `accessibilityElementsHidden` iOS) et rend l'overlay par-dessus.
+  - Toggle opt-in dans `ProfileScreen`.
+- **DI** : `biometricService` (`KeychainBiometricService`, reçoit le `crashReporter`) câblé dans `di/container.ts` (swap = 1 ligne).
+- **i18n** : namespace `biometric` FR + EN (titre/sous-titre du verrou, types, erreurs typées, échappatoire). Zéro string hardcodée.
+- **Natif** : iOS `NSFaceIDUsageDescription` (Info.plist) ; Android `<uses-permission android:name="android.permission.USE_BIOMETRIC" />` (AndroidManifest).
+- **Fichiers clés** : `core/ports/IBiometricService.ts`, `infrastructure/security/KeychainBiometricService.ts`, `presentation/hooks/useBiometricLock.ts`, `presentation/components/molecules/BiometricLockScreen/`, `presentation/stores/usePreferencesStore.ts`, `presentation/App.tsx`, `presentation/screens/ProfileScreen.tsx`, `di/container.ts`, `i18n/index.ts`, `i18n/locales/{fr,en}/biometric.json`, `ios/Mivro/Info.plist`, `android/app/src/main/AndroidManifest.xml`.
+- **Tests** : ~140 cas F8 ; suite globale **1133 tests** (85 suites) verts, `npm run check` vert, seuils de coverage respectés. Keychain mocké via le port `IBiometricService` (zéro `any`). Nouveaux fichiers : `IBiometricService.test.ts`, `infrastructure/security/` (adapter), `useBiometricLock.test.tsx`, `BiometricLockScreen.test.tsx` ; modifiés : `usePreferencesStore.test.ts`, `ProfileScreen.test.tsx` (intégration toggle).
+
+**Corrections de review appliquées (après 1 tour) — 1 bloquant + 1 majeur + 2 mineurs** :
+
+1. **(bloquant) anti-lockout double filet** : `BIOMETRY_ANY` seul enfermait l'utilisateur si la biométrie devenait indisponible (enrôlement retiré / lockout « too many attempts ») → ajout du **fallback passcode device** (`BIOMETRY_ANY_OR_DEVICE_PASSCODE`) **ET** d'une échappatoire applicative (`disableLockAndContinue` + auto-désactivation si biométrie inutilisable au montage + bouton après 3 échecs).
+2. **(majeur) masquage app-switcher** : le re-lock ne se faisait qu'au retour `→ active`, exposant le contenu dans la vignette du multitâche → re-lock avancé dès `inactive`/`background` (avant le snapshot OS).
+3. **(mineur) a11y du gate** : masquer l'arbre sous-jacent aux lecteurs d'écran quand verrouillé (`importantForAccessibility`/`accessibilityElementsHidden`).
+4. **(mineur) prompt différé** : l'auto-prompt partait avant que `supportedType` soit résolu → libellé générique ; différé jusqu'à `supportedType !== null` pour afficher « Face ID »/« Touch ID ».
+
+**Reste à Cédric** : tester sur **device réel** (Face ID / Touch ID / empreinte ; simulateur iOS : Features → Face ID → Enrolled/Matching), fallback passcode device, échappatoire anti-lockout, masquage de l'app-switcher (voir TODO.md). Point edge iOS à vérifier (re-lock parasite `previous==='inactive'` au 1er lancement) consigné en dette.
 
 ## F5 — Partage de session (deep link + join collaboratif live) — livrée + testée + reviewée APPROVED (2026-06-20, non commitée)
 
@@ -49,15 +78,16 @@ sessions/{sessionId}/
 | QA P1          | 2026-06-15         | ✅ Fait    | `786a4e9` `ed7b0ee` `c01e29c` |
 | F7 Profil (P1) | 2026-06-20         | ✅ Fait    | `0ade2e2`                     |
 | F7 Profil (P2) | 2026-06-22         | ✅ Fait    | `ebf1215`                     |
-| F4 Temps réel  | 2026-06-20         | ✅ Fait\*  | non commité                   |
-| F5 Partage     | 2026-06-20         | ✅ Fait\*  | non commité                   |
-| F8 Biométrie   | —                  | 📋 Backlog | —                             |
+| F4 Temps réel  | 2026-06-24 → 06-25 | ✅ Fait    | `1c73eeb` `c9a76d1`           |
+| F5 Partage     | 2026-06-29         | ✅ Fait    | `d112edb`                     |
+| F8 Biométrie   | 2026-06-29         | ✅ Fait\*  | non commité                   |
 | F6 Auth        | —                  | 📋 Backlog | —                             |
 | ADR rattrapage | —                  | 📋 Backlog | —                             |
 | PostHog        | —                  | 📋 Backlog | —                             |
 | Beta           | —                  | 📋 Backlog | —                             |
 
-F7 (passes 1 & 2) est désormais **commitée** (`0ade2e2`, `ebf1215`).
+F7 (passes 1 & 2) est désormais **commitée** (`0ade2e2`, `ebf1215`). F4 et F5 sont désormais **commitées** (`1c73eeb`+`c9a76d1` pour F4, `d112edb` pour F5 ; `3385acf` ajoute le `.gitignore` des configs natives Firebase + une Cloud Function de purge RGPD).
+\*F8 Biométrie : code applicatif **livré + testé (1133 tests) + reviewé APPROVED** (après 1 tour de corrections), pas encore commité au moment de cette mise à jour. **Restent à Cédric** : vérif sur device réel (Face ID/Touch ID/empreinte, fallback passcode, échappatoire anti-lockout, masquage app-switcher) — voir TODO.md.
 \*F4 Temps réel Firebase : code applicatif **livré + testé (867 tests) + reviewé APPROVED** (après 1 tour de corrections review), pas encore commité au moment de cette mise à jour. Le **projet Firebase EU (`mivro-40125`, europe-west1) est désormais fourni et câblé** (URL, env var, rules, `firebase.json` — voir « Câblage Firebase EU » + ADR-006) : la PAUSE « transport » est levée. **Restent à Cédric** : enregistrer les apps iOS/Android (fichiers `GoogleService-Info.plist` / `google-services.json`), déployer les rules, `pod install`, puis vérif device (voir TODO.md).
 \*F5 Partage de session : code applicatif + config native + rules **livrés + testés (1021 tests) + reviewés APPROVED** (après 1 tour de corrections review), pas encore commité. Bâti sur F4 (RTDB EU), étend le modèle Firebase (`meta` + `members`) sans toucher au nœud `participants`. **Restent à Cédric** : redéployer les rules étendues, `pod install`, rebuild natif, tester l'ouverture du deep link + join multi-devices (voir TODO.md). Prochaine feature sans blocker : **F8 Biométrie** (F6 Auth bloqué par comptes dev).
 
@@ -202,7 +232,11 @@ Le projet Firebase a été **fourni et câblé** côté code (la PAUSE OBLIGATOI
 ## Historique des commits (annoté)
 
 ```
-(F4 Temps réel — livrée/testée/reviewée APPROVED, PAS encore commitée)
+(F8 Biométrie — livrée/testée 1133/reviewée APPROVED, PAS encore commitée)
+3385acf  2026-06-30  chore(firebase) gitignore configs natives + Cloud Function purge RGPD
+d112edb  2026-06-29  feat(f5)        partage session collaboratif (deep link) ← F5
+c9a76d1  2026-06-25  feat(f4)        wire projet Firebase EU + rules RTDB  ← F4 (câblage EU)
+1c73eeb  2026-06-24  feat(f4)        tracking multi-participants RTDB      ← F4 (ADR-006)
 ebf1215  2026-06-22  feat(f7)        profile photo (picker + FileSystem) ← F7 p2 (ADR-013)
 0ade2e2  2026-06-20  feat(f7)        profile name + emoji avatars      ← F7 p1 (ADR-012)
 c01e29c  2026-06-15  fix(qa-p1)      autocomplete au-dessus du clavier ← QA P1
@@ -230,25 +264,25 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 
 ---
 
-## Métriques actuelles (2026-06-20, post-F5 Partage)
+## Métriques actuelles (2026-06-29, post-F8 Biométrie)
 
-| Métrique                           | Valeur                                          |
-| ---------------------------------- | ----------------------------------------------- |
-| Fichiers code (`src/`, hors tests) | 117                                             |
-| Suites de tests                    | 81                                              |
-| Tests (cas) — `npm run check`      | 1021                                            |
-| Entités core                       | 9 (+`SharedSession`)                            |
-| Ports                              | 8 (+`ISessionShareService`)                     |
-| Use cases                          | 9 (+`ShareSession`, `JoinSession`)              |
-| Adapters infrastructure            | 8 (+2 placeholders vides : eta/analytics)       |
-| Stores Zustand                     | 5 (+`useSharedSessionStore`)                    |
-| Hooks custom                       | 11 (+`useSessionShare`, `useSharedSessionSync`) |
-| Atoms / Molecules / Templates      | 5 / 12 / 1                                      |
-| Écrans                             | 6 (+`JoinSessionScreen`)                        |
-| Namespaces i18n × langues          | 9 × 2 (FR/EN)                                   |
+| Métrique                           | Valeur                                                            |
+| ---------------------------------- | ----------------------------------------------------------------- |
+| Fichiers code (`src/`, hors tests) | 120                                                               |
+| Suites de tests                    | 85                                                                |
+| Tests (cas) — `npm run check`      | 1133                                                              |
+| Entités core                       | 9                                                                 |
+| Ports                              | 9 (+`IBiometricService`)                                          |
+| Use cases                          | 9                                                                 |
+| Adapters infrastructure            | 9 (+`KeychainBiometricService`) (+2 placeholders : eta/analytics) |
+| Stores Zustand                     | 5                                                                 |
+| Hooks custom                       | 12 (+`useBiometricLock`)                                          |
+| Atoms / Molecules / Templates      | 5 / 13 / 1 (+`BiometricLockScreen`)                               |
+| Écrans                             | 6                                                                 |
+| Namespaces i18n × langues          | 10 × 2 (FR/EN) (+`biometric`)                                     |
 
-> F5 : +entité `SharedSession`, +port `ISessionShareService` (adapter `FirebaseSessionShareService`), +usecases `ShareSession`/`JoinSession`, +store `useSharedSessionStore`, +hooks `useSessionShare` & `useSharedSessionSync`, +écran `JoinSessionScreen`, +`navigation/linking.ts`, +namespace i18n `share`. (F4 avait ajouté `RealtimeParticipant`, `IRealtimeService`/`FirebaseRealtimeService`, `TrackParticipants`, `useRealtimeStore`, `useRealtimeTracking`, molecules `LiveParticipantsList` & `RealtimeConsentModal`, namespace `realtime`.) Restent vides : `infrastructure/{eta,analytics}/`.
-> Coverage F5 (review) : core **100 %** / infra **~98 %** / presentation **~94 %**.
+> F8 : +port `IBiometricService` (adapter `KeychainBiometricService`, infra/security), +store flag `usePreferencesStore.biometricEnabled`, +hook `useBiometricLock`, +molecule `BiometricLockScreen`, +gate `BiometricLockGate` dans `App.tsx`, +namespace i18n `biometric`. (F5 avait ajouté `SharedSession`, `ISessionShareService`/`FirebaseSessionShareService`, `ShareSession`/`JoinSession`, `useSharedSessionStore`, `useSessionShare` & `useSharedSessionSync`, `JoinSessionScreen`, `navigation/linking.ts`, namespace `share`.) Restent vides : `infrastructure/{eta,analytics}/`.
+> Coverage F8 (review) : core / infra / presentation au-dessus des seuils CI (core 90 / infra 70 / presentation 50 / global 70).
 > ⚠️ `coverage/coverage-summary.json` absent (les chiffres ci-dessus viennent des reviews) ; lancer `npm run test:coverage` pour le détail réel. ⚠️ `test:ci` ne passe **pas** `--coverage` → les `coverageThreshold` de `jest.config.js` **ne sont PAS enforced** par `npm run check` (seuils CI cibles : core 90 % / infra 70 % / presentation 50 % / global 70 %) — voir TODO.
 
 ---
@@ -283,3 +317,8 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 - **Relecture du roster anti lost-update (F5)** : `JoinSessionUseCase` ajoute le membre puis **relit le roster complet** avant de recalculer le midpoint, plutôt que de recalculer sur sa copie locale. Sans cette relecture, deux invités qui rejoignent quasi simultanément écraseraient mutuellement le midpoint (lost-update : chacun ne voit que son propre ajout). La relecture ramène l'état serveur courant avant le `CalculateMidpointUseCase`.
 - **Étendre un modèle Firebase sans casser l'existant (F5 sur F4)** : F5 ajoute `sessions/{id}/meta` + `members/{id}` **à côté** du nœud `participants` (positions live F4), sans jamais l'altérer. `members` = points de **départ** (roster collaboratif) ; `participants` = positions GPS **live**. Deux services distincts (`ISessionShareService` ≠ `IRealtimeService`) sur la même session, deux nœuds disjoints → pas de couplage, et les rules valident chaque feuille séparément.
 - **Deep link scheme `mivro://` seul pour le MVP (F5)** : `linking.ts` déclare `prefixes: ['mivro://']` + `session/:sessionId → JoinSession`, branché sur `NavigationContainer`. Config native : iOS `CFBundleURLTypes`, Android `<intent-filter>`. Pas d'universal links (AASA/assetlinks) au MVP — ils exigent un domaine vérifié et de l'hébergement de fichiers d'association ; reportés (cf. TODO « Décisions en attente »). Un lien `mivro://` n'ouvre pas l'app si elle n'est pas installée — acceptable au MVP.
+- **`BIOMETRY_ANY` seul = lockout (F8)** : protéger un secret keychain par `ACCESS_CONTROL.BIOMETRY_ANY` **seul** enferme l'utilisateur si la biométrie devient inutilisable (enrôlement retiré, lockout « too many attempts », capteur HS) — il ne peut plus jamais déverrouiller. Fix **double filet** : (1) `BIOMETRY_ANY_OR_DEVICE_PASSCODE` → le **passcode device** sert de secours natif ; (2) **échappatoire applicative** (`disableLockAndContinue` : retire la sentinelle + le flag PUIS déverrouille ; proposée après 3 échecs ou si la biométrie est durablement inutilisable ; auto-désactivation au montage si `getSupportedType()` renvoie `null` alors que le verrou est actif). Ne **jamais** poser un verrou biométrique sans chemin de sortie garanti.
+- **Masquer dès `inactive`/`background`, pas seulement au retour (F8)** : pour empêcher que le contenu sensible apparaisse dans la **vignette de l'app-switcher** (snapshot pris par l'OS quand l'app quitte le premier plan), il faut re-verrouiller **avant** ce snapshot, c.-à-d. dès `AppState === 'inactive' || 'background'` — pas seulement au retour `→ active`. Re-locker uniquement au retour expose le contenu dans le multitâche.
+- **Keychain ne fournit pas de codes d'erreur typés (F8)** : `react-native-keychain` **rejette avec un message natif libre** (pas de code structuré) — distinguer annulation utilisateur (`cancelled`, ≠ échec, à ne pas comptabiliser vers l'échappatoire), `not_enrolled`, `not_available`, `failed` (« too many attempts »/« not recognized ») et `unknown` repose sur une **heuristique de substring sur le message** (incluant `code: 13` pour le bouton négatif Android). Fragile par nature (dépend du wording natif/OS) ; centralisé dans `toBiometricError` et couvert par tests. À surveiller sur device réel.
+- **Auth biométrique via relecture d'un secret sentinelle (F8)** : il n'y a pas d'API « authentifie-moi » pure dans keychain ; on **pose** une valeur sentinelle protégée biométrie (`setGenericPassword` à l'activation) et on la **relit** (`getGenericPassword`) pour déclencher le prompt natif — succès = valeur relue conforme. La sentinelle n'a aucune valeur secrète métier et n'est **jamais loggée** (LOG-001). `disableLock` (`resetGenericPassword`) doit être **idempotent et best-effort** (ne jamais throw) pour ne pas casser le flux de désactivation/échappatoire.
+- **Prompt biométrique différé jusqu'au type connu (F8)** : tirer l'auto-prompt au montage de l'écran de verrouillage **avant** d'avoir résolu `getSupportedType()` affiche le libellé générique (« la biométrie ») au lieu de « Face ID »/« Touch ID ». Différer le 1er prompt jusqu'à `supportedType !== null`. Si aucun type ne se résout, c'est le hook qui auto-désactive le verrou (anti-lockout) — pas d'auto-prompt à tirer.

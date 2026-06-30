@@ -1,0 +1,40 @@
+{
+  "lock": {
+    "title": "Mivro est verrouillé",
+    "subtitle": "Déverrouille l'app pour continuer.",
+    "unlock": "Déverrouiller",
+    "unlockHint": "Lance l'authentification biométrique pour déverrouiller l'app",
+    "retry": "Réessayer",
+    "disableAndContinue": "Désactiver le verrou et continuer",
+    "disableAndContinueHint": "Désactive le verrou biométrique et ouvre l'app sans authentification",
+    "reason": "Déverrouille Mivro avec {{type}}",
+    "errors": {
+      "cancelled": "Authentification annulée. Réessaie pour déverrouiller.",
+      "failed": "Authentification échouée. Réessaie.",
+      "not_available": "La biométrie n'est pas disponible sur cet appareil.",
+      "not_enrolled": "Aucune biométrie n'est configurée sur cet appareil.",
+      "unknown": "Une erreur est survenue. Réessaie."
+    }
+  },
+  "settings": {
+    "label": "Verrou biométrique",
+    "description": "Protège l'accès à Mivro avec {{type}}.",
+    "toggleHint": "Active ou désactive le verrou biométrique au lancement de l'app",
+    "enabled": "Activé",
+    "disabled": "Désactivé",
+    "confirmReason": "Confirme avec {{type}} pour activer le verrou",
+    "types": {
+      "face": "Face ID",
+      "fingerprint": "Touch ID",
+      "iris": "la reconnaissance de l'iris",
+      "generic": "la biométrie"
+    },
+    "errors": {
+      "cancelled": "Activation annulée.",
+      "failed": "Confirmation échouée. Le verrou n'a pas été activé.",
+      "not_available": "La biométrie n'est pas disponible sur cet appareil.",
+      "not_enrolled": "Configure d'abord une biométrie dans les réglages de l'appareil.",
+      "unknown": "Une erreur est survenue. Réessaie."
+    }
+  }
+}

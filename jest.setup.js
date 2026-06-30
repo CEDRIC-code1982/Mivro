@@ -1,6 +1,43 @@
 // [ADDED] Jest setup — RNTL matchers
 require('@testing-library/jest-native/extend-expect');
 
+// [ADDED] F8 — Mock AppState (re-lock background → active dans useBiometricLock).
+// Le preset RN mocke AppState de façon non pilotable ; on expose un AppState
+// contrôlable : currentState modifiable + addEventListener qui enregistre le
+// listener 'change', et un helper global __emitAppState(next) pour le déclencher.
+// Le reste de react-native est conservé via requireActual.
+jest.mock('react-native', () => {
+  const RN = jest.requireActual('react-native');
+  const listeners = new Set();
+  const appState = {
+    currentState: 'active',
+    addEventListener: jest.fn((type, handler) => {
+      if (type === 'change') {
+        listeners.add(handler);
+      }
+      return {
+        remove: jest.fn(() => {
+          listeners.delete(handler);
+        }),
+      };
+    }),
+  };
+  // Helper de test : simule une transition d'état (met à jour currentState + notifie).
+  global.__emitAppState = (nextState) => {
+    appState.currentState = nextState;
+    for (const handler of [...listeners]) {
+      handler(nextState);
+    }
+  };
+  global.__resetAppState = () => {
+    listeners.clear();
+    appState.currentState = 'active';
+  };
+  return new Proxy(RN, {
+    get: (target, prop) => (prop === 'AppState' ? appState : target[prop]),
+  });
+});
+
 // [ADDED] Mock react-native-safe-area-context (native module unavailable in Jest)
 jest.mock('react-native-safe-area-context', () => {
   const React = require('react');
@@ -34,10 +71,13 @@ jest.mock('react-native-mmkv', () => {
 });
 
 // [ADDED] Mock react-native-keychain (native module unavailable in Jest)
+// [MODIFIED] F8 — ajout getSupportedBiometryType + enums BIOMETRY_TYPE / ACCESS_CONTROL
+// (utilisés par KeychainBiometricService). Les tests d'adapter surchargent ces mocks.
 jest.mock('react-native-keychain', () => ({
   getGenericPassword: jest.fn().mockResolvedValue(false),
   setGenericPassword: jest.fn().mockResolvedValue(true),
   resetGenericPassword: jest.fn().mockResolvedValue(true),
+  getSupportedBiometryType: jest.fn().mockResolvedValue(null),
   ACCESSIBLE: {
     AFTER_FIRST_UNLOCK: 'AfterFirstUnlock',
     WHEN_UNLOCKED: 'WhenUnlocked',
@@ -45,6 +85,23 @@ jest.mock('react-native-keychain', () => ({
     WHEN_PASSCODE_SET_THIS_DEVICE_ONLY: 'WhenPasscodeSetThisDeviceOnly',
     WHEN_UNLOCKED_THIS_DEVICE_ONLY: 'WhenUnlockedThisDeviceOnly',
     AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 'AfterFirstUnlockThisDeviceOnly',
+  },
+  ACCESS_CONTROL: {
+    USER_PRESENCE: 'UserPresence',
+    BIOMETRY_ANY: 'BiometryAny',
+    BIOMETRY_CURRENT_SET: 'BiometryCurrentSet',
+    DEVICE_PASSCODE: 'DevicePasscode',
+    APPLICATION_PASSWORD: 'ApplicationPassword',
+    BIOMETRY_ANY_OR_DEVICE_PASSCODE: 'BiometryAnyOrDevicePasscode',
+    BIOMETRY_CURRENT_SET_OR_DEVICE_PASSCODE: 'BiometryCurrentSetOrDevicePasscode',
+  },
+  BIOMETRY_TYPE: {
+    TOUCH_ID: 'TouchID',
+    FACE_ID: 'FaceID',
+    OPTIC_ID: 'OpticID',
+    FINGERPRINT: 'Fingerprint',
+    FACE: 'Face',
+    IRIS: 'Iris',
   },
 }));
 

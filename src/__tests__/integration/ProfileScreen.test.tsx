@@ -11,7 +11,7 @@
 
 // [ADDED] F7 — Tests intégration ProfileScreen
 
-import { fireEvent, render } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import React from 'react';
 import type { User } from '@core/entities/User';
 import ProfileScreen from '@presentation/screens/ProfileScreen';
@@ -53,6 +53,23 @@ jest.mock('react-i18next', () => ({
         'photo.errors.processing_failed': 'Échec du traitement',
         'photo.errors.unknown': 'Erreur inconnue',
       };
+      // [ADDED] F8 — clés biométrie (namespace biometric ; le mock ignore le ns)
+      const biometricTranslations: Record<string, string> = {
+        'settings.label': 'Verrou biométrique',
+        'settings.toggleHint': 'Active ou désactive le verrou biométrique',
+        'settings.types.face': 'Face ID',
+        'settings.types.fingerprint': 'Touch ID',
+        'settings.types.iris': "la reconnaissance de l'iris",
+        'settings.types.generic': 'la biométrie',
+        'settings.errors.cancelled': 'Activation annulée.',
+        'settings.errors.failed': "Confirmation échouée. Le verrou n'a pas été activé.",
+        'settings.errors.not_available': "La biométrie n'est pas disponible.",
+        'settings.errors.not_enrolled': "Configure d'abord une biométrie.",
+        'settings.errors.unknown': 'Une erreur est survenue.',
+      };
+      if (key in biometricTranslations) return biometricTranslations[key] ?? key;
+      if (key === 'settings.description') return `Protège Mivro avec ${params?.type ?? ''}`;
+      if (key === 'settings.confirmReason') return `Confirme avec ${params?.type ?? ''}`;
       if (key in photoTranslations) return photoTranslations[key] ?? key;
       if (key.startsWith('avatarNames.')) return key.replace('avatarNames.', '');
       if (key === 'avatarPicker.selectHint') return `Select ${params?.name ?? ''}`;
@@ -113,6 +130,27 @@ jest.mock('@presentation/hooks/useProfilePhoto', () => ({
   }),
 }));
 
+// ─── Mock useBiometricLock (F8) ─────────────────────────────
+const mockEnableLock = jest.fn();
+const mockDisableLock = jest.fn();
+
+let mockBiometricState: {
+  biometricEnabled: boolean;
+  supportedType: 'face' | 'fingerprint' | 'iris' | null;
+} = { biometricEnabled: false, supportedType: 'face' };
+
+jest.mock('@presentation/hooks/useBiometricLock', () => ({
+  useBiometricLock: () => ({
+    biometricEnabled: mockBiometricState.biometricEnabled,
+    supportedType: mockBiometricState.supportedType,
+    isLocked: false,
+    unlockError: null,
+    unlock: jest.fn(),
+    enableLock: mockEnableLock,
+    disableLock: mockDisableLock,
+  }),
+}));
+
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
 const VALID_DATETIME = '2026-01-15T10:30:00.000Z';
 
@@ -130,6 +168,10 @@ describe('ProfileScreen (F7)', () => {
     mockPhotoState = { photoUri: null, isBusy: false, error: null };
     mockPickPhoto.mockResolvedValue(undefined);
     mockRemovePhoto.mockResolvedValue(undefined);
+    // [ADDED] F8 — reset biométrie
+    mockBiometricState = { biometricEnabled: false, supportedType: 'face' };
+    mockEnableLock.mockResolvedValue({ success: true, errorCode: null });
+    mockDisableLock.mockResolvedValue({ success: true, errorCode: null });
   });
 
   // ─── Non connecté ─────────────────────────────────────────
@@ -305,6 +347,88 @@ describe('ProfileScreen (F7)', () => {
 
       expect(getByTestId('profile-photo-library').props.accessibilityState.disabled).toBe(true);
       expect(getByTestId('profile-photo-remove').props.accessibilityState.disabled).toBe(true);
+    });
+  });
+
+  // ─── F8 — section verrou biométrique ──────────────────────
+  describe('biometric lock (F8)', () => {
+    beforeEach(() => {
+      mockUser = guestUser;
+    });
+
+    it('renders the biometric toggle reflecting the enabled flag', () => {
+      mockBiometricState = { biometricEnabled: true, supportedType: 'face' };
+      const { getByTestId } = render(<ProfileScreen />);
+
+      const toggle = getByTestId('profile-biometric-toggle');
+      expect(toggle).toBeTruthy();
+      expect(toggle.props.value).toBe(true);
+      expect(toggle.props.accessibilityState.checked).toBe(true);
+    });
+
+    it('does not render the toggle when signed out', () => {
+      mockUser = null;
+      const { queryByTestId } = render(<ProfileScreen />);
+
+      expect(queryByTestId('profile-biometric-toggle')).toBeNull();
+    });
+
+    it('calls enableLock with a confirmation reason when toggled on', async () => {
+      mockBiometricState = { biometricEnabled: false, supportedType: 'face' };
+      const { getByTestId } = render(<ProfileScreen />);
+
+      fireEvent(getByTestId('profile-biometric-toggle'), 'valueChange', true);
+
+      await waitFor(() => {
+        expect(mockEnableLock).toHaveBeenCalledWith('Confirme avec Face ID');
+      });
+      expect(mockDisableLock).not.toHaveBeenCalled();
+    });
+
+    it('calls disableLock when toggled off', async () => {
+      mockBiometricState = { biometricEnabled: true, supportedType: 'face' };
+      const { getByTestId } = render(<ProfileScreen />);
+
+      fireEvent(getByTestId('profile-biometric-toggle'), 'valueChange', false);
+
+      await waitFor(() => {
+        expect(mockDisableLock).toHaveBeenCalled();
+      });
+      expect(mockEnableLock).not.toHaveBeenCalled();
+    });
+
+    it('shows a localized error message when enabling fails', async () => {
+      mockEnableLock.mockResolvedValueOnce({ success: false, errorCode: 'not_enrolled' });
+      const { getByTestId, getByText } = render(<ProfileScreen />);
+
+      fireEvent(getByTestId('profile-biometric-toggle'), 'valueChange', true);
+
+      await waitFor(() => {
+        expect(getByTestId('profile-biometric-error')).toBeTruthy();
+      });
+      expect(getByText("Configure d'abord une biométrie.")).toBeTruthy();
+    });
+
+    it('falls back to "unknown" error message when no code is returned', async () => {
+      mockEnableLock.mockResolvedValueOnce({ success: false, errorCode: null });
+      const { getByTestId, getByText } = render(<ProfileScreen />);
+
+      fireEvent(getByTestId('profile-biometric-toggle'), 'valueChange', true);
+
+      await waitFor(() => {
+        expect(getByText('Une erreur est survenue.')).toBeTruthy();
+      });
+    });
+
+    it('builds the confirmation reason with the generic label when type is null', async () => {
+      mockBiometricState = { biometricEnabled: false, supportedType: null };
+      const { getByTestId } = render(<ProfileScreen />);
+
+      fireEvent(getByTestId('profile-biometric-toggle'), 'valueChange', true);
+
+      await waitFor(() => {
+        expect(mockEnableLock).toHaveBeenCalledWith('Confirme avec la biométrie');
+      });
     });
   });
 });

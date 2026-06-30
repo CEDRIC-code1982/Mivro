@@ -1,0 +1,40 @@
+{
+  "lock": {
+    "title": "Mivro is locked",
+    "subtitle": "Unlock the app to continue.",
+    "unlock": "Unlock",
+    "unlockHint": "Starts biometric authentication to unlock the app",
+    "retry": "Try again",
+    "disableAndContinue": "Disable lock and continue",
+    "disableAndContinueHint": "Disables the biometric lock and opens the app without authentication",
+    "reason": "Unlock Mivro with {{type}}",
+    "errors": {
+      "cancelled": "Authentication cancelled. Try again to unlock.",
+      "failed": "Authentication failed. Try again.",
+      "not_available": "Biometrics are not available on this device.",
+      "not_enrolled": "No biometrics are set up on this device.",
+      "unknown": "Something went wrong. Try again."
+    }
+  },
+  "settings": {
+    "label": "Biometric lock",
+    "description": "Protect access to Mivro with {{type}}.",
+    "toggleHint": "Enables or disables the biometric lock at app launch",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "confirmReason": "Confirm with {{type}} to enable the lock",
+    "types": {
+      "face": "Face ID",
+      "fingerprint": "Touch ID",
+      "iris": "iris recognition",
+      "generic": "biometrics"
+    },
+    "errors": {
+      "cancelled": "Enabling cancelled.",
+      "failed": "Confirmation failed. The lock was not enabled.",
+      "not_available": "Biometrics are not available on this device.",
+      "not_enrolled": "Set up biometrics in your device settings first.",
+      "unknown": "Something went wrong. Try again."
+    }
+  }
+}

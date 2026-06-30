@@ -22,7 +22,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { getContainer, initContainer } from '@/di/container'; // [MODIFIED]
 import { ThemeModeProvider, useTheme } from '@core/theme'; // [FIXED P0-6]
 import { getEncryptionKey } from '@infrastructure/storage/getEncryptionKey';
+import BiometricLockScreen from '@presentation/components/molecules/BiometricLockScreen'; // [ADDED] F8
 import { AppErrorBoundary } from '@presentation/components/templates/AppErrorBoundary'; // [ADDED]
+import { useBiometricLock } from '@presentation/hooks/useBiometricLock'; // [ADDED] F8
 import { linking } from '@presentation/navigation/linking'; // [ADDED] F5 — deep linking
 import RootNavigator from '@presentation/navigation/RootNavigator';
 import { usePreferencesStore } from '@presentation/stores/usePreferencesStore'; // [FIXED P0-6]
@@ -46,6 +48,56 @@ const AppThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children })
 };
 
 /**
+ * Verrou biométrique (F8) — overlay bloquant rendu au-dessus de toute l'app.
+ * Biometric lock (F8) — blocking overlay rendered above the whole app.
+ *
+ * Décision d'archi : overlay (et non une route de navigation) car le verrou
+ * doit bloquer TOUS les écrans/onglets quel que soit l'état de la navigation,
+ * et survivre aux transitions AppState (re-lock en retour d'arrière-plan).
+ * Architecture decision: overlay (not a navigation route) because the lock must
+ * block ALL screens/tabs regardless of navigation state and survive AppState
+ * transitions (re-lock on returning from background).
+ *
+ * @returns Arbre app + overlay verrou / App tree + lock overlay
+ */
+// [ADDED] F8 — Gate biométrique
+const BiometricLockGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const {
+    isLocked,
+    supportedType,
+    unlockError,
+    showDisableEscape,
+    unlock,
+    disableLockAndContinue,
+  } = useBiometricLock();
+
+  return (
+    <>
+      {/* [ADDED] F8 — quand verrouillé, on exclut tout l'arbre sous-jacent de
+          l'arbre d'accessibilité (TalkBack/VoiceOver) en plus de l'overlay :
+          accessibilityViewIsModal est iOS-only, no-hide-descendants couvre Android. */}
+      <View
+        style={styles.appTree}
+        importantForAccessibility={isLocked ? 'no-hide-descendants' : 'auto'}
+        accessibilityElementsHidden={isLocked}
+      >
+        {children}
+      </View>
+      {isLocked ? (
+        <BiometricLockScreen
+          supportedType={supportedType}
+          errorCode={unlockError}
+          showDisableEscape={showDisableEscape}
+          onUnlock={unlock}
+          onDisableAndContinue={disableLockAndContinue}
+          testID="biometric-lock-screen"
+        />
+      ) : null}
+    </>
+  );
+};
+
+/**
  * Contenu de l'app une fois le bootstrap terminé.
  * App content after bootstrap is complete.
  *
@@ -62,20 +114,25 @@ const AppContent: React.FC = () => {
     <GestureHandlerRootView style={styles.gestureRoot}>
       <SafeAreaProvider>
         <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} />
-        {/* [ADDED] ErrorBoundary global — capture les erreurs React non gérées */}
-        <AppErrorBoundary>
-          {/* [ADDED] QueryClientProvider — TanStack Query pour geocoding + futures queries */}
-          <QueryClientProvider client={getContainer().queryClient}>
-            {/* [FIXED P1] BottomSheetModalProvider — rend les sheets en overlay racine
-                (portail) plutôt que dans le flux d'un ScrollView (champ fantôme F1). */}
-            <BottomSheetModalProvider>
-              {/* [ADDED] F5 — linking : ouvre mivro://session/{id} sur l'écran JoinSession */}
-              <NavigationContainer linking={linking}>
-                <RootNavigator />
-              </NavigationContainer>
-            </BottomSheetModalProvider>
-          </QueryClientProvider>
-        </AppErrorBoundary>
+        {/* [ADDED] F8 — verrou biométrique : overlay bloquant au-dessus de tout.
+            Le gate enveloppe l'arbre app pour pouvoir l'exclure de l'arbre a11y
+            (no-hide-descendants) quand verrouillé. */}
+        <BiometricLockGate>
+          {/* [ADDED] ErrorBoundary global — capture les erreurs React non gérées */}
+          <AppErrorBoundary>
+            {/* [ADDED] QueryClientProvider — TanStack Query pour geocoding + futures queries */}
+            <QueryClientProvider client={getContainer().queryClient}>
+              {/* [FIXED P1] BottomSheetModalProvider — rend les sheets en overlay racine
+                  (portail) plutôt que dans le flux d'un ScrollView (champ fantôme F1). */}
+              <BottomSheetModalProvider>
+                {/* [ADDED] F5 — linking : ouvre mivro://session/{id} sur l'écran JoinSession */}
+                <NavigationContainer linking={linking}>
+                  <RootNavigator />
+                </NavigationContainer>
+              </BottomSheetModalProvider>
+            </QueryClientProvider>
+          </AppErrorBoundary>
+        </BiometricLockGate>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
@@ -135,6 +192,10 @@ const App: React.FC = () => {
 const styles = StyleSheet.create({
   // [ADDED] GestureHandlerRootView must fill the screen
   gestureRoot: {
+    flex: 1,
+  },
+  // [ADDED] F8 — conteneur de l'arbre app sous l'overlay (exclu de l'a11y quand verrouillé).
+  appTree: {
     flex: 1,
   },
   loadingContainer: {
