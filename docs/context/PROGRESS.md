@@ -1,7 +1,27 @@
 # PROGRESS.md — Mivro
 
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-07-13 (Refactor archi feature-first + `services/` + tests co-localisés).
+> Dernière mise à jour : 2026-07-14 (ADR rattrapage — série ADR-001→014 complète).
+
+## ADR rattrapage — série ADR-001→014 complète (2026-07-14)
+
+Documentation rétroactive des décisions d'architecture manquantes, au format imposé
+(Contexte / Décision / Raisons / Compromis / Alternatives écartées), dans
+`docs-site/docs/adr/` :
+
+- **ADR-001** Nominatim + Overpass (OSM) vs Google — géocodage/POI
+- **ADR-002** Clean Architecture + Ports/Adapters (principes ; forme actualisée par ADR-014)
+- **ADR-003** React Native CLI (bare) vs Expo
+- **ADR-004** Auth « guest-first » (compte optionnel)
+- **ADR-005** Zustand + TanStack Query vs Redux
+- **ADR-007** New Architecture (Fabric + TurboModules)
+- **ADR-008** MMKV + Keychain + AsyncStorage (stockage par sensibilité)
+- **ADR-009** Montée en charge des APIs externes (usage OSM → self-host)
+- **ADR-010** Observabilité Sentry + PostHog (orientés vie privée)
+- **ADR-014** _(bonus)_ Réorganisation feature-first + `services/` + tests co-localisés — documente le refactor du 2026-07-13 et actualise ADR-002 (forme).
+
+ADR-006/011/012/013 existaient déjà. La série est désormais **complète et sans trou**.
+Aucun code touché ; commits sur `develop`.
 
 ## Refactor archi — layer-first → feature-first + `services/` + tests co-localisés (2026-07-13)
 

@@ -6,6 +6,8 @@
 
 # Ne pas modifier sans créer un ADR correspondant.
 
+# Version 9.0 — 2026-07-14 (ADR rattrapage : rédaction des ADR-001→005 + 007→010 manquants + ADR-014 (refactor feature-first). La série **ADR-001→014 est complète** dans `docs-site/docs/adr/`. Repo GitHub lié (`CEDRIC-code1982/Mivro`), `main` protégée, travail sur `develop`. Il ne reste QUE des tâches à blocker externe : F6 (comptes dev), PostHog (VPS/Cloud), Beta (signing) + les vérifs device.)
+
 # Version 8.9 — 2026-07-13 (Refactor archi : passage **layer-first → feature-first + couche `services/`** (aligné sur lineguard), **state Zustand centralisé** dans `src/state/`, DI renommé `src/services/serviceContainer.ts`, et **tests co-localisés** (chaque `*.test` à côté de son sujet, intégration en `*.integration.test`). Stack inchangée (Zustand/Zod/TanStack), Atomic Design conservé (DS-004). 1133 tests verts, aucun changement de comportement. Alias : `@features @services @components @state @entities @theme @hooks @navigations @test-utils`.)
 
 # Version 8.8 — 2026-06-29 (F8 Biométrie — verrou Face ID / Touch ID / empreinte, opt-in pour tout utilisateur guest inclus ; port `IBiometricService` + `KeychainBiometricService` + hook `useBiometricLock` + molecule `BiometricLockScreen` + gate dans `App.tsx` ; code livré + testé 1133 + reviewé APPROVED après 1 tour ; non commité. Il ne reste que des features à blocker externe (F6 comptes dev, PostHog VPS, Beta signing) + l'ADR rattrapage sans blocker)
@@ -380,7 +382,8 @@ docs-site/docs/
 │   ├── ADR-010-sentry-posthog.md
 │   ├── ADR-011-rename-midpoint-to-mivro.md
 │   ├── ADR-012-emoji-avatars-vs-svg.md
-│   └── ADR-013-profile-photo-filesystem-vs-base64.md
+│   ├── ADR-013-profile-photo-filesystem-vs-base64.md
+│   └── ADR-014-feature-first-services-layout.md
 └── api/                       # Généré par TypeDoc
 ```
 
@@ -437,18 +440,19 @@ Molecules livrés : `ParticipantCard`, `EmptyState`, `AddressAutocomplete`, `Ava
 
 > ⚠️ Divergence à corriger : le README/anciennes notes mentionnaient des atoms `Button`/`Input`/`IconButton`/`Card`/`Spinner` — **ils n'existent pas encore**. À créer au besoin via le skill `create-atom`.
 
-### 🔜 Sprint en cours / suivant — plus aucune feature sans blocker hors ADR rattrapage
+### 🔜 Sprint en cours / suivant — plus aucune tâche sans blocker externe
 
 **F8 Biométrie** ✅ (2026-06-29) : **code complet, testé (1133 tests) + reviewé APPROVED** (1 tour : 1 bloquant + 1 majeur + 2 mineurs corrigés). Non commité. Verrou **Face ID / Touch ID / empreinte**, **opt-in pour TOUT utilisateur (guest inclus)** — « compte requis » relâché car F6 bloqué (réversible quand F6 existera). Port `IBiometricService` + adapter `KeychainBiometricService` (secret sentinelle `BIOMETRY_ANY_OR_DEVICE_PASSCODE`, jamais loggé) + hook `useBiometricLock` (re-lock background/inactive + active ; **anti-lockout double filet** : fallback passcode device + échappatoire applicative) + molecule `BiometricLockScreen` (overlay) + gate `BiometricLockGate` dans `App.tsx` + toggle `ProfileScreen`. i18n `biometric` FR+EN ; natif iOS `NSFaceIDUsageDescription` + Android `USE_BIOMETRIC`. ⚠️ Restent à Cédric : tests device (Face ID/Touch ID, fallback passcode, échappatoire, masquage app-switcher) — voir `docs/context/TODO.md`.
 **F5 Partage de session** ✅ (2026-06-29, `d112edb`) : deep link **`mivro://session/{id}`** + **join collaboratif live** ; étend le modèle Firebase F4 (`meta` + `members`). ⚠️ Restent à Cédric : redéployer les rules étendues, `pod install`, rebuild natif, tester le deep link + join multi-devices.
 **F4 Temps réel Firebase** ✅ (2026-06-29, `1c73eeb` `c9a76d1`) : transport tranché = Firebase RTDB (**ADR-006**), projet EU `mivro-40125` (europe-west1, RGPD OK) câblé. ⚠️ Restent à Cédric : `GoogleService-Info.plist` (iOS) + `google-services.json` (Android), déploiement des rules, `pod install`.
 **F7 Profil entièrement livrée** ✅ (`0ade2e2` + `ebf1215`) : avatars emoji (ADR-012) + photo FileSystem (ADR-013). Reste la **vérif device**.
-**Plus aucune feature livrable sans blocker externe** : il ne reste que **F6 Auth** (comptes dev Google/Apple), **PostHog** (VPS auto-hébergé) et **Beta TestFlight/Play** (signing + clés prod) — toutes en ⚠️ PAUSE OBLIGATOIRE — plus l'**ADR rattrapage** (ADR-001→005, 007→010), seul chantier **sans blocker** restant.
+**ADR rattrapage** ✅ (2026-07-14) : ADR-001→005 + 007→010 rédigés + ADR-014 (refactor feature-first) → série **ADR-001→014 complète**.
+**Plus aucune tâche livrable sans blocker externe** : il ne reste que **F6 Auth** (comptes dev Google/Apple), **PostHog** (VPS auto-hébergé) et **Beta TestFlight/Play** (signing + clés prod) — toutes en ⚠️ PAUSE OBLIGATOIRE — plus les vérifs device.
 ⚠️ Restent à re-vérifier sur device (QA P1) : layout Dynamic Type 200 % et champ fantôme F1 (fixes posés).
 
 ### 📋 Backlog priorisé
 
-Ordre recommandé : **Fix QA P1 → F7 → F4 → F5 → F8 → F6 → ADR → PostHog → Beta**. _(Fix QA P1, F7, F4, F5, **F8 faits** — F4/F5/F8 attendent la vérif device par Cédric. Il ne reste que des features à blocker externe (F6 comptes dev, PostHog VPS, Beta signing) + l'ADR rattrapage, seul chantier sans blocker.)_
+Ordre recommandé : **Fix QA P1 → F7 → F4 → F5 → F8 → ADR → F6 → PostHog → Beta**. _(Fix QA P1, F7, F4, F5, **F8 et ADR rattrapage faits** — F4/F5/F8 attendent la vérif device par Cédric. Il ne reste que des tâches à blocker externe : F6 comptes dev, PostHog VPS, Beta signing.)_
 Pour chaque feature : objectif · couches · composants · dépendances · décisions tranchées · done · complexité.
 
 ---
@@ -520,13 +524,11 @@ Pour chaque feature : objectif · couches · composants · dépendances · déci
 - **Complexité** : M.
 - **⚠️ PAUSE OBLIGATOIRE** : comptes développeur requis (Google Cloud OAuth client + Apple Developer / Sign in with Apple capability).
 
-#### ADR rattrapage
+#### ADR rattrapage — ✅ FAIT (2026-07-14)
 
-- **Objectif** : documenter rétroactivement les décisions déjà prises. **ADR-006, ADR-011, ADR-012, ADR-013 existent déjà** ; il manque **ADR-001 → ADR-005, ADR-007 → ADR-010** (référencés dans la section DOCUMENTATION).
-- **À écrire** : ADR-001 Nominatim vs Google, ADR-002 Clean Architecture, ADR-003 Expo vs RN CLI, ADR-004 Guest-first auth, ADR-005 Zustand vs Redux, ~~ADR-006 Firebase Realtime~~ (écrit avec F4), ADR-007 New Architecture, ADR-008 MMKV, ADR-009 External APIs scaling, ADR-010 Sentry+PostHog.
-- **Format** : voir DOCUMENTATION > Format ADR. Emplacement `docs-site/docs/adr/`.
-- **Done** : `npm run docs` passe ; chaque ADR au format imposé.
-- **Complexité** : M (rédaction).
+- **Livré** : ADR-001 (Nominatim/Overpass vs Google), ADR-002 (Clean Architecture), ADR-003 (Expo vs RN CLI), ADR-004 (Guest-first auth), ADR-005 (Zustand vs Redux), ADR-007 (New Architecture), ADR-008 (MMKV/Keychain/AsyncStorage), ADR-009 (External APIs scaling), ADR-010 (Sentry+PostHog). ADR-006/011/012/013 existaient déjà.
+- **Bonus** : **ADR-014** (réorganisation feature-first + `services/` + tests co-localisés) documente le refactor du 2026-07-13 et actualise ADR-002 (forme uniquement).
+- Tous dans `docs-site/docs/adr/` au format imposé. La série ADR-001→014 est désormais **complète**.
 
 #### PostHog analytics
 
