@@ -11,13 +11,13 @@ Crée un atom (Atomic Design — niveau le plus bas, aucune logique métier ni a
 ## Structure
 
 ```
-src/presentation/components/atoms/<Nom>/
+src/components/atoms/<Nom>/
 ├── <Nom>.tsx        # composant
 ├── <Nom>.test.tsx   # tests RTL
 └── index.ts         # barrel : export * from './<Nom>'
 ```
 
-Puis ajouter l'export dans `src/presentation/components/atoms/index.ts`.
+Puis ajouter l'export dans `src/components/atoms/index.ts`.
 
 ## Règles atom
 

@@ -8,12 +8,12 @@ description: Pattern pour intégrer un service externe Mivro (API HTTP, SDK tier
 Intègre un service externe via Ports/Adapters. **Règles** : voir `CLAUDE.md` (TS-004 Zod obligatoire, ERR-001 try/catch, LOG-001, RGPD, DOC-001..002).
 Références existantes : `NominatimGeocodeService`, `OverpassPOIService`, `SentryCrashReporter`.
 
-## 1. Port (core) — `src/core/ports/I<Nom>Service.ts`
+## 1. Port (core) — `src/services/domain/<domaine>/I<Nom>Service.ts`
 
 - Interface pure, méthodes async typées, TSDoc `@param/@returns/@throws`.
 - Aucune référence au provider concret (pas de mention Firebase/PostHog dans le nom des méthodes).
 
-## 2. Adapter (infra) — `src/infrastructure/<domaine>/<Provider><Port>.ts`
+## 2. Adapter (infra) — `src/services/infra/<domaine>/<Provider><Port>.ts`
 
 - Implémente le port. Reçoit `ICrashReporter` par constructeur (comme les adapters existants).
 - **Validation Zod** de TOUTE réponse externe (`Schema.parse` / `safeParse`) → données typées via `z.infer` (TS-004). Jamais de `any`.
@@ -22,7 +22,7 @@ Références existantes : `NominatimGeocodeService`, `OverpassPOIService`, `Sent
 - **try/catch** sur tous les appels (ERR-001) + `crashReporter.captureException` + log LOG-001.
 - **RGPD** : ne jamais logger/envoyer GPS exact, emails, tokens (scrubbing).
 
-## 3. Wire-up DI — `src/di/container.ts`
+## 3. Wire-up DI — `src/services/serviceContainer.ts`
 
 - Ajouter au type `Container` + instancier dans `initContainer()`. Swap provider = 1 ligne.
 

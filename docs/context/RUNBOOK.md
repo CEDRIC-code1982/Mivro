@@ -12,7 +12,7 @@
 
 ## F6 — Auth Google / Apple
 
-**État du code** : prêt. `src/core/entities/User.ts` modélise déjà `AuthenticatedUser`
+**État du code** : prêt. `src/entities/User.ts` modélise déjà `AuthenticatedUser`
 (`provider: 'google' | 'apple'`, `email`). `useAuthStore` expose `signInWithGoogle()` /
 `signInWithApple()` qui **throw** (`not implemented yet`). Il reste : SDK natifs + config
 consoles + un adapter `AuthService` branché dans le conteneur DI.
@@ -61,9 +61,9 @@ cd ios && pod install && cd ..
 
 ### 5. Branchement code (session dev dédiée, via l'équipe d'agents)
 
-- Créer `src/core/ports/AuthService.ts` (interface `signInWithGoogle/Apple`, `signOut`).
-- Créer `src/infrastructure/auth/FirebaseAuthService.ts` (adapter).
-- Enregistrer dans `src/di/container.ts` (bloc « Swap provider », ~ligne 152).
+- Créer `src/services/domain/auth/IAuthService.ts` (interface `signInWithGoogle/Apple`, `signOut`).
+- Créer `src/services/infra/auth/FirebaseAuthService.ts` (adapter).
+- Enregistrer dans `src/services/serviceContainer.ts` (bloc « Swap provider »).
 - Remplacer les `throw` de `useAuthStore.signInWithGoogle/Apple` par des appels à l'adapter.
 - Tests : `useAuthStore` + intégration `ProfileScreen`.
 

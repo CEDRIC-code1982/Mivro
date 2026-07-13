@@ -165,7 +165,7 @@ _Estimation : M. Dépendances : SDK PostHog._
 **⚠️ BLOCKER / PAUSE OBLIGATOIRE** : instance PostHog auto-hébergée (VPS, données EU) + clé projet.
 
 - [ ] Port `IAnalyticsService` (core)
-- [ ] Adapter `PostHogAnalytics` → `src/infrastructure/analytics/`
+- [ ] Adapter `PostHogAnalytics` → `src/services/infra/analytics/`
 - [ ] Opt-out dans `usePreferencesStore`
 - [ ] JAMAIS : GPS exact / identités / contenus utilisateur
 - [ ] Tests + update docs

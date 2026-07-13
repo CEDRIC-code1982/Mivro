@@ -8,7 +8,8 @@ Application de géolocalisation collaborative — trouvez le point de rendez-vou
 
 - **React Native** 0.85.2 (New Architecture ON — Fabric + TurboModules)
 - **TypeScript** strict (toutes les options activées)
-- **Clean Architecture** (core / infrastructure / presentation)
+- **Architecture** feature-first + couche `services/` (ports/adapters conservés) — voir ci-dessous
+- **State** Zustand + TanStack Query · **Validation** Zod · **i18n** i18next (FR/EN)
 - **Bundle ID** : `com.cedricpineau.mivro` (iOS + Android)
 
 ## Commandes
@@ -44,37 +45,45 @@ npm run test:integration
 
 ```
 src/
-├── core/                 # Entités, use cases, ports, theme
-│   ├── entities/
-│   ├── usecases/
-│   ├── ports/
-│   └── theme/            # Design tokens (light/dark) + useTheme()
-├── infrastructure/       # Implémentations concrètes (adapters)
-│   ├── geocode/
-│   ├── poi/
-│   ├── storage/
-│   ├── realtime/
-│   ├── eta/
-│   ├── crash/
-│   └── analytics/
-├── presentation/         # UI (Atomic Design)
-│   ├── screens/
-│   ├── components/       # atoms → molecules → organisms → templates
-│   ├── hooks/
-│   ├── navigation/
-│   └── stores/
+├── features/             # feature-first : écrans + hooks propres à la feature
+│   └── Session/ POI/ Sharing/ Profile/ Biometric/   (screens/<Nom>/, hooks/)
+├── components/           # Kit UI — Atomic Design (atoms/molecules/organisms/templates)
+├── services/
+│   ├── domain/           # use cases + ports (interfaces I*), par domaine
+│   ├── infra/            # adapters concrets (Nominatim, Overpass, Firebase, MMKV, Sentry…)
+│   ├── utils/            # helpers purs (geo, format)
+│   ├── serviceContainer.ts   # injection de dépendances (composition root)
+│   └── queryClient.ts
+├── state/                # stores Zustand
+├── entities/             # modèles de domaine (Zod)
+├── theme/                # design tokens (light/dark) + useTheme()
+├── hooks/                # hooks transverses
+├── navigations/          # React Navigation
 ├── i18n/                 # i18next (FR/EN)
-├── di/                   # Injection de dépendances
-└── __tests__/            # unit / integration / e2e
+└── test-utils/           # helpers de test
 ```
 
-Règle de dépendance : `presentation → core ← infrastructure`
+**Tests co-localisés** : chaque `*.test.ts(x)` vit à côté de son sujet (intégration en `*.integration.test.tsx`) ; E2E Maestro dans `e2e/` à la racine.
+
+Règle de dépendance : `features + components + state → services/domain ← services/infra`
+(le seul point de câblage concret est `src/services/serviceContainer.ts`).
 
 ## Path Aliases
 
-| Alias               | Cible                  |
-| ------------------- | ---------------------- |
-| `@/*`               | `src/*`                |
-| `@core/*`           | `src/core/*`           |
-| `@infrastructure/*` | `src/infrastructure/*` |
-| `@presentation/*`   | `src/presentation/*`   |
+| Alias            | Cible               |
+| ---------------- | ------------------- |
+| `@/*`            | `src/*`             |
+| `@features/*`    | `src/features/*`    |
+| `@services/*`    | `src/services/*`    |
+| `@components/*`  | `src/components/*`  |
+| `@state/*`       | `src/state/*`       |
+| `@entities/*`    | `src/entities/*`    |
+| `@theme/*`       | `src/theme/*`       |
+| `@hooks/*`       | `src/hooks/*`       |
+| `@navigations/*` | `src/navigations/*` |
+| `@test-utils/*`  | `src/test-utils/*`  |
+
+## Workflow git
+
+- `main` — branche protégée, stable (pas de push direct).
+- `develop` — branche de travail : **tous les commits/PR passent par `develop`**, puis PR `develop → main`.
