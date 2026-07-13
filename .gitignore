@@ -92,3 +92,6 @@ ios/Mivro/GoogleService-Info.plist
 
 # [ADDED] Cloud Functions deps
 functions/node_modules/
+
+# [ADDED] Gradle daemon JVM criteria — généré par updateDaemonJvm (spécifique machine)
+android/gradle/gradle-daemon-jvm.properties
