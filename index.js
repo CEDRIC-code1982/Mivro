@@ -10,8 +10,8 @@ import 'react-native-gesture-handler';
 import 'react-native-get-random-values';
 
 import { AppRegistry } from 'react-native';
-// [MODIFIED] App moved to src/presentation/ (Clean Architecture)
-import App from './src/presentation/App';
+// [MODIFIED] App at src/App.tsx (feature-first architecture)
+import App from './src/App';
 import { name as appName } from './app.json';
 
 AppRegistry.registerComponent(appName, () => App);

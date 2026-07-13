@@ -1,7 +1,16 @@
 # TODO.md — Mivro
 
 > Tâches restantes priorisées. Cocher au fur et à mesure, ajouter les découvertes (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-06-29 (F8 Biométrie livrée/testée/reviewée APPROVED ; **1133 tests**).
+> Dernière mise à jour : 2026-07-13 (Refactor archi feature-first + `services/` + tests co-localisés ; **1133 tests** verts). F8 commitée `4062e98`.
+
+## Refactor archi (2026-07-13) — ✅ FAIT
+
+- [x] Passage layer-first → **feature-first + `services/{domain,infra,utils}`** + `serviceContainer` (aligné lineguard), state Zustand centralisé `src/state/`, alias remaniés.
+- [x] **Tests co-localisés** (chaque `*.test` à côté du sujet ; intégration `*.integration.test`) ; helpers → `src/test-utils/` ; E2E → `e2e/`.
+- [x] Stack inchangée (Zustand/Zod/TanStack), Atomic Design conservé (DS-004), `npm run check` vert, 1133 tests intacts. Docs à jour (CLAUDE.md v8.9, ARCHITECTURE.md).
+- [ ] (P3, non bloquant) Ajouter des barrels `features/<F>/index.ts` (imports actuellement en chemin direct).
+
+---
 
 Priorités : **P0** bloquant/immédiat · **P1** important · **P2** souhaitable · **P3** plus tard.
 Ordre d'exécution recommandé : Fix QA P1 → F7 → F4 → F5 → F8 → F6 → ADR → PostHog → Beta. (Fix QA P1, F7, F4, F5, **F8 faits** — F4/F5 attendent device par Cédric, F8 attend device par Cédric.) **Il ne reste que des features à blocker externe (F6 comptes dev, PostHog VPS, Beta secrets/signing) + l'ADR rattrapage (sans blocker).**

@@ -1,32 +1,37 @@
 # ARCHITECTURE.md — Mivro
 
 > Architecture **réelle** du code, explorée depuis le filesystem. Mise à jour à chaque feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière exploration : 2026-06-29 (F8 Biométrie — livrée/testée **1133**/reviewée APPROVED, non commitée ; F5 & F4 commitées `d112edb`/`c9a76d1`/`1c73eeb` ; F7 commitée `ebf1215`).
+> Dernière exploration : 2026-07-13 (Refactor archi **layer-first → feature-first + `services/`** + **tests co-localisés** ; stack inchangée, Atomic Design conservé, 1133 tests verts. F8 Biométrie commitée `4062e98` ; F5/F4/F7 commitées `d112edb`/`c9a76d1`/`1c73eeb`/`ebf1215`).
 
-## Vue d'ensemble — Clean Architecture + Ports/Adapters
+## Vue d'ensemble — feature-first + couche `services/` (Ports/Adapters conservés)
+
+Depuis le refactor du 2026-07-13, l'organisation est **feature-first** (aligné sur `p0153_lineguard_studio_mobile`), mais la séparation **ports/adapters** et la stack (Zustand, Zod, TanStack) sont **inchangées** — seuls les dossiers ont bougé.
 
 ```
-        ┌─────────────────┐
-        │  presentation   │  React, écrans, hooks, stores, navigation
-        └────────┬────────┘
-                 │ dépend de
-                 ▼
-        ┌─────────────────┐
-        │      core       │  Entités, ports (interfaces), use cases, utils, theme
-        └────────▲────────┘
-                 │ implémente
-        ┌────────┴────────┐
-        │ infrastructure  │  Adapters concrets (Nominatim, Overpass, MMKV, Sentry…)
-        └─────────────────┘
+   ┌────────────────────────────────────────┐
+   │ features/ · components/ · state/        │  React : écrans, hooks, kit UI, stores
+   └───────────────────┬────────────────────┘
+                        │ dépend de (via serviceContainer)
+                        ▼
+   ┌────────────────────────────────────────┐
+   │ services/domain   (usecases + ports I*) │  logique métier + contrats
+   └───────────────────▲────────────────────┘
+                        │ implémente
+   ┌────────────────────────────────────────┐
+   │ services/infra    (adapters concrets)   │  Nominatim, Overpass, Firebase, MMKV, Sentry…
+   └────────────────────────────────────────┘
+
+   entities/ · theme/  = transverses (importables partout)
 ```
 
-**Règle de dépendance (bloquante)** : `presentation → core ← infrastructure`
+**Règle de dépendance (bloquante)** : `features + components + state → services/domain ← services/infra`
 
-- `core` n'importe JAMAIS `presentation` ni `infrastructure`.
-- `presentation` n'importe JAMAIS `infrastructure` (passe par les ports + le DI container).
-- Le seul point de câblage concret est `src/di/container.ts`.
+- `services/domain` (usecases + ports) n'importe JAMAIS `features`/`components`/`state` ni `services/infra`.
+- `features`/`components`/`state` n'importent JAMAIS un adapter concret de `services/infra` (passent par les ports + `serviceContainer`).
+- Le seul point de câblage concret est `src/services/serviceContainer.ts`.
+- **Tests co-localisés** : chaque `*.test.ts(x)` vit à côté de son sujet ; les tests d'intégration en `*.integration.test.tsx` ; E2E Maestro à la racine `e2e/`.
 
-Compteurs de fichiers `.ts`/`.tsx` (hors `.gitkeep`) : core **36** · infrastructure **12** · presentation **72**. Tests : **85** suites, **1133** cas (`npm run check` vert au 2026-06-29).
+Tests : **85** suites, **1133** cas (`npm run check` vert au 2026-07-13).
 
 ---
 
@@ -34,50 +39,59 @@ Compteurs de fichiers `.ts`/`.tsx` (hors `.gitkeep`) : core **36** · infrastruc
 
 ```
 src/
-├── core/
-│   ├── entities/        Avatar, GeocodeResult, Location, MidpointSession, POICategory, PointOfInterest, User (+ index)
-│   ├── ports/           IBiometricService, ICrashReporter, IGeocodeService, IGeolocationService, IPOIService, IProfilePhotoService, IRealtimeService, ISessionShareService, IStorageService
-│   ├── usecases/        CalculateMidpoint, CreateGuestUser, GetCurrentLocation, SearchAddress, SearchPOI, UpdateProfile
-│   ├── theme/           tokens.ts, index.ts
-│   └── utils/
-│       ├── geo/         centroid, distance, radius (+ index)
-│       └── format/      distance (+ index)
-├── infrastructure/
-│   ├── crash/           SentryCrashReporter, sanitizers
-│   ├── geocode/         NominatimGeocodeService
-│   ├── geolocation/     RNGeolocationService
-│   ├── media/           ImagePickerProfilePhotoService (F7 passe 2 — photo profil)
-│   ├── poi/             OverpassPOIService
-│   ├── storage/         MMKVStorageService, getEncryptionKey, zustand-mmkv-adapter
-│   ├── analytics/       (vide — placeholder PostHog)
-│   ├── eta/             (vide — placeholder OSRM V1)
-│   ├── realtime/        FirebaseRealtimeService (F4 — Firebase RTDB, API modulaire)
-│   └── security/        KeychainBiometricService (F8 — verrou biométrique via react-native-keychain)
-├── presentation/
-│   ├── App.tsx
-│   ├── screens/         CreateSessionScreen, JoinSessionScreen, MapScreen, POIScreen, ProfileScreen, SessionsScreen
-│   ├── components/
-│   │   ├── atoms/        Text, Screen, TabBarIcon, CategoryChip, Avatar
-│   │   ├── molecules/    AddressAutocomplete, AvatarPicker, BiometricLockScreen, EmptyState,
-│   │   │                 LiveParticipantsList, POICard, POIDetailSheet, POIListView, POIMapView,
-│   │   │                 POIScreenHeader, ParticipantCard, RealtimeConsentModal, SessionMapView
-│   │   ├── organisms/    (vide)
-│   │   └── templates/    AppErrorBoundary
-│   ├── hooks/           useAuth, useBiometricLock, useCrashReporter, useCreateSessionFlow, useDebounce,
-│   │                    useGeocodeQuery, useMidpointCalculation, usePOIQuery, useProfilePhoto,
-│   │                    useRealtimeTracking, useSessionShare, useSharedSessionSync
-│   ├── navigation/      RootNavigator, BottomTabsNavigator, linking, types
-│   ├── stores/          useAuthStore, usePreferencesStore, useSessionStore, useRealtimeStore, useSharedSessionStore
-│   └── utils/           poiIcons
-├── di/                  container.ts, queryClient.ts
-├── i18n/                index.ts, locales/{fr,en}/{biometric,common,create,map,navigation,poi,profile,realtime,sessions,share}.json
-├── types/               react-native-config.d.ts, react-native-maps.d.ts
-└── __tests__/           unit/ · integration/ · e2e/ (Maestro) · helpers/
+├── features/                       feature-first : écrans + hooks propres à la feature (tests co-localisés)
+│   ├── Session/    (F1+F2)  screens/{CreateSessionScreen,MapScreen,SessionsScreen}/ · hooks/{useCreateSessionFlow,useMidpointCalculation,useGeocodeQuery}
+│   ├── POI/        (F3)     screens/POIScreen/ · hooks/{usePOIQuery} · utils/poiIcons
+│   ├── Sharing/    (F4+F5)  screens/JoinSessionScreen/ · hooks/{useSessionShare,useSharedSessionSync,useRealtimeTracking}
+│   ├── Profile/    (F7)     screens/ProfileScreen/ · hooks/{useAuth,useProfilePhoto}
+│   └── Biometric/  (F8)     hooks/{useBiometricLock}
+├── components/                     KIT UI GLOBAL — Atomic Design (DS-004), chaque <Nom>/<Nom>.tsx + <Nom>.test.tsx
+│   ├── atoms/       Text, Screen, TabBarIcon, CategoryChip, Avatar
+│   ├── molecules/   AddressAutocomplete, AvatarPicker, BiometricLockScreen, EmptyState,
+│   │                LiveParticipantsList, POICard, POIDetailSheet, POIListView, POIMapView,
+│   │                POIScreenHeader, ParticipantCard, RealtimeConsentModal, SessionMapView
+│   ├── organisms/   (vide)
+│   └── templates/   AppErrorBoundary
+├── services/
+│   ├── domain/                     usecases + ports (I*) par domaine
+│   │   ├── midpoint/     CalculateMidpointUseCase
+│   │   ├── geocode/      SearchAddressUseCase, IGeocodeService
+│   │   ├── geolocation/  GetCurrentLocationUseCase, IGeolocationService
+│   │   ├── poi/          SearchPOIUseCase, IPOIService
+│   │   ├── sharing/      ShareSessionUseCase, JoinSessionUseCase, ISessionShareService
+│   │   ├── realtime/     TrackParticipantsUseCase, IRealtimeService
+│   │   ├── user/         CreateGuestUserUseCase, UpdateProfileUseCase, IProfilePhotoService
+│   │   ├── biometric/    IBiometricService
+│   │   ├── storage/      IStorageService
+│   │   └── crash/        ICrashReporter
+│   ├── infra/                      adapters concrets (+ <adapter>.test.ts co-localisé)
+│   │   ├── geocode/      NominatimGeocodeService
+│   │   ├── poi/          OverpassPOIService
+│   │   ├── realtime/     FirebaseRealtimeService (F4), FirebaseSessionShareService (F5)
+│   │   ├── geolocation/  RNGeolocationService
+│   │   ├── storage/      MMKVStorageService, getEncryptionKey, zustand-mmkv-adapter
+│   │   ├── security/     KeychainBiometricService (F8)
+│   │   ├── crash/        SentryCrashReporter, sanitizers
+│   │   ├── media/        ImagePickerProfilePhotoService (F7 p2)
+│   │   ├── analytics/    (vide — placeholder PostHog)
+│   │   └── eta/          (vide — placeholder OSRM V1)
+│   ├── utils/            geo/{centroid,distance,radius} · format/{distance}
+│   ├── serviceContainer.ts         SEUL fichier connaissant les implémentations
+│   └── queryClient.ts
+├── state/           useAuthStore, usePreferencesStore, useSessionStore, useRealtimeStore, useSharedSessionStore
+├── entities/        Avatar, GeocodeResult, Location, MidpointSession, POICategory, PointOfInterest, RealtimeParticipant, SharedSession, User (+ index)
+├── theme/           tokens.ts, index.ts, useTheme
+├── hooks/           useDebounce, useCrashReporter (transverses)
+├── navigations/     RootNavigator, BottomTabsNavigator, linking, types
+├── i18n/            index.ts, locales/{fr,en}/{biometric,common,create,map,navigation,poi,profile,realtime,sessions,share}.json
+├── types/           react-native-config.d.ts, react-native-maps.d.ts
+├── test-utils/      coordinates, queryClientWrapper (helpers — hors coverage)
+└── App.tsx          (+ App.test.tsx)      ·   E2E Maestro : e2e/ à la racine du repo
 ```
 
 ---
 
-## Entités Core (`src/core/entities/`)
+## Entités (`src/entities/`)
 
 | Entité                | Rôle                                                                                                                                                                                                                                            |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -94,7 +108,7 @@ src/
 Toutes les entités sont définies/validées via **Zod** (`z.infer<>` exporté). `index.ts` = barrel d'export.
 `Avatar` n'est PAS une entité persistée comme telle : c'est un **référentiel statique** (20 avatars en dur) + l'enum d'ids (`AvatarId`) référencé par `User.avatarId` et `Participant.avatarId`.
 
-## Ports (`src/core/ports/`) → Adapters (`src/infrastructure/`)
+## Ports (`services/domain/*`) → Adapters (`services/infra/*`)
 
 | Port                   | Adapter concret                  | Rôle                                                                                                         |
 | ---------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------ |
@@ -112,7 +126,7 @@ Toutes les entités sont définies/validées via **Zod** (`z.infer<>` exporté).
 
 **Ports planifiés (non encore créés)** : `IAnalyticsService` (PostHog), `IETAService` (V1/OSRM). Dossiers infra correspondants (`analytics/`, `eta/`) présents et vides. `IRealtimeService` était « planifié » jusqu'à F4 — désormais **réalisé** (`FirebaseRealtimeService`), `infrastructure/realtime/` n'est plus vide.
 
-## Use Cases (`src/core/usecases/`)
+## Use Cases (`services/domain/*`)
 
 | Use Case                    | Rôle                                                                                                                                                                        |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -129,7 +143,7 @@ Toutes les entités sont définies/validées via **Zod** (`z.infer<>` exporté).
 Chaque use case reçoit ses ports par **injection de constructeur** (instancié dans le container).
 Exception : `UpdateProfileUseCase` est une transformation **pure** (`User + patch → User`, validée Zod) sans I/O ni port ; il est tout de même câblé dans le container pour rester homogène et faciliter un futur port (ex : sync serveur).
 
-## Utils Core (`src/core/utils/`)
+## Utils (`services/utils/`)
 
 - `geo/centroid` — centroïde (point moyen) d'un ensemble de coordonnées
 - `geo/distance` — distance entre 2 points GPS (formule de Haversine)
@@ -138,7 +152,7 @@ Exception : `UpdateProfileUseCase` est une transformation **pure** (`User + patc
 
 ---
 
-## Stores Zustand (`src/presentation/stores/`)
+## Stores Zustand (`src/state/`)
 
 | Store                   | Persisté ?     | Rôle                                                                                                                                                                                                                                                                                                                        |
 | ----------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -151,7 +165,7 @@ Exception : `UpdateProfileUseCase` est une transformation **pure** (`User + patc
 \*`useRealtimeStore` (F4) est **non persisté** (RGPD — positions éphémères, purgées au `stopTracking`).
 Persistance via `zustand-mmkv-adapter` (infrastructure) câblé dans le container.
 
-## Hooks custom (`src/presentation/hooks/`)
+## Hooks custom (`src/features/*/hooks/` + `src/hooks/`)
 
 | Hook                     | Type            | Rôle                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ------------------------ | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -168,7 +182,7 @@ Persistance via `zustand-mmkv-adapter` (infrastructure) câblé dans le containe
 | `useBiometricLock`       | orchestration   | Verrou biométrique (F8) : détecte `supportedType` (port DI), gère `isLocked` au lancement + re-lock dès `inactive`/`background` (masque l'app-switcher) ET au retour `→ active` (AppState) ; expose `unlock(reason)`, `enableLock(reason)`/`disableLock()` (auth de confirmation à l'activation) et l'échappatoire `disableLockAndContinue` + `showDisableEscape` après 3 échecs. **Anti-lockout** : auto-désactivation si la biométrie n'est plus enrôlée/dispo au montage. Sélecteurs Zustand stables. N'importe jamais keychain |
 | `useSharedSessionSync`   | orchestration   | Synchro LIVE (F5) : tant que `useSharedSessionStore.isShared`, s'abonne via `ISessionShareService.subscribeToSharedSession` (DI), branche `syncFromRemote` + `loadSharedSession` sur chaque update (roster + midpoint live), purge si le nœud disparaît, **désabonne au démontage/changement de sessionId**. Sélecteurs Zustand stables. Appelé depuis `MapScreen`. Jamais firebase                                                                                                                                                |
 
-## Atomic Design (`src/presentation/components/`)
+## Atomic Design (`src/components/`)
 
 - **Atoms** : `Text`, `Screen`, `TabBarIcon`, `CategoryChip`, `Avatar`
   - `Avatar` (F7) : ordre de rendu **photo (`photoUri`, `<Image>`) > emoji (`avatarId`) > initiale (`fallbackName`)**. Source unique de la logique d'initiale (réutilisée par `ParticipantCard`). Photo ajoutée en passe 2.
@@ -182,7 +196,7 @@ Persistance via `zustand-mmkv-adapter` (infrastructure) câblé dans le containe
 - **Organisms** : aucun pour l'instant
 - **Templates** : `AppErrorBoundary` (ErrorBoundary global — ERR-002)
 
-## Écrans (`src/presentation/screens/`)
+## Écrans (`src/features/*/screens/`)
 
 | Écran                 | État                                                                                                                                                                      |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -200,7 +214,7 @@ Verrou biométrique (F8) : `App.tsx` définit le composant `BiometricLockGate` (
 
 ---
 
-## Injection de dépendances (`src/di/container.ts`)
+## Injection de dépendances (`src/services/serviceContainer.ts`)
 
 - **Seul fichier** connaissant les implémentations concrètes (swap provider = 1 ligne).
 - Pattern : singleton `containerInstance`, `initContainer(encryptionKey)` au démarrage, `getContainer()` ailleurs.
@@ -224,9 +238,15 @@ Verrou biométrique (F8) : `App.tsx` définit le composant `BiometricLockGate` (
 | Alias               | Cible                                     |
 | ------------------- | ----------------------------------------- |
 | `@/*`               | `src/*`                                   |
-| `@core/*`           | `src/core/*`                              |
-| `@infrastructure/*` | `src/infrastructure/*`                    |
-| `@presentation/*`   | `src/presentation/*`                      |
+| `@features/*`       | `src/features/*`                          |
+| `@services/*`       | `src/services/*`                          |
+| `@components/*`     | `src/components/*`                        |
+| `@state/*`          | `src/state/*`                             |
+| `@entities/*`       | `src/entities/*`                          |
+| `@theme/*`          | `src/theme/*`                             |
+| `@hooks/*`          | `src/hooks/*`                             |
+| `@navigations/*`    | `src/navigations/*`                       |
+| `@test-utils/*`     | `src/test-utils/*` (helpers de test)      |
 | `react-native-maps` | `src/types/react-native-maps.d.ts` (shim) |
 
 Options strict notables : `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitReturns`, `noUnusedLocals/Parameters`, `forceConsistentCasingInFileNames`. `skipLibCheck` activé (libs RN incompatibles avec `exactOptionalPropertyTypes`).

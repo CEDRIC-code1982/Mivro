@@ -1,7 +1,25 @@
 # PROGRESS.md — Mivro
 
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-06-29 (F8 Biométrie — livrée + testée **1133** + reviewée APPROVED après 1 tour de corrections, non commitée).
+> Dernière mise à jour : 2026-07-13 (Refactor archi feature-first + `services/` + tests co-localisés).
+
+## Refactor archi — layer-first → feature-first + `services/` + tests co-localisés (2026-07-13)
+
+**Objectif** : aligner l'organisation des dossiers sur `p0153_lineguard_studio_mobile` (feature-first + couche `services/{domain,infra,utils}` + `serviceContainer`, state Zustand centralisé), **en ajoutant** des **tests co-localisés** (chaque `*.test` à côté de son sujet). **Périmètre = dossiers uniquement** : stack inchangée (Zustand/Zod/TanStack), adapters classes conservés, **Atomic Design gardé** (DS-004). Zéro changement de comportement.
+
+**Fait** (refactor purement structurel, `git mv` → historique préservé, `npm run check` vert, **1133 tests** intacts) :
+
+- `core/{entities,theme,utils}` → `src/entities/`, `src/theme/`, `src/services/utils/`.
+- `core/{usecases,ports}` → `src/services/domain/<domaine>/` (par domaine : midpoint, geocode, geolocation, poi, sharing, realtime, user, biometric, storage, crash).
+- `infrastructure/` → `src/services/infra/` ; `di/container.ts` → `src/services/serviceContainer.ts` ; `di/queryClient.ts` → `src/services/queryClient.ts`.
+- `presentation/stores` → `src/state/` ; `presentation/navigation` → `src/navigations/` ; `presentation/App.tsx` → `src/App.tsx`.
+- `presentation/screens` + hooks de feature → `src/features/{Session,POI,Sharing,Profile,Biometric}/{screens/<Nom>/,hooks/}` ; hooks transverses (`useDebounce`, `useCrashReporter`) → `src/hooks/` ; `poiIcons` → `features/POI/utils/`.
+- `presentation/components` → `src/components/` (arbo Atomic Design inchangée).
+- **Tests** : tous déplacés de `src/__tests__/**` à côté de leur sujet ; intégration en `*.integration.test.tsx` ; helpers → `src/test-utils/` ; E2E Maestro → `e2e/` (racine).
+- **Config** : alias `@core/@infrastructure/@presentation` remplacés par `@features @services @components @state @entities @theme @hooks @navigations @test-utils` (tsconfig + babel + jest) ; seuils de coverage jest remappés sur les nouvelles couches.
+- **Docs** : CLAUDE.md v8.9, ARCHITECTURE.md réécrit (overview + arbre + règle de dépendance + alias).
+
+**Reporté (non bloquant)** : barrels `features/<F>/index.ts` (imports en chemin direct pour l'instant).
 
 ## F8 — Verrou biométrique (Face ID / Touch ID / empreinte) — livrée + testée + reviewée APPROVED (2026-06-29, non commitée)
 

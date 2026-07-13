@@ -6,6 +6,8 @@
 
 # Ne pas modifier sans créer un ADR correspondant.
 
+# Version 8.9 — 2026-07-13 (Refactor archi : passage **layer-first → feature-first + couche `services/`** (aligné sur lineguard), **state Zustand centralisé** dans `src/state/`, DI renommé `src/services/serviceContainer.ts`, et **tests co-localisés** (chaque `*.test` à côté de son sujet, intégration en `*.integration.test`). Stack inchangée (Zustand/Zod/TanStack), Atomic Design conservé (DS-004). 1133 tests verts, aucun changement de comportement. Alias : `@features @services @components @state @entities @theme @hooks @navigations @test-utils`.)
+
 # Version 8.8 — 2026-06-29 (F8 Biométrie — verrou Face ID / Touch ID / empreinte, opt-in pour tout utilisateur guest inclus ; port `IBiometricService` + `KeychainBiometricService` + hook `useBiometricLock` + molecule `BiometricLockScreen` + gate dans `App.tsx` ; code livré + testé 1133 + reviewé APPROVED après 1 tour ; non commité. Il ne reste que des features à blocker externe (F6 comptes dev, PostHog VPS, Beta signing) + l'ADR rattrapage sans blocker)
 
 ## PROJET
@@ -138,33 +140,45 @@ npm run docs:build
 
 ## ARCHITECTURE
 
-Règle de dépendance (violation = refactoring immédiat) :
+Organisation : **feature-first + couche `services/`** (alignée sur lineguard). Règle de dépendance (violation = refactoring immédiat) :
 
 ```
-presentation → core ← infrastructure
+features + components + state → services ← (rien)
+services/infra implémente les ports de services/domain
 ```
 
-- `core` : JAMAIS d'import depuis `presentation` ou `infrastructure`
-- `presentation` : JAMAIS d'import depuis `infrastructure`
+- `services/domain` (usecases + ports) : JAMAIS d'import depuis `features`, `components`, `state` ni `services/infra`.
+- `features` / `components` / `state` : JAMAIS d'import d'un adapter concret `services/infra` — uniquement via `serviceContainer`.
+- `entities` et `theme` sont transverses (importables partout).
 
 Changer de provider API :
-→ Modifier UNE ligne dans `src/di/container.ts` uniquement
+→ Modifier UNE ligne dans `src/services/serviceContainer.ts` uniquement
 
 ```
 src/
-├── core/
-│   ├── entities/         # Location | User | PointOfInterest | MidpointSession | RealtimeParticipant
-│   ├── usecases/         # CalculateMidpoint | SearchPOI | ShareSession | TrackParticipants | ComputeETA
-│   ├── ports/            # IGeocodeService | IPOIService | IStorageService | IRealtimeService | IETAService | ICrashReporter | IAnalyticsService
-│   └── theme/            # tokens.ts | light.ts | dark.ts | index.ts
-├── infrastructure/       # Nominatim | Overpass | MMKV | AsyncStorage | FirebaseRealtime | OSRM | Sentry | PostHog
-├── presentation/         # screens | components/{atoms,molecules,organisms,templates} | hooks | navigation | stores
+├── features/             # feature-first : écrans + hooks propres à la feature
+│   ├── Session/  POI/  Sharing/  Profile/  Biometric/
+│   │   └── screens/<Nom>/<Nom>.tsx (+ <Nom>.test.tsx co-localisé) · hooks/ · utils/
+├── components/           # KIT UI GLOBAL — Atomic Design (DS-004)
+│   └── atoms/ molecules/ organisms/ templates/   (<Nom>/<Nom>.tsx + <Nom>.test.tsx)
+├── services/             # logique métier + infra
+│   ├── domain/           # usecases + ports (I*) par domaine : midpoint|geocode|geolocation|poi|sharing|realtime|user|biometric|storage|crash
+│   ├── infra/            # adapters : geocode(Nominatim)|poi(Overpass)|realtime(Firebase)|geolocation|storage(MMKV)|security(Keychain)|crash(Sentry)|media
+│   ├── utils/            # geo/ format/ (helpers purs)
+│   ├── serviceContainer.ts   # SEUL fichier connaissant les implémentations
+│   └── queryClient.ts
+├── state/                # stores Zustand (centralisés)
+├── entities/             # modèles de domaine Zod (transverse)
+├── theme/                # tokens + useTheme (transverse)
+├── hooks/                # hooks transverses (useDebounce, useCrashReporter)
+├── navigations/          # RootNavigator | BottomTabsNavigator | linking | types
 ├── i18n/                 # index.ts | locales/fr | locales/en
-├── di/container.ts       # SEUL fichier connaissant les implémentations
-├── __tests__/            # unit | integration | e2e
+├── test-utils/           # helpers de test (coordinates, queryClientWrapper) — hors coverage
+├── App.tsx
 └── docs-site/            # Docusaurus + TypeDoc
 ```
 
+> **Tests co-localisés** : chaque `*.test.ts(x)` vit à côté de son sujet (les tests d'intégration en `*.integration.test.tsx`). Plus de dossier `__tests__/` centralisé ; l'E2E Maestro est à la racine `e2e/`.
 > Détail à jour de l'arborescence réelle, des entités/ports/usecases/stores/hooks/composants existants : voir `docs/context/ARCHITECTURE.md`.
 
 ---
@@ -309,12 +323,12 @@ sessions/{sessionId}/participants/{participantId}/
 
 ### Seuils bloquants en CI
 
-| Couche                | Seuil |
-| --------------------- | ----- |
-| `src/core/`           | 90%   |
-| `src/infrastructure/` | 70%   |
-| `src/presentation/`   | 50%   |
-| Global                | 70%   |
+| Couche                                                                         | Seuil |
+| ------------------------------------------------------------------------------ | ----- |
+| `src/entities/` `src/services/domain/` `src/services/utils/` `src/theme/`      | 90%   |
+| `src/services/infra/`                                                          | 70%   |
+| `src/features/` `src/components/` `src/state/` `src/hooks/` `src/navigations/` | 50%   |
+| Global                                                                         | 70%   |
 
 ### Règles
 
