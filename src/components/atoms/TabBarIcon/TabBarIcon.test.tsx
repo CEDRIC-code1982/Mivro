@@ -45,8 +45,8 @@ describe('TabBarIcon atom', () => {
     render(<TabBarIcon icon={MapPin} focused={true} accessibilityLabel="Carte active" />);
 
     const lucideIcon = screen.getByTestId('lucide-MapPin');
-    // brand.default = palette.brand[600] = '#E55A24' (light theme)
-    expect(lucideIcon.props.color).toBe('#E55A24');
+    // brand.default = palette.brand[600] = '#4F46E5' (light theme, indigo)
+    expect(lucideIcon.props.color).toBe('#4F46E5');
   });
 
   // ─── Unfocused state — tertiary color ─────────────────────

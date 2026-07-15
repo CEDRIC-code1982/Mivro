@@ -23,27 +23,28 @@
 // ═══════════════════════════════════════════════════════════════
 
 export const palette = {
-  // Brand orange (primary) — accessible : #E55A24 (plus foncé) pour texte sur blanc
+  // Brand indigo (primary) — charte Mivro. Échelle Tailwind indigo.
+  // 600=#4F46E5 (clair), 500=#6366F1 (sombre), 300=#A5B4FC (texte/icône sur fond sombre).
   brand: {
-    50: '#FFF4EE',
-    100: '#FFE4D4',
-    200: '#FFC4A0',
-    300: '#FF9D6B',
-    400: '#FF7A40',
-    500: '#FF6B35', // Couleur de marque originale — usage UI/graphique uniquement
-    600: '#E55A24', // ✅ Texte sur blanc (4.7:1)
-    700: '#C24517',
-    800: '#993610',
-    900: '#73280C',
+    50: '#EEF2FF',
+    100: '#E0E7FF',
+    200: '#C7D2FE',
+    300: '#A5B4FC', // Brand texte/icône sur fond sombre
+    400: '#818CF8', // Fin de dégradé CTA (sombre)
+    500: '#6366F1', // Brand sombre (boutons, avatars, actif)
+    600: '#4F46E5', // Brand clair (boutons, actif) + texte brand sur blanc (6.4:1 ✅)
+    700: '#4338CA',
+    800: '#3730A3',
+    900: '#312E81',
   },
 
-  // Accent teal (secondary)
+  // Accent teal (secondary) — participants ✓ : #2EC4B6 (clair), #2DD4BF (sombre)
   accent: {
     50: '#E6FAF7',
     100: '#B3F0E5',
     200: '#80E5D4',
-    300: '#4DDBC2',
-    400: '#2EC4B6', // Couleur de marque originale
+    300: '#2DD4BF', // Teal participants (fond sombre)
+    400: '#2EC4B6', // Teal participants (fond clair)
     500: '#26A89C',
     600: '#1F8B82',
     700: '#176D66',
@@ -70,9 +71,9 @@ export const palette = {
   // Sémantiques — états
   success: {
     50: '#E8F8EE',
-    500: '#2DC653',
-    600: '#1FA642', // ✅ Texte sur blanc (4.5:1)
-    700: '#157A30',
+    500: '#22C55E',
+    600: '#16A34A', // Succès (charte) — texte sur blanc (4.5:1 ✅)
+    700: '#15803D',
   },
   warning: {
     50: '#FFF8E6',

@@ -38,18 +38,18 @@ import {
 const lightSemantic = {
   // Surfaces
   surface: {
-    primary: palette.neutral[0], // Fond principal app
-    secondary: palette.neutral[50], // Fond sections, cards
-    tertiary: palette.neutral[100], // Fond éléments imbriqués
+    primary: palette.neutral[0], // #FFFFFF — fond principal (bg)
+    secondary: palette.neutral[0], // #FFFFFF — cartes (charte : card blanc en clair)
+    tertiary: palette.neutral[100], // #F4F4F5 — chip / remplissage
     inverse: palette.neutral[900], // Fond inversé (toasts foncés)
     overlay: 'rgba(0, 0, 0, 0.5)', // Scrim modales
   },
 
   // Texte (toujours WCAG AA min sur les surfaces correspondantes)
   text: {
-    primary: palette.neutral[900], // Texte principal (16:1 sur surface.primary)
-    secondary: palette.neutral[600], // Texte secondaire (7:1)
-    tertiary: palette.neutral[500], // Texte désactivé / hints (4.5:1)
+    primary: '#1A1A2E', // Encre Mivro (indigo-tinted) — charte
+    secondary: palette.neutral[600], // #52525B — texte secondaire (7:1)
+    tertiary: palette.neutral[500], // #71717A — hints/placeholder conservé A11Y-001 (charte #A1A1AA = 2.3:1, non conforme)
     inverse: palette.neutral[0], // Texte sur fond foncé
     brand: palette.brand[600], // Liens / accents (4.7:1 ✅)
     error: palette.error[600], // (5.1:1 ✅)
@@ -76,9 +76,9 @@ const lightSemantic = {
       disabled: palette.neutral[300],
     },
     accent: {
-      default: palette.accent[500],
-      hover: palette.accent[600],
-      pressed: palette.accent[700],
+      default: palette.accent[400], // #2EC4B6 — teal participants (clair)
+      hover: palette.accent[500],
+      pressed: palette.accent[600],
       disabled: palette.neutral[300],
     },
     neutral: {
@@ -110,19 +110,19 @@ const lightSemantic = {
 
 const darkSemantic = {
   surface: {
-    primary: palette.neutral[900],
-    secondary: palette.neutral[800],
-    tertiary: palette.neutral[700],
+    primary: '#15151F', // bg (charte)
+    secondary: '#1E1E2D', // card (charte)
+    tertiary: '#262635', // chip / remplissage (charte)
     inverse: palette.neutral[0],
     overlay: 'rgba(0, 0, 0, 0.7)',
   },
 
   text: {
-    primary: palette.neutral[50], // (16:1 sur dark)
-    secondary: palette.neutral[300],
-    tertiary: palette.neutral[400],
-    inverse: palette.neutral[900],
-    brand: palette.brand[400], // En dark, on remonte la luminance
+    primary: palette.neutral[100], // #F4F4F5 (charte)
+    secondary: '#A1A1AB', // charte — texte secondaire sombre
+    tertiary: palette.neutral[400], // #A1A1AA — hints conservé A11Y-001 (charte muted #6B6B78 = 3.5:1)
+    inverse: '#1A1A2E', // Encre Mivro sur surfaces claires
+    brand: palette.brand[300], // #A5B4FC (charte brand texte/icône sombre)
     error: palette.error[500],
     success: palette.success[500],
     warning: palette.warning[500],
@@ -130,10 +130,10 @@ const darkSemantic = {
   },
 
   border: {
-    subtle: palette.neutral[800],
-    default: palette.neutral[700],
+    subtle: '#2E2E3D', // charte — bordure sombre
+    default: '#3A3A4D',
     strong: palette.neutral[600],
-    focus: palette.brand[400],
+    focus: palette.brand[400], // #818CF8
     error: palette.error[500],
   },
 
@@ -145,9 +145,9 @@ const darkSemantic = {
       disabled: palette.neutral[700],
     },
     accent: {
-      default: palette.accent[400],
-      hover: palette.accent[300],
-      pressed: palette.accent[200],
+      default: palette.accent[300], // #2DD4BF — teal participants (sombre)
+      hover: palette.accent[200],
+      pressed: palette.accent[100],
       disabled: palette.neutral[700],
     },
     neutral: {
