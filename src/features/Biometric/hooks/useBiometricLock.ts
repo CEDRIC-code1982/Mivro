@@ -347,31 +347,34 @@ export const useBiometricLock = (): UseBiometricLockResult => {
     );
   }, [setBiometricEnabled]);
 
-  // Re-verrouillage AVANT le snapshot OS (inactive/background) ET au retour
-  // (→ active). Couvrir inactive/background masque le contenu dans la vignette
-  // du multitâche et évite le flash au retour ; → active garde l'exigence d'auth.
-  // Re-lock BEFORE the OS snapshot (inactive/background) AND on return (→ active).
-  // Covering inactive/background masks content in the app-switcher thumbnail and
-  // avoids the flash on return; → active keeps the auth requirement.
+  // Re-verrouillage quand on QUITTE le premier plan (inactive/background) : masque
+  // la vignette du multitâche et exige une nouvelle auth au retour.
+  //
+  // ⚠️ On NE re-verrouille PAS au retour (→ active), et on IGNORE toute transition
+  // survenant pendant NOTRE propre prompt natif (`isAuthenticatingRef`). Sans ces
+  // deux garde-fous, le prompt Face ID/Touch ID/BiometricPrompt — qui fait passer
+  // l'app en inactive/background (iOS) ou met l'activité en pause (Android) —
+  // provoquait un re-verrouillage JUSTE APRÈS un déverrouillage réussi : l'overlay
+  // se démontait puis se remontait → auto-prompt → BOUCLE INFINIE (iOS) / blocage
+  // au démarrage (Android).
+  //
+  // Re-lock when LEAVING the foreground (inactive/background): masks the app-switcher
+  // thumbnail and requires re-auth on return. We do NOT re-lock on return (→ active),
+  // and we IGNORE any transition happening during OUR OWN native prompt
+  // (`isAuthenticatingRef`) — otherwise the biometric prompt (which sends the app
+  // inactive/background on iOS, or pauses the activity on Android) re-locked right
+  // after a successful unlock → the overlay unmounted then remounted → auto-prompt →
+  // INFINITE LOOP (iOS) / stuck at startup (Android).
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
-      const previous = appStateRef.current;
       appStateRef.current = nextState;
       if (!biometricEnabled) return;
+      // Garde anti-boucle : ne pas réagir aux transitions dues à notre prompt.
+      // Anti-loop guard: ignore transitions caused by our own prompt.
+      if (isAuthenticatingRef.current) return;
 
-      // Masquer dès qu'on quitte le premier plan (avant le snapshot OS).
-      // Mask as soon as we leave the foreground (before the OS snapshot).
       if (nextState === 'inactive' || nextState === 'background') {
-        setIsLocked(true);
-        return;
-      }
-
-      // Retour au premier plan depuis l'arrière-plan : on garde le verrou et on
-      // remet à zéro l'erreur pour une nouvelle tentative propre.
-      // Returning to foreground from background: keep the lock and clear the
-      // error for a fresh attempt.
-      if (nextState === 'active' && (previous === 'background' || previous === 'inactive')) {
         setIsLocked(true);
         setUnlockError(null);
         setConsecutiveFailures(0);

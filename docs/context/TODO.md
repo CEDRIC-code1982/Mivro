@@ -129,7 +129,7 @@ _Estimation : S. Dépendances : `react-native-keychain` (déjà installé)._
 - [x] **Tests** : ~140 cas F8 (port, adapter mock keychain, hook, molecule, store, intégration ProfileScreen) — **1133 tests** au total, `npm run check` vert, seuils respectés
 - [x] Review APPROVED (1 tour) : 1 bloquant (anti-lockout double filet) + 1 majeur (masquage app-switcher) + 2 mineurs (a11y du gate, prompt différé)
 - [ ] **À tester sur device** (Cédric) : Face ID / Touch ID / empreinte réels (simulateur iOS : Features → Face ID → Enrolled/Matching), fallback passcode device, échappatoire anti-lockout, masquage app-switcher
-- [ ] **(edge iOS, P3)** Le re-lock `→ active` se déclenche aussi sur `previous==='inactive'` : au tout 1er lancement, l'alerte système de permission Face ID peut provoquer un **re-lock parasite** une fois après le 1er unlock (auto-récupérable). À vérifier sur device QA ; si confirmé, restreindre la branche `→ active` à `previous==='background'`.
+- [x] **(edge iOS/Android) — CORRIGÉ (2026-07-14)** : le re-lock `→ active` provoquait une **boucle infinie de prompt Face ID** (iOS) et un **blocage au déverrouillage au démarrage** (Android), car le prompt biométrique fait passer l'app `inactive`/`background` puis `active` → re-lock juste après le succès → l'overlay se remonte → auto-prompt → boucle. **Fix** : garde `isAuthenticatingRef` (ignore les transitions AppState pendant notre propre prompt) + **suppression de la branche `→ active`** (redondante : on est déjà verrouillé au retour via inactive/background). 2 tests de régression ajoutés. Reste la vérif device.
 
 ---
 

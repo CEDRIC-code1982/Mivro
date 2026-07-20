@@ -8,7 +8,7 @@
  *              au succès / (re)verrouillage, cancelled n'incrémente PAS),
  *              showDisableEscape (codes inutilisables OU >= 3 échecs),
  *              disableLockAndContinue (best-effort, jamais bloquant),
- *              re-lock sur inactive/background ET → active (mock AppState),
+ *              re-lock sur inactive/background (PAS → active — garde anti-boucle),
  *              auto-désactivation au montage (enabled + supportedType null),
  *              enableLock avec rollback, disableLock, garde anti-concurrence,
  *              détection du type supporté, sélecteurs stables.
@@ -267,6 +267,49 @@ describe('useBiometricLock', () => {
         __emitAppState('active');
       });
 
+      expect(result.current.isLocked).toBe(false);
+    });
+  });
+
+  // ─── Régression : pas de boucle de re-verrouillage due au prompt ─
+  describe('no re-lock loop from its own native prompt (regression F8)', () => {
+    it('stays unlocked after unlock despite the prompt-induced inactive→active cycle', async () => {
+      mockBiometricEnabled = true;
+      // Le prompt Face ID/Touch ID fait passer l'app en 'inactive' PENDANT l'auth
+      // (iOS) puis réussit. Cette transition doit être ignorée (isAuthenticatingRef).
+      mockAuthenticate.mockImplementationOnce(async () => {
+        __emitAppState('inactive');
+        return true;
+      });
+      const { result } = renderHook(() => useBiometricLock());
+
+      await act(async () => {
+        await result.current.unlock('Unlock');
+      });
+
+      // Fermeture du prompt → retour 'active'.
+      act(() => {
+        __emitAppState('active');
+      });
+
+      // Avant le fix : 'active' (prev 'inactive') re-verrouillait juste après le
+      // succès → l'overlay se remontait → auto-prompt → boucle infinie.
+      // Après : transition pendant l'auth ignorée + aucun re-lock sur → active.
+      expect(result.current.isLocked).toBe(false);
+    });
+
+    it('does not re-lock merely on returning to active (no → active re-lock)', async () => {
+      mockBiometricEnabled = true;
+      const { result } = renderHook(() => useBiometricLock());
+
+      await act(async () => {
+        await result.current.unlock('Unlock');
+      });
+      expect(result.current.isLocked).toBe(false);
+
+      act(() => {
+        __emitAppState('active');
+      });
       expect(result.current.isLocked).toBe(false);
     });
   });
