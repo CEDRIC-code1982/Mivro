@@ -7,13 +7,15 @@
  *              - `getSupportedType` mappe `getSupportedBiometryType()` natif.
  *              - `isEnrolled` = un type supporté est retourné par le natif.
  *              - `enableLock` pose un secret « sentinelle » protégé par
- *                `accessControl: BIOMETRY_ANY_OR_DEVICE_PASSCODE` + `accessible:
- *                WHEN_UNLOCKED_THIS_DEVICE_ONLY`. Le passcode de l'appareil sert
- *                de secours natif si la biométrie devient inutilisable (enrôlement
- *                retiré, lockout « too many attempts ») → évite l'enfermement.
- *                The device passcode acts as a native fallback if biometrics
- *                become unusable (enrollment removed, "too many attempts" lockout)
- *                → prevents lockout.
+ *                `accessControl: BIOMETRY_ANY` (biométrie seule) + `accessible:
+ *                WHEN_UNLOCKED_THIS_DEVICE_ONLY`. On n'utilise PAS le fallback
+ *                device-passcode natif (`BIOMETRY_ANY_OR_DEVICE_PASSCODE`) : sur
+ *                Android il empêchait la relecture de la clé Keystore entre deux
+ *                sessions (déverrouillage impossible au démarrage). L'anti-lockout
+ *                est assuré au niveau applicatif (échappatoire du hook).
+ *                We do NOT use the native device-passcode fallback: on Android it
+ *                broke cross-session Keystore key retrieval (unlock impossible at
+ *                startup). Anti-lockout is handled at the app level (hook escape).
  *              - `authenticate` relit ce secret (`getGenericPassword`), ce qui
  *                déclenche le prompt Face ID / Touch ID natif ; succès = valeur
  *                relue conforme.
@@ -116,10 +118,18 @@ export class KeychainBiometricService implements IBiometricService {
     try {
       const credentials = await getGenericPassword({
         service: SENTINEL_SERVICE,
-        // BIOMETRY_ANY_OR_DEVICE_PASSCODE : le code de l'appareil sert de
-        // secours natif si la biométrie est inutilisable (cf. fix lockout).
-        // Device passcode acts as a native fallback when biometrics are unusable.
-        accessControl: ACCESS_CONTROL.BIOMETRY_ANY_OR_DEVICE_PASSCODE,
+        // BIOMETRY_ANY (biométrie seule) : config cross-platform la plus fiable.
+        // Sur Android, la variante « + device passcode » (DEVICE_CREDENTIAL)
+        // empêchait la relecture de la clé Keystore ENTRE DEUX SESSIONS (activer
+        // marchait, mais déverrouiller au démarrage était impossible). L'anti-
+        // lockout est assuré au niveau applicatif (échappatoire hook), pas par le
+        // fallback passcode natif.
+        // BIOMETRY_ANY (biometrics only): the most reliable cross-platform config.
+        // On Android the "+ device passcode" (DEVICE_CREDENTIAL) variant broke
+        // cross-session Keystore key retrieval (enabling worked, but unlocking at
+        // startup was impossible). Anti-lockout is handled at the app level (hook
+        // escape hatch), not via the native passcode fallback.
+        accessControl: ACCESS_CONTROL.BIOMETRY_ANY,
         authenticationPrompt: { title: reason },
       });
 
@@ -152,9 +162,10 @@ export class KeychainBiometricService implements IBiometricService {
     try {
       const result = await setGenericPassword(SENTINEL_USERNAME, SENTINEL_VALUE, {
         service: SENTINEL_SERVICE,
-        // BIOMETRY_ANY_OR_DEVICE_PASSCODE : secours passcode device (anti-lockout).
-        // Device-passcode fallback (anti-lockout).
-        accessControl: ACCESS_CONTROL.BIOMETRY_ANY_OR_DEVICE_PASSCODE,
+        // BIOMETRY_ANY : cf. authenticate() — fiabilité cross-session Android.
+        // Anti-lockout au niveau applicatif (échappatoire), pas passcode natif.
+        // BIOMETRY_ANY: see authenticate() — Android cross-session reliability.
+        accessControl: ACCESS_CONTROL.BIOMETRY_ANY,
         accessible: ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
       });
       if (result === false) {
@@ -277,9 +288,12 @@ export class KeychainBiometricService implements IBiometricService {
       this.report(error, fn);
     }
 
+    // Le message natif (⚠️ PAS la sentinelle — LOG-001 OK) aide au diagnostic
+    // device (ex : Android « Key user not authenticated », « BiometricPrompt … »).
+    // The native message (⚠️ NOT the sentinel — LOG-001 OK) helps device diagnosis.
     console.warn(
       `[WARN][KeychainBiometricService][${fn}][?][${this.timestamp()}] ` +
-        `Biometric error | code: ${code}`,
+        `Biometric error | code: ${code} | native: ${message}`,
     );
 
     return new BiometricError(message, code, error);

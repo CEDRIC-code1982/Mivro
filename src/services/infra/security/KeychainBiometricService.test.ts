@@ -121,9 +121,9 @@ describe('KeychainBiometricService', () => {
       expect(mockGetGeneric).toHaveBeenCalledWith(
         expect.objectContaining({
           service: SENTINEL_SERVICE,
-          // Anti-lockout (fix review) : le passcode device sert de secours natif
-          // si la biométrie devient inutilisable → BIOMETRY_ANY_OR_DEVICE_PASSCODE.
-          accessControl: ACCESS_CONTROL.BIOMETRY_ANY_OR_DEVICE_PASSCODE,
+          // BIOMETRY_ANY (biométrie seule) : fiabilité cross-session Android
+          // (le fallback device-passcode cassait la relecture au démarrage).
+          accessControl: ACCESS_CONTROL.BIOMETRY_ANY,
           authenticationPrompt: { title: 'Unlock Mivro' },
         }),
       );
@@ -238,8 +238,8 @@ describe('KeychainBiometricService', () => {
         SENTINEL_VALUE,
         expect.objectContaining({
           service: SENTINEL_SERVICE,
-          // Anti-lockout (fix review) : secours passcode device.
-          accessControl: ACCESS_CONTROL.BIOMETRY_ANY_OR_DEVICE_PASSCODE,
+          // BIOMETRY_ANY : fiabilité cross-session Android (anti-lockout applicatif).
+          accessControl: ACCESS_CONTROL.BIOMETRY_ANY,
           accessible: ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
         }),
       );
