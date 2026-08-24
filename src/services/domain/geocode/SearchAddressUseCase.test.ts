@@ -3,7 +3,7 @@
  * @description Tests unitaires du use case SearchAddressUseCase.
  *              Unit tests for the SearchAddressUseCase use case.
  *
- * @module __tests__/unit/core/usecases/SearchAddressUseCase
+ * @module services/domain/geocode/SearchAddressUseCase.test
  */
 
 // [ADDED] Tests unitaires SearchAddressUseCase

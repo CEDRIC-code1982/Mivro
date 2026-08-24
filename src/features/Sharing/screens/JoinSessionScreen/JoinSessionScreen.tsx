@@ -11,7 +11,7 @@
  *
  *              États loading/error/success, a11y (A11Y-003), tokens theme (DS).
  *
- * @module presentation/screens/JoinSessionScreen
+ * @module features/Sharing/screens/JoinSessionScreen/JoinSessionScreen
  */
 
 // [ADDED] F5 — Écran de jointure de session partagée

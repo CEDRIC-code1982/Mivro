@@ -30,7 +30,7 @@
  *              Maps native errors → typed BiometricError (ERR-001). Distinguishes
  *              user cancellation (`cancelled`) from a failure (`failed`).
  *
- * @module infrastructure/security/KeychainBiometricService
+ * @module services/infra/security/KeychainBiometricService
  */
 
 // [ADDED] F8 — Adapter KeychainBiometricService

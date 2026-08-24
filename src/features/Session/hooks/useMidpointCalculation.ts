@@ -18,7 +18,7 @@
  *     if (result) navigation.navigate('Tabs', { screen: 'Map' });
  *   };
  *
- * @module presentation/hooks/useMidpointCalculation
+ * @module features/Session/hooks/useMidpointCalculation
  */
 
 // [ADDED] Hook useMidpointCalculation — calcul midpoint + persistance store

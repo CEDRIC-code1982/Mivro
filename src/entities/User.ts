@@ -10,7 +10,7 @@
  *              Les schémas Zod sont la source de vérité (runtime + types).
  *              Zod schemas are the source of truth (runtime + types).
  *
- * @module core/entities/User
+ * @module entities/User
  */
 
 // [ADDED] Entité User avec discriminated union Zod

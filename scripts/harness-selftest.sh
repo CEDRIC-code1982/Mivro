@@ -94,6 +94,24 @@ guard BLOCK "ls $ANDROID_CXX"
 guard ALLOW 'ls ios/'
 guard ALLOW 'ls android/app/src/main'
 
+# Contournements multi-lignes (JOURNAL J-018). shlex traite un retour à la ligne
+# comme un simple espace : une commande destructrice posée sur une ligne suivante
+# était lue comme un argument, donc jamais inspectée.
+# Multi-line bypasses: a newline is plain whitespace to shlex, so a destructive
+# command on a later line used to be read as a mere argument.
+RM_RF="rm"" -rf"
+RESET_HARD="git"" reset --hard"
+PUSH_FORCE="git"" push --force"
+NL='
+'
+guard BLOCK "python3 - <<'PY'${NL}print(\"l'encre\")${NL}PY${NL}${RM_RF} node_modules"
+guard BLOCK "cat > f.txt <<'EOF'${NL}c'est un test${NL}EOF${NL}${RESET_HARD} HEAD~1"
+guard BLOCK "echo ok${NL}${PUSH_FORCE} origin main"
+guard ALLOW "python3 -c \"print('ok')\""
+guard ALLOW "echo \"c'est bon\" && npm run check"
+guard ALLOW "cat > f.md <<'EOF'${NL}Une doc multi-lignes${NL}sans rien de destructeur${NL}EOF"
+guard ALLOW "npm run docs && npm run check"
+
 # ---------------------------------------------------------------------------
 section "2. check-diff - banned escape hatches in added code"
 
@@ -266,6 +284,32 @@ else
   bad "eslint --fix did not repair the import order"
 fi
 rm -f "$HOOK_PROBE"
+
+# ---------------------------------------------------------------------------
+section "5. docs - TypeDoc + Docusaurus (DOC-004)"
+
+if [ ! -d docs-site/node_modules ]; then
+  bad "docs-site dependencies missing - run: npm --prefix docs-site install"
+else
+  # A dangling reference must fail the build, otherwise DOC-004 is decorative.
+  # NB: the probe must NOT start with '_': Docusaurus silently excludes those,
+  # which made an earlier probe look like a passing sensor.
+  DOC_PROBE="docs-site/docs/adr/probe-harness.md"
+  probe_file "$DOC_PROBE" \
+    '---' \
+    'title: Sonde harness' \
+    '---' \
+    '' \
+    '# Sonde' \
+    '' \
+    'Lien mort : [ADR inexistant](./ADR-999-nexiste-pas.md)'
+  if npm run --silent docs >/dev/null 2>&1; then
+    bad "a broken documentation link does NOT fail the build"
+  else
+    ok "a broken documentation link fails the build"
+  fi
+  rm -f "$DOC_PROBE"
+fi
 
 # ---------------------------------------------------------------------------
 printf '\n\033[1m%d passed, %d failed\033[0m\n' "$PASS" "$FAIL"

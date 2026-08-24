@@ -14,7 +14,7 @@
  *              F7 pass 2: profile photo via IProfilePhotoService (DI port).
  *              The screen does NOT import image-picker nor FileSystem directly.
  *
- * @module presentation/screens/ProfileScreen
+ * @module features/Profile/screens/ProfileScreen/ProfileScreen
  */
 
 // [MODIFIED] F7 passe 2 — photo de profil + édition displayName + grille d'avatars
@@ -234,7 +234,8 @@ const ProfileScreen: React.FC = () => {
               </Text>
               {isGuest ? (
                 <View style={styles.badge}>
-                  <Text variant="caption" weight="medium" color="onBrand">
+                  {/* onAccent : badge sur remplissage teal */}
+                  <Text variant="caption" weight="medium" color="onAccent">
                     {t('guestBadge')}
                   </Text>
                 </View>

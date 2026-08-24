@@ -6,7 +6,7 @@
  *              Utile pour éviter de spammer une API pendant la frappe.
  *              Useful to avoid spamming an API during typing.
  *
- * @module presentation/hooks/useDebounce
+ * @module hooks/useDebounce
  */
 
 // [ADDED] Hook useDebounce

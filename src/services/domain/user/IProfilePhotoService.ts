@@ -15,7 +15,7 @@
  *              Implémentations : ImagePickerProfilePhotoService (infrastructure/).
  *              Implementations: ImagePickerProfilePhotoService (infrastructure/).
  *
- * @module core/ports/IProfilePhotoService
+ * @module services/domain/user/IProfilePhotoService
  */
 
 // [ADDED] F7 passe 2 — Port IProfilePhotoService + erreur typée

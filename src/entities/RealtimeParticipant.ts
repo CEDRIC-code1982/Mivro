@@ -14,7 +14,7 @@
  *              and removed at the end of the session. Exact coordinates must
  *              NEVER be logged (scrubbing).
  *
- * @module core/entities/RealtimeParticipant
+ * @module entities/RealtimeParticipant
  */
 
 // [ADDED] F4 — Entité RealtimeParticipant avec validation Zod (TS-004)

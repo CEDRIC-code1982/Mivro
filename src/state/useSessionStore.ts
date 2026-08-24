@@ -11,7 +11,7 @@
  *              GPS positions must not survive the app lifecycle.
  *              If the user force-quits, the session is lost.
  *
- * @module presentation/stores/useSessionStore
+ * @module state/useSessionStore
  */
 
 // [ADDED] Store Zustand — session courante (NON persisté, RGPD)

@@ -3,7 +3,7 @@
  * @description Tests unitaires des sanitizers RGPD.
  *              Unit tests for GDPR sanitizers.
  *
- * @module __tests__/unit/infrastructure/crash/sanitizers
+ * @module services/infra/crash/sanitizers.test
  */
 
 // [ADDED] Tests unitaires sanitizers RGPD

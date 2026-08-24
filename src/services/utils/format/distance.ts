@@ -3,7 +3,7 @@
  * @description Formatage humain de distances en mètres.
  *              Human-friendly distance formatting.
  *
- * @module core/utils/format/distance
+ * @module services/utils/format/distance
  */
 
 // [ADDED] Utilitaire de formatage de distance

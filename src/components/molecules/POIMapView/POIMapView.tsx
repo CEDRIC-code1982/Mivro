@@ -19,7 +19,7 @@
  * />
  * ```
  *
- * @module presentation/components/molecules/POIMapView
+ * @module components/molecules/POIMapView/POIMapView
  */
 
 // [ADDED] Molecule POIMapView — carte avec POI markers
@@ -146,7 +146,8 @@ const POIMapView: React.FC<POIMapViewProps> = ({
             testID={testID ? `${testID}-marker-${participant.id}` : undefined}
           >
             <View style={[styles.markerCircle, styles.participantMarker]}>
-              <Text variant="caption" weight="bold" color="onBrand">
+              {/* onAccent : le remplissage est teal, le blanc n'y passe pas AA */}
+              <Text variant="caption" weight="bold" color="onAccent">
                 {participant.displayName.charAt(0).toUpperCase()}
               </Text>
             </View>

@@ -3,7 +3,7 @@
  * @description Tests unitaires du port IPOIService.
  *              Unit tests for the IPOIService port.
  *
- * @module __tests__/unit/core/ports/IPOIService
+ * @module services/domain/poi/IPOIService.test
  */
 
 // [ADDED] Tests unitaires port IPOIService

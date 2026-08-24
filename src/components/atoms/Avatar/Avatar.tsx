@@ -20,7 +20,7 @@
  * />
  * ```
  *
- * @module presentation/components/atoms/Avatar
+ * @module components/atoms/Avatar/Avatar
  */
 
 // [MODIFIED] F7 passe 2 — Atome Avatar (photo > emoji > initiale)

@@ -3,7 +3,7 @@
  * @description Tests unitaires de l'atome Avatar (F7).
  *              Unit tests for the Avatar atom (F7).
  *
- * @module __tests__/unit/presentation/components/atoms/Avatar
+ * @module components/atoms/Avatar/Avatar.test
  */
 
 // [ADDED] F7 — Tests unitaires atome Avatar

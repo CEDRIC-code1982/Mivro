@@ -7,7 +7,7 @@
  *              ownerType, rejet < 2 participants, lien renvoyé (et filet de
  *              sécurité si l'adapter renvoie un lien vide).
  *
- * @module __tests__/unit/core/usecases/ShareSessionUseCase
+ * @module services/domain/sharing/ShareSessionUseCase.test
  */
 
 // [ADDED] F5 — Tests unitaires ShareSessionUseCase

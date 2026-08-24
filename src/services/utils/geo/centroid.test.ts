@@ -3,7 +3,7 @@
  * @description Tests unitaires pour le helper computeCentroid (centroïde cartésien).
  *              Unit tests for the computeCentroid helper (cartesian centroid).
  *
- * @module __tests__/unit/core/utils/geo/centroid
+ * @module services/utils/geo/centroid.test
  */
 
 // [ADDED] Tests unitaires computeCentroid

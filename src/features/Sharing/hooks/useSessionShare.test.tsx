@@ -8,7 +8,7 @@
  *              gardes (< 2 participants, pas d'user, pas de point de départ),
  *              errorCode exposé, isBusy.
  *
- * @module __tests__/unit/presentation/hooks/useSessionShare
+ * @module features/Sharing/hooks/useSessionShare.test
  */
 
 // [ADDED] F5 — Tests unitaires useSessionShare

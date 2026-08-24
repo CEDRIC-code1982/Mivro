@@ -3,7 +3,7 @@
  * @description Tests unitaires du conteneur de dépendances.
  *              Unit tests for the dependency injection container.
  *
- * @module __tests__/unit/di/container
+ * @module services/serviceContainer.test
  */
 
 // [ADDED] Tests unitaires container DI

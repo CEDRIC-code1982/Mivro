@@ -8,7 +8,7 @@
  *              Verifies initial render, participant addition,
  *              and Continue button activation.
  *
- * @module __tests__/integration/CreateSessionScreen
+ * @module features/Session/screens/CreateSessionScreen/CreateSessionScreen.integration.test
  */
 
 // [ADDED] Tests intégration CreateSessionScreen

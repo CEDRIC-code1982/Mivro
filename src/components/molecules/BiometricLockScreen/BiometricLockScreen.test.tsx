@@ -9,7 +9,7 @@
  *              le type biométrique, échappatoire showDisableEscape /
  *              onDisableAndContinue (bouton visible seulement si activée).
  *
- * @module __tests__/unit/presentation/components/molecules/BiometricLockScreen
+ * @module components/molecules/BiometricLockScreen/BiometricLockScreen.test
  */
 
 // [ADDED] F8 — Tests unitaires BiometricLockScreen

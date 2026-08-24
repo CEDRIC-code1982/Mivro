@@ -3,7 +3,7 @@
  * @description Tests unitaires de l'atome CategoryChip.
  *              Unit tests for the CategoryChip atom.
  *
- * @module __tests__/unit/presentation/components/atoms/CategoryChip
+ * @module components/atoms/CategoryChip/CategoryChip.test
  */
 
 // [ADDED] Tests unitaires CategoryChip

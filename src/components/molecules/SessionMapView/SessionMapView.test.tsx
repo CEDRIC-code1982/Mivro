@@ -3,7 +3,7 @@
  * @description Tests unitaires de la molecule SessionMapView.
  *              Unit tests for the SessionMapView molecule.
  *
- * @module __tests__/unit/presentation/components/molecules/SessionMapView
+ * @module components/molecules/SessionMapView/SessionMapView.test
  */
 
 // [ADDED] Tests unitaires SessionMapView

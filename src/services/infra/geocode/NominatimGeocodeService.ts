@@ -10,7 +10,7 @@
  *              - Pas de bulk geocoding / No bulk geocoding
  *
  * @see https://operations.osmfoundation.org/policies/nominatim/
- * @module infrastructure/geocode/NominatimGeocodeService
+ * @module services/infra/geocode/NominatimGeocodeService
  */
 
 // [ADDED] Adapter NominatimGeocodeService

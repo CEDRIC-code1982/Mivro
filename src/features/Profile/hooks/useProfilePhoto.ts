@@ -15,7 +15,7 @@
  *              The screen NEVER imports image-picker nor FileSystem: it goes
  *              through this hook, which goes through the DI container.
  *
- * @module presentation/hooks/useProfilePhoto
+ * @module features/Profile/hooks/useProfilePhoto
  */
 
 // [ADDED] F7 passe 2 — Hook useProfilePhoto

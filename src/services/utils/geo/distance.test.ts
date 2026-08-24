@@ -3,7 +3,7 @@
  * @description Tests unitaires pour le helper distanceBetween (Haversine).
  *              Unit tests for the distanceBetween helper (Haversine).
  *
- * @module __tests__/unit/core/utils/geo/distance
+ * @module services/utils/geo/distance.test
  */
 
 // [ADDED] Tests unitaires distanceBetween

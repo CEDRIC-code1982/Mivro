@@ -15,7 +15,7 @@
  *              ⚠️ L'annulation utilisateur n'est PAS une erreur → renvoie null.
  *              ⚠️ User cancellation is NOT an error → returns null.
  *
- * @module infrastructure/media/ImagePickerProfilePhotoService
+ * @module services/infra/media/ImagePickerProfilePhotoService
  */
 
 // [ADDED] F7 passe 2 — Adapter ImagePickerProfilePhotoService

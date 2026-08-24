@@ -6,7 +6,7 @@
  *              Couvre : scheme mivro://, préfixes, mapping
  *              session/:sessionId → JoinSession, fallback Tabs/POI.
  *
- * @module __tests__/unit/presentation/navigation/linking
+ * @module navigations/linking.test
  */
 
 // [ADDED] F5 — Tests unitaires linking

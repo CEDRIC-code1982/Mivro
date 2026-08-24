@@ -6,7 +6,7 @@
  *              image-picker + react-native-fs sont mockés dans jest.setup.js ;
  *              chaque test surcharge le comportement attendu via jest.mocked(...).
  *
- * @module __tests__/unit/infrastructure/media/ImagePickerProfilePhotoService
+ * @module services/infra/media/ImagePickerProfilePhotoService.test
  */
 
 // [ADDED] F7 passe 2 — Tests unitaires ImagePickerProfilePhotoService

@@ -9,7 +9,7 @@
  *              - enabled si query.length >= 3 après debounce
  *              - placeholderData pour autocomplete fluide / for smooth autocomplete
  *
- * @module presentation/hooks/useGeocodeQuery
+ * @module features/Session/hooks/useGeocodeQuery
  *
  * @example
  *   const { data, isLoading, error } = useGeocodeQuery({

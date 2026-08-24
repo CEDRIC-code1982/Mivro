@@ -18,8 +18,9 @@ Phase 1 : MVP iOS + Android. Archi **feature-first + `services/`** (ports/adapte
 `npm run check` = typecheck + lint + format + `check:arch` + `check:diff` + tests. Bloquent seuls :
 `any`, cast ou `!` sans justification, string hardcodée, format de log, magic number ou couleur
 littérale, style inline, TSDoc publique, props a11y, frontières de couches, Atomic Design, coverage,
-contraste WCAG. Un hook rejoue typecheck + archi + lint à chaque édition, un autre bloque les
-commandes destructrices. Détail : `docs/harness/INVENTAIRE.md` · self-test : `npm run check:harness`.
+contraste WCAG, build de la doc (`npm run docs`, joué au pre-push). Un hook rejoue typecheck +
+archi + lint à chaque édition, un autre bloque les commandes destructrices.
+Détail : `docs/harness/INVENTAIRE.md` · self-test : `npm run check:harness`.
 
 ## Règles qu'aucun outil ne vérifie — c'est toi qui juges
 
@@ -29,7 +30,6 @@ commandes destructrices. Détail : `docs/harness/INVENTAIRE.md` · self-test : `
 - **ERR-003** Zéro happy path incomplet : loading + error + empty à chaque fois.
 - **I18N-002** String affichée → `useTranslation()`, **y compris en prop** (le lint ne voit que le JSX brut).
 - **DOC-003** Décision d'architecture → ADR dans `docs-site/docs/adr/` (format : POLICIES.md).
-- **DOC-004** `npm run docs` sans erreur — ⚠️ inapplicable : ni Docusaurus ni TypeDoc installés (TODO.md).
 - **A11Y-002** Touch target ≥ 44pt iOS / 48dp Android.
 - **A11Y-003** `accessibilityHint` quand le libellé seul ne suffit pas (46 manques connus).
 - **A11Y-004** Dynamic Type testé à 200 %.

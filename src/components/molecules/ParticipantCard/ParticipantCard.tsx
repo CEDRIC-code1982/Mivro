@@ -13,7 +13,7 @@
  * />
  * ```
  *
- * @module presentation/components/molecules/ParticipantCard
+ * @module components/molecules/ParticipantCard/ParticipantCard
  */
 
 // [ADDED] Molecule ParticipantCard

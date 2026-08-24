@@ -3,7 +3,7 @@
  * @description Tests unitaires de l'erreur typée SessionShareError (F5).
  *              Unit tests for the typed SessionShareError (F5).
  *
- * @module __tests__/unit/core/ports/ISessionShareService
+ * @module services/domain/sharing/ISessionShareService.test
  */
 
 // [ADDED] F5 — Tests unitaires SessionShareError

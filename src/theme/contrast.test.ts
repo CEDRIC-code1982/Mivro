@@ -19,7 +19,7 @@
  *              Corriger une entrée = changer une couleur de la palette, donc une
  *              décision design. Voir docs/harness/JOURNAL-ECHECS.md (J-012).
  *
- * @module theme/contrast
+ * @module theme/contrast.test
  */
 
 import { darkTheme, lightTheme } from '@theme';
@@ -128,8 +128,11 @@ const buildPairs = (mode: 'light' | 'dark'): readonly Pair[] => {
     threshold: AA_TEXT,
   });
 
-  // Libellés de boutons pleins / solid button labels
-  for (const interactiveToken of ['brand', 'accent', 'danger'] as const) {
+  // Libellés de boutons pleins / solid button labels.
+  // Le teal accent est trop lumineux pour du blanc : son libellé est de l'encre
+  // (`text.onAccent`). Les remplissages brand et danger portent du blanc.
+  // The teal accent is too bright for white: its label is ink.
+  for (const interactiveToken of ['brand', 'danger'] as const) {
     pairs.push({
       label: `${mode} text.onBrand on interactive.${interactiveToken}.default`,
       foreground: color.text.onBrand,
@@ -137,6 +140,12 @@ const buildPairs = (mode: 'light' | 'dark'): readonly Pair[] => {
       threshold: AA_TEXT,
     });
   }
+  pairs.push({
+    label: `${mode} text.onAccent on interactive.accent.default`,
+    foreground: color.text.onAccent,
+    background: color.interactive.accent.default,
+    threshold: AA_TEXT,
+  });
 
   // Indicateurs porteurs de sens : focus a11y et bordure d'erreur (3:1)
   pairs.push({
@@ -160,39 +169,20 @@ const buildPairs = (mode: 'light' | 'dark'): readonly Pair[] => {
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Paires qui échouent déjà à WCAG AA, avec le ratio mesuré au moment de la mise
- * en place du cliquet. Les corriger implique de changer la palette : c'est une
- * décision design, pas une correction mécanique.
+ * Paires qui échoueraient encore à WCAG AA, avec leur ratio mesuré.
  *
- * ⚠️ À SPÉCIFIER AVEC CÉDRIC — voir docs/context/TODO.md.
+ * **Cette liste est vide, et doit le rester.** La dette d'origine (15 paires,
+ * dont l'ancienne marque orange à 3,61:1 alors que le thème annonçait 4,7:1) a
+ * été résorbée le 2026-08-24 : rebrand indigo, `text.success`/`text.warning`
+ * passés au step 700, `text.error` sombre au step 400, remplissages brand et
+ * danger au step 600, et introduction de `text.onAccent` (encre) parce que le
+ * teal est trop lumineux pour porter du blanc.
  *
  * Ne JAMAIS ajouter d'entrée ici pour faire passer une nouvelle couleur :
- * choisir une couleur conforme à la place.
+ * choisir une couleur conforme à la place. Une entrée n'est légitime que pour
+ * une dette constatée sur du code existant, et doit alors pointer un TODO.
  */
-const PENDING_DESIGN_DECISION: Readonly<Record<string, number>> = {
-  // Orange de marque #E55A24 : le commentaire du thème annonce 4.7:1, la mesure
-  // donne 3.61. Concerne les liens et accents en clair.
-  'light text.brand on surface.primary': 3.61,
-  'light text.brand on surface.secondary': 3.46,
-  // Vert de succès trop clair pour du texte en mode clair.
-  'light text.success on surface.primary': 3.19,
-  'light text.success on surface.secondary': 3.05,
-  // Ambre d'avertissement : le pire cas du thème clair.
-  'light text.warning on surface.primary': 2.86,
-  'light text.warning on surface.secondary': 2.74,
-  // Rouge d'erreur remonté en luminance pour le dark, mais pas assez.
-  'dark text.error on surface.primary': 4.25,
-  'dark text.error on surface.secondary': 3.57,
-  // Anneau de focus en clair : sous les 3:1 exigés pour un indicateur.
-  'light border.focus on surface.primary': 2.84,
-  // Libellés blancs sur boutons pleins : aucun n'atteint 4.5:1.
-  'light text.onBrand on interactive.brand.default': 3.61,
-  'light text.onBrand on interactive.accent.default': 2.93,
-  'light text.onBrand on interactive.danger.default': 4.17,
-  'dark text.onBrand on interactive.brand.default': 2.84,
-  'dark text.onBrand on interactive.accent.default': 2.17,
-  'dark text.onBrand on interactive.danger.default': 4.17,
-};
+const PENDING_DESIGN_DECISION: Readonly<Record<string, number>> = {};
 
 // ═══════════════════════════════════════════════════════════════
 // TESTS
@@ -226,24 +216,32 @@ describe('A11Y-001 — contraste WCAG AA des tokens de thème', () => {
     },
   );
 
-  it.each(pending.map((pair) => [pair.label, pair] as const))(
-    'ne régresse pas (dette A11Y-001) — %s',
-    (label, pair) => {
-      const recorded = PENDING_DESIGN_DECISION[label];
+  // Un seul test qui boucle, et non `it.each` : la liste de dette est vide
+  // aujourd'hui, et `it.each([])` échoue en réclamant un tableau non vide.
+  // A single looping test, not `it.each`: the debt list is empty today and
+  // `it.each([])` fails asking for a non-empty array.
+  it('ne régresse pas, et ne garde pas une dette déjà résorbée (A11Y-001)', () => {
+    const regressions: string[] = [];
+    const resolved: string[] = [];
+
+    for (const pair of pending) {
+      const recorded = PENDING_DESIGN_DECISION[pair.label] as number;
       const measured = contrastRatio(pair.foreground, pair.background);
 
-      // Le ratio ne doit jamais baisser sous la valeur enregistrée.
-      expect(measured).toBeGreaterThanOrEqual(recorded as number);
-
-      // S'il atteint enfin le seuil, retirer l'entrée de la liste.
+      if (measured < recorded) {
+        regressions.push(`${pair.label} : ${measured}:1 < ${recorded}:1 enregistré`);
+      }
       if (measured >= pair.threshold) {
-        throw new Error(
-          `"${label}" atteint désormais ${measured}:1 (seuil ${pair.threshold}). ` +
-            'Retire-la de PENDING_DESIGN_DECISION.',
+        resolved.push(
+          `${pair.label} : ${measured}:1 atteint le seuil ${pair.threshold} — ` +
+            'retire-la de PENDING_DESIGN_DECISION',
         );
       }
-    },
-  );
+    }
+
+    expect(regressions).toEqual([]);
+    expect(resolved).toEqual([]);
+  });
 
   it('ne garde aucune entrée orpheline dans la liste de dette', () => {
     const knownLabels = new Set(ALL_PAIRS.map((pair) => pair.label));

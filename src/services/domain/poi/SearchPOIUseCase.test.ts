@@ -3,7 +3,7 @@
  * @description Tests unitaires du use case SearchPOIUseCase.
  *              Unit tests for the SearchPOIUseCase.
  *
- * @module __tests__/unit/core/usecases/SearchPOIUseCase
+ * @module services/domain/poi/SearchPOIUseCase.test
  */
 
 // [ADDED] Tests unitaires SearchPOIUseCase

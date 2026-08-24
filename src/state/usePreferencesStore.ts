@@ -6,7 +6,7 @@
  *              Persisté via MMKV (zustand persist middleware).
  *              Persisted via MMKV (zustand persist middleware).
  *
- * @module presentation/stores/usePreferencesStore
+ * @module state/usePreferencesStore
  */
 
 // [ADDED] Store Zustand — préférences utilisateur persistées MMKV

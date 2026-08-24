@@ -4,7 +4,7 @@
  *              Centralise les icônes utilisées dans toute la feature F3.
  *              Centralizes icons used throughout the F3 feature.
  *
- * @module presentation/utils/poiIcons
+ * @module features/POI/utils/poiIcons
  */
 
 // [ADDED] Mapping POICategory → icônes Lucide

@@ -3,7 +3,7 @@
  * @description Tests unitaires de l'AppErrorBoundary.
  *              Unit tests for the AppErrorBoundary.
  *
- * @module __tests__/unit/presentation/components/templates/AppErrorBoundary
+ * @module components/templates/AppErrorBoundary/AppErrorBoundary.test
  */
 
 // [ADDED] Tests unitaires AppErrorBoundary

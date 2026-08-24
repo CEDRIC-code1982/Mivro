@@ -3,7 +3,7 @@
  * @description Tests unitaires du port IGeocodeService et GeocodeError.
  *              Unit tests for the IGeocodeService port and GeocodeError.
  *
- * @module __tests__/unit/core/ports/IGeocodeService
+ * @module services/domain/geocode/IGeocodeService.test
  */
 
 // [ADDED] Tests unitaires GeocodeError

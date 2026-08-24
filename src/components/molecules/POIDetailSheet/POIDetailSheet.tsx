@@ -14,7 +14,7 @@
  * />
  * ```
  *
- * @module presentation/components/molecules/POIDetailSheet
+ * @module components/molecules/POIDetailSheet/POIDetailSheet
  */
 
 // [ADDED] Molecule POIDetailSheet — détail POI en bottom sheet

@@ -3,7 +3,7 @@
  * @description Tests unitaires de l'entité PointOfInterest.
  *              Unit tests for the PointOfInterest entity.
  *
- * @module __tests__/unit/core/entities/PointOfInterest
+ * @module entities/PointOfInterest.test
  */
 
 // [ADDED] Tests unitaires entité PointOfInterest

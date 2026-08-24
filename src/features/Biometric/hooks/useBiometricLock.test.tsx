@@ -13,7 +13,7 @@
  *              enableLock avec rollback, disableLock, garde anti-concurrence,
  *              détection du type supporté, sélecteurs stables.
  *
- * @module __tests__/unit/presentation/hooks/useBiometricLock
+ * @module features/Biometric/hooks/useBiometricLock.test
  */
 
 // [ADDED] F8 — Tests unitaires useBiometricLock

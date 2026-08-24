@@ -6,7 +6,7 @@
  *              MMKV-based IStorageService implementation
  *              with Keychain-stored encryption key.
  *
- * @module infrastructure/storage/MMKVStorageService
+ * @module services/infra/storage/MMKVStorageService
  */
 
 // [ADDED] MMKVStorageService — implémente IStorageService

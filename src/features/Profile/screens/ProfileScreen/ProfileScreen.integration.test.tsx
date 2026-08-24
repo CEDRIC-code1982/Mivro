@@ -6,7 +6,7 @@
  *              Vérifie : bouton Save désactivé si invalide/inchangé,
  *              message d'erreur, sélection avatar → updateProfile appelé.
  *
- * @module __tests__/integration/ProfileScreen
+ * @module features/Profile/screens/ProfileScreen/ProfileScreen.integration.test
  */
 
 // [ADDED] F7 — Tests intégration ProfileScreen

@@ -6,7 +6,7 @@
  * Maps to Overpass / OpenStreetMap tags.
  *
  * @file POICategory.ts
- * @module core/entities
+ * @module entities/POICategory
  * @see https://wiki.openstreetmap.org/wiki/Map_features
  */
 

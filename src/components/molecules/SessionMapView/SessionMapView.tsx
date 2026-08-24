@@ -22,7 +22,7 @@
  *     radius={radius}
  *   />
  *
- * @module presentation/components/molecules/SessionMapView
+ * @module components/molecules/SessionMapView/SessionMapView
  */
 
 // [ADDED] Molecule SessionMapView — carte interactive session
@@ -160,7 +160,8 @@ const SessionMapView: React.FC<SessionMapViewProps> = ({
             testID={testID ? `${testID}-marker-${participant.id}` : undefined}
           >
             <View style={[styles.markerCircle, styles.participantMarker]}>
-              <Text variant="caption" weight="bold" color="onBrand">
+              {/* onAccent : le remplissage est teal, le blanc n'y passe pas AA */}
+              <Text variant="caption" weight="bold" color="onAccent">
                 {participant.displayName.charAt(0).toUpperCase()}
               </Text>
             </View>

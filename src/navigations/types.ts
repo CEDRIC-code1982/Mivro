@@ -3,7 +3,7 @@
  * @description Types de navigation — typage fort des routes React Navigation.
  *              Navigation types — strongly typed React Navigation routes.
  *
- * @module presentation/navigation/types
+ * @module navigations/types
  */
 
 // [ADDED] Typage fort des routes de navigation

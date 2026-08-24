@@ -3,7 +3,7 @@
  * @description Tests unitaires de l'erreur typée BiometricError + types (F8).
  *              Unit tests for the typed BiometricError + types (F8).
  *
- * @module __tests__/unit/core/ports/IBiometricService
+ * @module services/domain/biometric/IBiometricService.test
  */
 
 // [ADDED] F8 — Tests unitaires BiometricError

@@ -15,7 +15,7 @@
  *              L'écran et App.tsx passent par ce hook, jamais par keychain.
  *              The screen and App.tsx go through this hook, never through keychain.
  *
- * @module presentation/hooks/useBiometricLock
+ * @module features/Biometric/hooks/useBiometricLock
  */
 
 // [ADDED] F8 — Hook useBiometricLock

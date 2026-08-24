@@ -11,7 +11,7 @@
  *              Pour V1 : envisager Vincenty pour précision ellipsoïdale.
  *
  * @see https://en.wikipedia.org/wiki/Haversine_formula
- * @module core/utils/geo/distance
+ * @module services/utils/geo/distance
  */
 
 // [ADDED] Helper Haversine pour calcul de distance GPS

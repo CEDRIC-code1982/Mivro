@@ -3,7 +3,7 @@
  * @description Tests unitaires de MMKVStorageService.
  *              Unit tests for MMKVStorageService.
  *
- * @module __tests__/unit/infrastructure/storage/MMKVStorageService
+ * @module services/infra/storage/MMKVStorageService.test
  */
 
 // [ADDED] Tests unitaires MMKVStorageService avec mock MMKV

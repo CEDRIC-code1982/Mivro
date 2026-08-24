@@ -6,7 +6,7 @@
  *              Évite l'import direct de Sentry dans la couche présentation.
  *              Avoids importing Sentry directly in the presentation layer.
  *
- * @module presentation/hooks/useCrashReporter
+ * @module hooks/useCrashReporter
  *
  * @example
  *   const crash = useCrashReporter();

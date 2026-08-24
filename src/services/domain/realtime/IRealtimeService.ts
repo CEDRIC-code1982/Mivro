@@ -16,7 +16,7 @@
  *              Implémentations : FirebaseRealtimeService (infrastructure/).
  *              Implementations: FirebaseRealtimeService (infrastructure/).
  *
- * @module core/ports/IRealtimeService
+ * @module services/domain/realtime/IRealtimeService
  */
 
 // [ADDED] F4 — Port IRealtimeService + erreur typée

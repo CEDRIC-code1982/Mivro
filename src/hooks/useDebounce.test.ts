@@ -3,7 +3,7 @@
  * @description Tests unitaires du hook useDebounce.
  *              Unit tests for the useDebounce hook.
  *
- * @module __tests__/unit/presentation/hooks/useDebounce
+ * @module hooks/useDebounce.test
  */
 
 // [ADDED] Tests unitaires useDebounce

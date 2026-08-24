@@ -29,7 +29,7 @@
  *              stables (`members` est un tableau remplacé en bloc) et dériver via
  *              `useMemo`/`useShallow` côté composant.
  *
- * @module presentation/stores/useSharedSessionStore
+ * @module state/useSharedSessionStore
  */
 
 // [ADDED] F5 — Store Zustand session partagée (NON persisté, RGPD)

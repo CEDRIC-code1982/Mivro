@@ -15,7 +15,7 @@
  *              Pour V1 : envisager le centroïde sphérique (somme de
  *              vecteurs 3D normalisés) pour les distances longues.
  *
- * @module core/utils/geo/centroid
+ * @module services/utils/geo/centroid
  */
 
 // [ADDED] Helper centroïde cartésien

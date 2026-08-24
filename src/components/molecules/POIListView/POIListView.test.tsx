@@ -3,7 +3,7 @@
  * @description Tests unitaires de la molecule POIListView.
  *              Unit tests for the POIListView molecule.
  *
- * @module __tests__/unit/presentation/components/molecules/POIListView
+ * @module components/molecules/POIListView/POIListView.test
  */
 
 // [ADDED] Tests unitaires POIListView

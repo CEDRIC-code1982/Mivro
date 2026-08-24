@@ -3,7 +3,7 @@
  * @description Tests unitaires du hook useCreateSessionFlow.
  *              Unit tests for the useCreateSessionFlow hook.
  *
- * @module __tests__/unit/presentation/hooks/useCreateSessionFlow
+ * @module features/Session/hooks/useCreateSessionFlow.test
  */
 
 // [ADDED] Tests unitaires useCreateSessionFlow

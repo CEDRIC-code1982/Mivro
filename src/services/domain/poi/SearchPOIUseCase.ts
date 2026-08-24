@@ -6,7 +6,7 @@
  * Input validation + port call.
  *
  * @file SearchPOIUseCase.ts
- * @module core/usecases/SearchPOIUseCase
+ * @module services/domain/poi/SearchPOIUseCase
  *
  * @example
  *   const useCase = new SearchPOIUseCase(poiService);

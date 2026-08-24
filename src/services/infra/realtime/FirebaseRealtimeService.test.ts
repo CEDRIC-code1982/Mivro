@@ -7,7 +7,7 @@
  *              jest.setup.js ; on récupère ici des références aux fonctions
  *              mockées et on les surcharge par test.
  *
- * @module __tests__/unit/infrastructure/realtime/FirebaseRealtimeService
+ * @module services/infra/realtime/FirebaseRealtimeService.test
  */
 
 // [ADDED] F4 — Tests unitaires FirebaseRealtimeService

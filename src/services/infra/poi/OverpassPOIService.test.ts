@@ -3,7 +3,7 @@
  * @description Tests unitaires de l'adapter OverpassPOIService.
  *              Unit tests for the OverpassPOIService adapter.
  *
- * @module __tests__/unit/infrastructure/poi/OverpassPOIService
+ * @module services/infra/poi/OverpassPOIService.test
  */
 
 // [ADDED] Tests unitaires OverpassPOIService

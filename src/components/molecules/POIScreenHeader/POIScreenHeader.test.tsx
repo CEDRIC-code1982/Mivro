@@ -3,7 +3,7 @@
  * @description Tests unitaires de la molecule POIScreenHeader.
  *              Unit tests for the POIScreenHeader molecule.
  *
- * @module __tests__/unit/presentation/components/molecules/POIScreenHeader
+ * @module components/molecules/POIScreenHeader/POIScreenHeader.test
  */
 
 // [ADDED] Tests unitaires POIScreenHeader

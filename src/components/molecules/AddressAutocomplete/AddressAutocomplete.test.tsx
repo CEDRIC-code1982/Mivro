@@ -3,7 +3,7 @@
  * @description Tests unitaires de la molecule AddressAutocomplete.
  *              Unit tests for the AddressAutocomplete molecule.
  *
- * @module __tests__/unit/presentation/components/molecules/AddressAutocomplete
+ * @module components/molecules/AddressAutocomplete/AddressAutocomplete.test
  */
 
 // [MODIFIED] Tests unitaires AddressAutocomplete — Phase 6 (bottom sheet)

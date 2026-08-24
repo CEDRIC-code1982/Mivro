@@ -27,7 +27,7 @@
  *              Source de vérité runtime + type (TS-001/TS-004) : ces schémas
  *              valident les données LUES depuis Firebase (frontière externe).
  *
- * @module core/entities/SharedSession
+ * @module entities/SharedSession
  */
 
 // [ADDED] F5 — Entité SharedSession (meta + members) avec validation Zod (TS-004)

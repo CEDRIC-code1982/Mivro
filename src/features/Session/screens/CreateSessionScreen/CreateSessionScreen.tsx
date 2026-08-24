@@ -9,7 +9,7 @@
  *              Orchestrator only: all logic lives in useCreateSessionFlow.
  *              The screen only maps data to UI components.
  *
- * @module presentation/screens/CreateSessionScreen
+ * @module features/Session/screens/CreateSessionScreen/CreateSessionScreen
  */
 
 // [MODIFIED] Refactor complet — écran F1 fonctionnel + navigation F2

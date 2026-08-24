@@ -3,7 +3,7 @@
  * @description Tests unitaires de l'adapter NominatimGeocodeService.
  *              Unit tests for the NominatimGeocodeService adapter.
  *
- * @module __tests__/unit/infrastructure/geocode/NominatimGeocodeService
+ * @module services/infra/geocode/NominatimGeocodeService.test
  */
 
 // [ADDED] Tests unitaires NominatimGeocodeService

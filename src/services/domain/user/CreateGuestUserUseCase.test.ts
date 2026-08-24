@@ -3,7 +3,7 @@
  * @description Tests unitaires du use case CreateGuestUser.
  *              Unit tests for the CreateGuestUser use case.
  *
- * @module __tests__/unit/core/usecases/CreateGuestUserUseCase
+ * @module services/domain/user/CreateGuestUserUseCase.test
  */
 
 // [ADDED] Tests unitaires CreateGuestUserUseCase

@@ -3,7 +3,7 @@
  * @description Tests unitaires de l'atome Text.
  *              Unit tests for the Text atom.
  *
- * @module presentation/components/atoms/Text/__tests__
+ * @module components/atoms/Text/Text.test
  */
 
 // [ADDED] Tests unitaires atome Text

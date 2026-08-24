@@ -12,7 +12,7 @@
  *              Les mocks renvoient donc un roster À JOUR au 2ᵉ appel via
  *              `mockResolvedValueOnce` (1er = état initial, 2ᵉ = roster post-écriture).
  *
- * @module __tests__/unit/core/usecases/JoinSessionUseCase
+ * @module services/domain/sharing/JoinSessionUseCase.test
  */
 
 // [ADDED] F5 — Tests unitaires JoinSessionUseCase

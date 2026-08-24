@@ -3,7 +3,7 @@
  * @description Tests unitaires de l'entité Avatar (F7).
  *              Unit tests for the Avatar entity (F7).
  *
- * @module __tests__/unit/core/entities/Avatar
+ * @module entities/Avatar.test
  */
 
 // [ADDED] F7 — Tests unitaires entité Avatar

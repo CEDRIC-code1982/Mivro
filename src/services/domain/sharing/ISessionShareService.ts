@@ -23,7 +23,7 @@
  *
  *              Implémentations : FirebaseSessionShareService (infrastructure/).
  *
- * @module core/ports/ISessionShareService
+ * @module services/domain/sharing/ISessionShareService
  */
 
 // [ADDED] F5 — Port ISessionShareService + erreur typée

@@ -6,7 +6,7 @@
  *              Vérifie les états : pas de session, vue liste/carte,
  *              filtres catégories, détail POI.
  *
- * @module __tests__/integration/POIScreen
+ * @module features/POI/screens/POIScreen/POIScreen.integration.test
  */
 
 // [ADDED] Tests intégration POIScreen

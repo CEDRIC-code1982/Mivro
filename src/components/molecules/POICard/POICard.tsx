@@ -14,7 +14,7 @@
  * />
  * ```
  *
- * @module presentation/components/molecules/POICard
+ * @module components/molecules/POICard/POICard
  */
 
 // [ADDED] Molecule POICard — carte POI

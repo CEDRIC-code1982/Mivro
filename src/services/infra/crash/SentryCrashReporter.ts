@@ -6,7 +6,7 @@
  *              Inclut le scrubber RGPD pour données sensibles (beforeSend).
  *              Includes GDPR scrubber for sensitive data (beforeSend).
  *
- * @module infrastructure/crash/SentryCrashReporter
+ * @module services/infra/crash/SentryCrashReporter
  */
 
 // [ADDED] SentryCrashReporter — implements ICrashReporter

@@ -5,7 +5,7 @@
  *              F3 Screen — POI display around midpoint with List/Map toggle,
  *              category filters and detail bottom sheet.
  *
- * @module presentation/screens/POIScreen
+ * @module features/POI/screens/POIScreen/POIScreen
  */
 
 // [ADDED] Écran POIScreen — feature F3 complète

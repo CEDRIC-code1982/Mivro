@@ -6,7 +6,7 @@
  *
  *              Ne déclare que les types utilisés dans le projet.
  *
- * @module types/react-native-maps
+ * @module types/react-native-maps.d
  */
 
 // [ADDED] Déclaration locale react-native-maps (compatibilité TS strict)

@@ -3,7 +3,7 @@
  * @description Tests unitaires du formatage de distance.
  *              Unit tests for distance formatting.
  *
- * @module __tests__/unit/core/utils/format/distance
+ * @module services/utils/format/distance.test
  */
 
 // [ADDED] Tests getDistanceLabel

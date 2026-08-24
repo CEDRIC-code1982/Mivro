@@ -3,7 +3,7 @@
  * @description Tests unitaires de l'entité Location.
  *              Unit tests for the Location entity.
  *
- * @module __tests__/unit/core/entities/Location
+ * @module entities/Location.test
  */
 
 // [ADDED] Tests unitaires entité Location

@@ -16,7 +16,7 @@
  *   // Effacer la photo de profil / clear the profile photo:
  *   const cleared = useCase.execute(currentUser, { photoUri: null });
  *
- * @module core/usecases/UpdateProfileUseCase
+ * @module services/domain/user/UpdateProfileUseCase
  */
 
 // [ADDED] F7 — Use case UpdateProfile (pur, validé Zod)

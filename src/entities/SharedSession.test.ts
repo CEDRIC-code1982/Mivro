@@ -6,7 +6,7 @@
  *              Couvre : validation Zod (meta + members), computeExpiresAt
  *              (guest +24h / account +7j), buildShareLink, round-trip meta+members.
  *
- * @module __tests__/unit/core/entities/SharedSession
+ * @module entities/SharedSession.test
  */
 
 // [ADDED] F5 — Tests unitaires entité SharedSession

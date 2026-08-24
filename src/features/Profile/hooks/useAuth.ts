@@ -8,7 +8,7 @@
  *              Avoids unnecessary re-renders by selecting only
  *              what the component needs.
  *
- * @module presentation/hooks/useAuth
+ * @module features/Profile/hooks/useAuth
  */
 
 // [ADDED] Sélecteurs mémoïsés sur useAuthStore

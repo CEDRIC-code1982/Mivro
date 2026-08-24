@@ -3,7 +3,7 @@
  * @description Résultat de recherche géocodage (avant conversion en Location).
  *              Geocoding search result (before conversion to Location).
  *
- * @module core/entities/GeocodeResult
+ * @module entities/GeocodeResult
  */
 
 // [ADDED] Entité GeocodeResult avec validation Zod

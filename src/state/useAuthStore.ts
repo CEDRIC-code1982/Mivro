@@ -9,7 +9,7 @@
  *              Persisté via MMKV (zustand persist middleware).
  *              Validation Zod sur la rehydratation (TS-004 : données externes).
  *
- * @module presentation/stores/useAuthStore
+ * @module state/useAuthStore
  */
 
 // [ADDED] Store Zustand — authentification persistée MMKV

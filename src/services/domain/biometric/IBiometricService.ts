@@ -15,7 +15,7 @@
  *              Implémentations : KeychainBiometricService (infrastructure/).
  *              Implementations: KeychainBiometricService (infrastructure/).
  *
- * @module core/ports/IBiometricService
+ * @module services/domain/biometric/IBiometricService
  */
 
 // [ADDED] F8 — Port IBiometricService + types + erreur typée

@@ -13,7 +13,7 @@
  *              Aucune dépendance infrastructure ni présentation (règle de
  *              dépendance). Reçoit le port par injection de constructeur.
  *
- * @module core/usecases/ShareSessionUseCase
+ * @module services/domain/sharing/ShareSessionUseCase
  */
 
 // [ADDED] F5 — UseCase ShareSessionUseCase

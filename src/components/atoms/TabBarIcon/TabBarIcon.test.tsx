@@ -3,7 +3,7 @@
  * @description Tests unitaires de l'atome TabBarIcon.
  *              Unit tests for the TabBarIcon atom.
  *
- * @module presentation/components/atoms/TabBarIcon/__tests__
+ * @module components/atoms/TabBarIcon/TabBarIcon.test
  */
 
 // [ADDED] Tests unitaires atome TabBarIcon

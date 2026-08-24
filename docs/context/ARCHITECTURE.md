@@ -234,12 +234,13 @@ Les règles vérifiables par un outil ne sont plus énoncées en prose : elles s
 | `.eslintrc.js` + `eslint-rules/`        | TS-001/002/003, I18N-001, LOG-001, DS-001/002, DOC-001/002, A11Y label+role.             |
 | `scripts/check-diff.sh` (`check:diff`)  | Interdit d'introduire `as any`, `@ts-ignore`, `eslint-disable`, un test désactivé.       |
 | `src/theme/contrast.test.ts`            | A11Y-001 : cliquet WCAG sur les tokens du thème.                                         |
+| `typedoc.config.mjs` + `docs-site/`     | DOC-004 : `npm run docs` régénère l'API et construit le site, liens morts en erreur.     |
 | `jest.config.js` + `test:ci --coverage` | Seuils de couverture réellement bloquants.                                               |
 | Hook `PostToolUse`                      | typecheck (incrémental) ‖ archi du module édité, puis `eslint --fix`. ~3 s, silencieux.  |
 | Hook `PreToolUse`                       | Véto sur `rm -rf`, force-push, `reset --hard`, artefacts natifs.                         |
-| `.husky/pre-push`                       | `check:arch` + `check:diff` + suite Jest complète.                                       |
+| `.husky/pre-push`                       | `check:arch` + `check:diff` + suite Jest complète + `docs`.                              |
 | `.claude/agents/reviewer.md`            | Capteur inférentiel : ce qu'aucun outil ne voit, contre `docs/harness/DONE-CONTRACT.md`. |
-| `scripts/harness-selftest.sh`           | 53 assertions : prouve que chaque capteur mord encore. `npm run check:harness`.          |
+| `scripts/harness-selftest.sh`           | 61 assertions : prouve que chaque capteur mord encore. `npm run check:harness`.          |
 
 Les quatre règles ESLint custom vivent dans `eslint-rules/`, exposées via `eslint-local-rules.js`
 (plugin `eslint-plugin-local-rules`). Elles existent parce qu'aucune règle du marché n'exprime

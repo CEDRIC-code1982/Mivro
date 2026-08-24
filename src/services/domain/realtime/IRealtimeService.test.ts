@@ -3,7 +3,7 @@
  * @description Tests unitaires du port IRealtimeService et RealtimeError.
  *              Unit tests for the IRealtimeService port and RealtimeError.
  *
- * @module __tests__/unit/core/ports/IRealtimeService
+ * @module services/domain/realtime/IRealtimeService.test
  */
 
 // [ADDED] F4 — Tests unitaires RealtimeError

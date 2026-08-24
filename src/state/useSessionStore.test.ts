@@ -3,7 +3,7 @@
  * @description Tests unitaires du store useSessionStore.
  *              Unit tests for the useSessionStore.
  *
- * @module __tests__/unit/presentation/stores/useSessionStore
+ * @module state/useSessionStore.test
  */
 
 // [ADDED] Tests unitaires useSessionStore

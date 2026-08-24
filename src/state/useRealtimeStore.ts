@@ -19,7 +19,7 @@
  *              useRealtimeTracking hook. The store imports neither firebase
  *              nor the port.
  *
- * @module presentation/stores/useRealtimeStore
+ * @module state/useRealtimeStore
  */
 
 // [ADDED] F4 — Store Zustand temps réel (NON persisté, RGPD)

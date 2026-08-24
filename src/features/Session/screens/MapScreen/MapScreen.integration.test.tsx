@@ -8,7 +8,7 @@
  *              Verifies 3 states: no session, draft session,
  *              computed session with map.
  *
- * @module __tests__/integration/MapScreen
+ * @module features/Session/screens/MapScreen/MapScreen.integration.test
  */
 
 // [ADDED] Tests intégration MapScreen

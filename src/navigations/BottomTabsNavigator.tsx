@@ -5,7 +5,7 @@
  *
  *              Map | Sessions | Create (FAB) | Profile
  *
- * @module presentation/navigation/BottomTabsNavigator
+ * @module navigations/BottomTabsNavigator
  */
 
 // [ADDED] Bottom Tabs Navigator avec icônes Lucide + i18n + theme + a11y

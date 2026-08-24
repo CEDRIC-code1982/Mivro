@@ -3,7 +3,7 @@
  * @description Tests unitaires du zustand-mmkv-adapter.
  *              Unit tests for the zustand-mmkv-adapter.
  *
- * @module __tests__/unit/infrastructure/storage/zustand-mmkv-adapter
+ * @module services/infra/storage/zustand-mmkv-adapter.test
  */
 
 // [ADDED] Tests unitaires zustand-mmkv-adapter

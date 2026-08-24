@@ -18,7 +18,7 @@
  *   const useCase = new GetCurrentLocationUseCase(geoService, geocodeService);
  *   const location = await useCase.execute({ language: 'fr' });
  *
- * @module core/usecases/GetCurrentLocationUseCase
+ * @module services/domain/geolocation/GetCurrentLocationUseCase
  */
 
 // [ADDED] Use case GetCurrentLocationUseCase

@@ -11,7 +11,7 @@
  *   const useCase = new CreateGuestUserUseCase();
  *   const guest = useCase.execute({ displayName: 'Anonyme' });
  *
- * @module core/usecases/CreateGuestUserUseCase
+ * @module services/domain/user/CreateGuestUserUseCase
  */
 
 // [ADDED] Use case CreateGuestUser

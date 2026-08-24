@@ -8,7 +8,7 @@
  *              Allows swapping implementation (MMKV, AsyncStorage, etc.)
  *              without touching business logic.
  *
- * @module core/ports/IStorageService
+ * @module services/domain/storage/IStorageService
  */
 
 // [ADDED] Port IStorageService + StorageError

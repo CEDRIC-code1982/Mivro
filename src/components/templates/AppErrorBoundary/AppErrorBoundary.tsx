@@ -14,7 +14,7 @@
  *              NavigationContainer dans App.tsx).
  *              Must wrap the entire tree (above NavigationContainer in App.tsx).
  *
- * @module presentation/components/templates/AppErrorBoundary
+ * @module components/templates/AppErrorBoundary/AppErrorBoundary
  */
 
 // [ADDED] AppErrorBoundary — ErrorBoundary global avec crash reporting

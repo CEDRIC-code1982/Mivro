@@ -22,7 +22,7 @@
  *              Presentation goes through the port via the DI container: it
  *              NEVER imports firebase (dependency rule).
  *
- * @module presentation/hooks/useRealtimeTracking
+ * @module features/Sharing/hooks/useRealtimeTracking
  */
 
 // [ADDED] F4 — Hook d'orchestration useRealtimeTracking

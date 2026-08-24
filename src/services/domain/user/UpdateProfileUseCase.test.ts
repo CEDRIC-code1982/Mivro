@@ -3,7 +3,7 @@
  * @description Tests unitaires du use case UpdateProfileUseCase (F7).
  *              Unit tests for the UpdateProfileUseCase (F7).
  *
- * @module __tests__/unit/core/usecases/UpdateProfileUseCase
+ * @module services/domain/user/UpdateProfileUseCase.test
  */
 
 // [ADDED] F7 — Tests unitaires UpdateProfileUseCase

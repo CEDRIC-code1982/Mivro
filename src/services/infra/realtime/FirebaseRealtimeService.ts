@@ -27,10 +27,11 @@
  *              à l'init Firebase ; le code ci-dessous est prêt à fonctionner
  *              dès leur ajout. Aucun faux fichier de config n'est créé.
  *
- *              firebase = infrastructure UNIQUEMENT : core et presentation
- *              n'importent JAMAIS @react-native-firebase (règle de dépendance).
+ *              firebase = adapter UNIQUEMENT : services/domain, features et
+ *              components n'importent JAMAIS `@react-native-firebase`
+ *              (règle de dépendance, vérifiée par npm run check:arch).
  *
- * @module infrastructure/realtime/FirebaseRealtimeService
+ * @module services/infra/realtime/FirebaseRealtimeService
  */
 
 // [ADDED] F4 — Adapter FirebaseRealtimeService (API modulaire)

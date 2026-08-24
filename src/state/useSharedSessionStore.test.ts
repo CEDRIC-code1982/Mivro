@@ -6,7 +6,7 @@
  *              Unit tests for the useSharedSessionStore (F5 — NOT persisted) plus
  *              the useSessionStore.loadSharedSession action.
  *
- * @module __tests__/unit/presentation/stores/useSharedSessionStore
+ * @module state/useSharedSessionStore.test
  */
 
 // [ADDED] F5 — Tests unitaires useSharedSessionStore + loadSharedSession

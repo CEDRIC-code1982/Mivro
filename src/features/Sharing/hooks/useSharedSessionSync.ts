@@ -28,7 +28,7 @@
  *              string, actions) — jamais un dérivé recréé à chaque rendu — pour
  *              éviter les boucles de rendu (useSyncExternalStore + Object.is).
  *
- * @module presentation/hooks/useSharedSessionSync
+ * @module features/Sharing/hooks/useSharedSessionSync
  */
 
 // [ADDED] F5 — Hook d'orchestration de la synchro live de session partagée

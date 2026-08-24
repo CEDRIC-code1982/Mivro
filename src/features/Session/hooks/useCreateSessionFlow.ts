@@ -11,7 +11,7 @@
  *              Connecté à useSessionStore + useAuthStore + container DI.
  *              Connected to useSessionStore + useAuthStore + DI container.
  *
- * @module presentation/hooks/useCreateSessionFlow
+ * @module features/Session/hooks/useCreateSessionFlow
  */
 
 // [ADDED] Hook useCreateSessionFlow — orchestration F1

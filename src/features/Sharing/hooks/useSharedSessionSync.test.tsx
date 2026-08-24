@@ -10,7 +10,7 @@
  *              désabonnement au démontage ET au changement de sessionId, inerte
  *              en mode non partagé.
  *
- * @module __tests__/unit/presentation/hooks/useSharedSessionSync
+ * @module features/Sharing/hooks/useSharedSessionSync.test
  */
 
 // [ADDED] F5 — Tests unitaires useSharedSessionSync

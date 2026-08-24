@@ -10,7 +10,7 @@
  *              These tokens are theme-agnostic. Themes (light.ts, dark.ts)
  *              consume these primitives to compose semantic tokens.
  *
- * @module core/theme/tokens
+ * @module theme/tokens
  */
 
 // ═══════════════════════════════════════════════════════════════
@@ -32,13 +32,14 @@ export const palette = {
     300: '#A5B4FC', // Brand texte/icône sur fond sombre
     400: '#818CF8', // Fin de dégradé CTA (sombre)
     500: '#6366F1', // Brand sombre (boutons, avatars, actif)
-    600: '#4F46E5', // Brand clair (boutons, actif) + texte brand sur blanc (6.4:1 ✅)
+    600: '#4F46E5', // Brand clair (boutons, actif) + texte brand sur blanc (6,29:1)
     700: '#4338CA',
     800: '#3730A3',
     900: '#312E81',
   },
 
-  // Accent teal (secondary) — participants ✓ : #2EC4B6 (clair), #2DD4BF (sombre)
+  // Accent teal (secondary) — participants : #2EC4B6 (clair), #2DD4BF (sombre).
+  // Trop lumineux pour porter du blanc : son libellé est `text.onAccent` (encre).
   accent: {
     50: '#E6FAF7',
     100: '#B3F0E5',
@@ -69,23 +70,28 @@ export const palette = {
   },
 
   // Sémantiques — états
+  // Ratios vérifiés par src/theme/contrast.test.ts (A11Y-001) — ne pas se fier
+  // à un commentaire, le test est la source de vérité.
+  // Ratios verified by src/theme/contrast.test.ts — the test is the source of truth.
   success: {
     50: '#E8F8EE',
-    500: '#22C55E',
-    600: '#16A34A', // Succès (charte) — texte sur blanc (4.5:1 ✅)
-    700: '#15803D',
+    500: '#22C55E', // Succès sur fond sombre (7,95:1)
+    600: '#16A34A', // Fond de badge — INSUFFISANT en texte sur blanc (3,3:1)
+    700: '#15803D', // Succès en texte sur blanc (5,02:1)
   },
   warning: {
     50: '#FFF8E6',
-    500: '#F4B400',
-    600: '#C68F00', // ✅ Texte sur blanc
-    700: '#8F6800',
+    500: '#F4B400', // Avertissement sur fond sombre (9,82:1)
+    600: '#C68F00', // Fond de badge — INSUFFISANT en texte sur blanc (2,86:1)
+    700: '#8F6800', // Avertissement en texte sur blanc (5,06:1)
   },
   error: {
     50: '#FCE8EA',
-    500: '#E63946',
-    600: '#C62836', // ✅ Texte sur blanc (5.1:1)
+    400: '#F5737F', // Erreur en texte sur fond sombre (6,59:1)
+    500: '#E63946', // Bordure d'erreur (UI, 4,17:1 ≥ 3:1) — INSUFFISANT en texte
+    600: '#C62836', // Erreur en texte sur blanc (5,59:1) + blanc dessus (5,59:1)
     700: '#971D2A',
+    800: '#7A1622', // État pressé d'un bouton destructif
   },
   info: {
     50: '#E6F2FF',

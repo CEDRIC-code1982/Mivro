@@ -3,7 +3,7 @@
  * @description Tests unitaires du use case CalculateMidpoint.
  *              Unit tests for the CalculateMidpoint use case.
  *
- * @module __tests__/unit/core/usecases/CalculateMidpointUseCase
+ * @module services/domain/midpoint/CalculateMidpointUseCase.test
  */
 
 // [ADDED] Tests unitaires CalculateMidpointUseCase

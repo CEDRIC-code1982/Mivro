@@ -3,7 +3,7 @@
  * @description Tests unitaires de l'entité User.
  *              Unit tests for the User entity.
  *
- * @module __tests__/unit/core/entities/User
+ * @module entities/User.test
  */
 
 // [ADDED] Tests unitaires entité User

@@ -15,7 +15,7 @@
  * <AvatarPicker selectedAvatarId={user.avatarId} onSelect={handleSelectAvatar} />
  * ```
  *
- * @module presentation/components/molecules/AvatarPicker
+ * @module components/molecules/AvatarPicker/AvatarPicker
  */
 
 // [ADDED] F7 — Molecule AvatarPicker (grille des 20 avatars)

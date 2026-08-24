@@ -3,7 +3,7 @@
  * @description Tests unitaires de l'entité MidpointSession.
  *              Unit tests for the MidpointSession entity.
  *
- * @module __tests__/unit/core/entities/MidpointSession
+ * @module entities/MidpointSession.test
  */
 
 // [ADDED] Tests unitaires entité MidpointSession

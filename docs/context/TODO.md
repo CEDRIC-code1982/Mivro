@@ -212,18 +212,21 @@ Mise en place : capteurs computationnels (`check:arch`, `check:diff`, hooks `Pos
 dependency-cruiser / Jest, capteur inférentiel (`reviewer` + `DONE-CONTRACT`).
 Détail : `docs/harness/INVENTAIRE.md` · échecs et arbitrages : `docs/harness/JOURNAL-ECHECS.md`.
 
-- [ ] ⚠️ **A11Y-001 — le thème échoue WCAG AA sur 15 paires** (J-012). L'orange de marque
-      `#E55A24` donne **3.61:1** sur fond blanc, pas 4.7:1 comme l'annote `theme/index.ts`.
-      Concerné : `text.brand`, `text.success`, `text.warning` en clair ; `text.error` en sombre ;
-      l'anneau de focus en clair (2.84:1 pour un seuil de 3:1) ; **les 6** combinaisons de libellé
-      blanc sur bouton plein. `src/theme/contrast.test.ts` bloque toute régression et listera la
-      dette jusqu'à correction. **Décision design requise** (repeindre la palette). (P1 — a11y)
+- [x] ~~**A11Y-001 — le thème échoue WCAG AA sur 15 paires**~~ → **FAIT (2026-08-24)**. Le rebrand
+      indigo de `develop` en avait réglé 4 ; les 11 restantes ont été corrigées : `text.success` et
+      `text.warning` au step 700, `text.error` sombre au nouveau step 400, remplissages brand et
+      danger au step 600, et nouveau token `text.onAccent` (encre) car le teal accent est trop
+      lumineux pour porter du blanc (2,17:1 → 7,87:1). `PENDING_DESIGN_DECISION` est vide :
+      **44 paires vérifiées, 0 dette** (J-012).
 - [ ] **A11Y-003 — 46 `accessibilityHint` manquants** (J-013). Les 10 autres règles
       `react-native-a11y/basic` sont actives et vertes. Un hint est de la copie utilisateur à
       écrire + traduire → reste au reviewer. (P2)
-- [ ] ⚠️ **DOC-004 inapplicable** (J-011) : ni Docusaurus ni TypeDoc installés, `docs-site/` sans
-      `package.json`, `e2e/` vide alors que 6 scénarios Maestro sont documentés. **À trancher** :
-      installer l'outillage, ou retirer DOC-004 et la section E2E. (P2)
+- [x] ~~**DOC-004 inapplicable**~~ → **FAIT (2026-08-24)** : Docusaurus 3 dans `docs-site/` +
+      TypeDoc à la racine. `npm run docs` (11 s) régénère l'API depuis les TSDoc puis construit le
+      site, liens morts en erreur ; joué en 4ᵉ garde du pre-push. 96 tags `@module` obsolètes
+      (`presentation/`, `core/`, `infrastructure/`) réalignés sur les chemins réels (J-011).
+- [ ] **E2E Maestro toujours fictif** : `e2e/` est vide alors que 6 scénarios sont documentés dans
+      `POLICIES.md`. À écrire, ou à retirer de la doc. (P2)
 - [ ] **Couplage `components/` → `features/`** (J-014) : 4 molecules POI importent
       `@features/POI/utils/poiIcons`, `AddressAutocomplete` importe
       `@features/Session/hooks/useGeocodeQuery`. Exemptions explicites dans

@@ -3,7 +3,7 @@
  * @description Tests unitaires de l'entité RealtimeParticipant (Zod strict).
  *              Unit tests for the RealtimeParticipant entity (strict Zod).
  *
- * @module __tests__/unit/core/entities/RealtimeParticipant
+ * @module entities/RealtimeParticipant.test
  */
 
 // [ADDED] F4 — Tests unitaires RealtimeParticipant

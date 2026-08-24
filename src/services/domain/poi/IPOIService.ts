@@ -8,7 +8,7 @@
  * without touching business logic.
  *
  * @file IPOIService.ts
- * @module core/ports/IPOIService
+ * @module services/domain/poi/IPOIService
  */
 
 // [ADDED] Port IPOIService — interface + types POI search

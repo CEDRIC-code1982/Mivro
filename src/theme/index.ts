@@ -15,7 +15,7 @@
  *              });
  *              ```
  *
- * @module core/theme
+ * @module theme
  */
 
 import { createContext, useContext } from 'react';
@@ -53,11 +53,15 @@ const lightSemantic = {
     secondary: palette.neutral[600], // #52525B — texte secondaire (7:1)
     tertiary: palette.neutral[500], // #71717A — hints/placeholder conservé A11Y-001 (charte #A1A1AA = 2.3:1, non conforme)
     inverse: palette.neutral[0], // Texte sur fond foncé
-    brand: palette.brand[600], // Liens / accents (4.7:1 ✅)
-    error: palette.error[600], // (5.1:1 ✅)
-    success: palette.success[600],
-    warning: palette.warning[600],
-    onBrand: palette.neutral[0], // Texte sur boutons brand
+    brand: palette.brand[600], // Liens / accents — 6,29:1
+    error: palette.error[600], // 5,59:1
+    success: palette.success[700], // 5,02:1 (le 600 ne donnait que 3,3:1)
+    warning: palette.warning[700], // 5,06:1 (le 600 ne donnait que 2,86:1)
+    onBrand: palette.neutral[0], // Texte sur remplissage brand / danger — 6,29:1
+    // Le teal accent est trop lumineux pour du blanc (2,17:1) : sur un
+    // remplissage accent, le texte est de l'encre — 7,87:1.
+    // Teal accent is too bright for white text: ink on accent gives 7,87:1.
+    onAccent: '#1A1A2E',
   },
 
   // Bordures
@@ -93,9 +97,12 @@ const lightSemantic = {
       disabled: palette.neutral[100],
     },
     danger: {
-      default: palette.error[500],
-      hover: palette.error[600],
-      pressed: palette.error[700],
+      // 600 et non 500 : ce token sert à la fois de remplissage (blanc dessus,
+      // 5,59:1) et de couleur d'icône/texte sur blanc (5,59:1). Le 500 échouait
+      // les deux (4,17:1).
+      default: palette.error[600],
+      hover: palette.error[700],
+      pressed: palette.error[800],
       disabled: palette.neutral[300],
     },
   },
@@ -127,11 +134,13 @@ const darkSemantic = {
     secondary: '#A1A1AB', // charte — texte secondaire sombre
     tertiary: palette.neutral[400], // #A1A1AA — hints conservé A11Y-001 (charte muted #6B6B78 = 3.5:1)
     inverse: '#1A1A2E', // Encre Mivro sur surfaces claires
-    brand: palette.brand[300], // #A5B4FC (charte brand texte/icône sombre)
-    error: palette.error[500],
-    success: palette.success[500],
-    warning: palette.warning[500],
-    onBrand: palette.neutral[0],
+    brand: palette.brand[300], // #A5B4FC (charte brand texte/icône sombre) — 9,09:1
+    error: palette.error[400], // 6,59:1 (le 500 ne donnait que 4,35:1 sur bg sombre)
+    success: palette.success[500], // 7,95:1
+    warning: palette.warning[500], // 9,82:1
+    onBrand: palette.neutral[0], // 6,29:1
+    // Idem mode clair : encre sur remplissage teal — 9,16:1.
+    onAccent: '#1A1A2E',
   },
 
   border: {
@@ -147,9 +156,12 @@ const darkSemantic = {
 
   interactive: {
     brand: {
-      default: palette.brand[500],
-      hover: palette.brand[400],
-      pressed: palette.brand[300],
+      // 600 et non 500 : le blanc sur brand[500] plafonne à 4,47:1, juste sous
+      // AA. Le remplissage sombre rejoint donc celui du mode clair.
+      // White on brand[500] caps at 4,47:1, just under AA.
+      default: palette.brand[600],
+      hover: palette.brand[700],
+      pressed: palette.brand[800],
       disabled: palette.neutral[700],
     },
     accent: {
@@ -165,9 +177,10 @@ const darkSemantic = {
       disabled: palette.neutral[800],
     },
     danger: {
-      default: palette.error[500],
-      hover: palette.error[600],
-      pressed: palette.error[700],
+      // Idem mode clair : 600 pour servir remplissage ET icône/texte.
+      default: palette.error[600],
+      hover: palette.error[700],
+      pressed: palette.error[800],
       disabled: palette.neutral[700],
     },
   },

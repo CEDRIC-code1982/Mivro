@@ -3,7 +3,7 @@
  * @description Tests unitaires du store usePreferencesStore.
  *              Unit tests for the usePreferencesStore.
  *
- * @module __tests__/unit/presentation/stores/usePreferencesStore
+ * @module state/usePreferencesStore.test
  */
 
 // [ADDED] Tests unitaires usePreferencesStore

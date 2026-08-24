@@ -13,7 +13,7 @@
  *
  *              États / States : empty (aucun participant live) géré ici (ERR-003).
  *
- * @module presentation/components/molecules/LiveParticipantsList
+ * @module components/molecules/LiveParticipantsList/LiveParticipantsList
  */
 
 // [ADDED] F4 — Molecule LiveParticipantsList (vue liste a11y)

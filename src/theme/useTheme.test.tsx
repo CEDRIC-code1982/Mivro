@@ -3,7 +3,7 @@
  * @description Tests unitaires du hook useTheme avec ThemeModeProvider.
  *              Unit tests for useTheme hook with ThemeModeProvider.
  *
- * @module __tests__/unit/core/theme/useTheme
+ * @module theme/useTheme.test
  */
 
 // [ADDED] Tests pour P0-6 — theme toggle via context

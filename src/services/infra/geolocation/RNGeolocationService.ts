@@ -12,7 +12,7 @@
  *
  *              ⚠️ RGPD : aucune coordonnée brute dans les logs.
  *
- * @module infrastructure/geolocation/RNGeolocationService
+ * @module services/infra/geolocation/RNGeolocationService
  */
 
 // [ADDED] Adapter RNGeolocationService

@@ -3,7 +3,7 @@
  * @description Tests unitaires du store useAuthStore.
  *              Unit tests for the useAuthStore.
  *
- * @module __tests__/unit/presentation/stores/useAuthStore
+ * @module state/useAuthStore.test
  */
 
 // [ADDED] Tests unitaires useAuthStore

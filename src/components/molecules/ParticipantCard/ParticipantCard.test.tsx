@@ -3,7 +3,7 @@
  * @description Tests unitaires de la molecule ParticipantCard.
  *              Unit tests for the ParticipantCard molecule.
  *
- * @module __tests__/unit/presentation/components/molecules/ParticipantCard
+ * @module components/molecules/ParticipantCard/ParticipantCard.test
  */
 
 // [ADDED] Tests unitaires ParticipantCard

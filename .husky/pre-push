@@ -5,6 +5,7 @@
 #   1. check:arch  — dependency-cruiser (layer boundaries, Atomic Design)
 #   2. check:diff  — no banned escape hatch in the pushed commits
 #   3. test:ci     — the full Jest suite
+#   4. docs        — TypeDoc + Docusaurus build (DOC-004), ~11 s
 #
 # Bypass (only for a genuine emergency): git push --no-verify
 # ---------------------------------------------------------------------------
@@ -20,13 +21,22 @@ if [ -z "$UPSTREAM" ]; then
   fi
 fi
 
-printf '▸ pre-push 1/3  architecture (check:arch)\n'
+printf '▸ pre-push 1/4  architecture (check:arch)\n'
 npm run --silent check:arch
 
-printf '▸ pre-push 2/3  banned patterns (check:diff, range %s...HEAD)\n' "$UPSTREAM"
+printf '▸ pre-push 2/4  banned patterns (check:diff, range %s...HEAD)\n' "$UPSTREAM"
 bash scripts/check-diff.sh "$UPSTREAM...HEAD"
 
-printf '▸ pre-push 3/3  full test suite (test:ci)\n'
+printf '▸ pre-push 3/4  full test suite (test:ci)\n'
 npm run --silent test:ci
+
+# DOC-004: the documentation must build. onBrokenLinks is set to 'throw', so a
+# dangling reference fails here rather than being discovered on the published site.
+printf '▸ pre-push 4/4  documentation (docs — TypeDoc + Docusaurus)\n'
+if [ ! -d docs-site/node_modules ]; then
+  printf '  ✖ docs-site dependencies are missing. Run: npm --prefix docs-site install\n' >&2
+  exit 1
+fi
+npm run --silent docs >/dev/null
 
 printf '✔ pre-push: all gates green\n'

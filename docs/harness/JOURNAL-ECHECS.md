@@ -25,13 +25,15 @@
 | J-008 | `eslint-disable` mort, invisible jusqu'à la migration      | RÉSOLU  |
 | J-009 | Commentaire de justification posé au mauvais endroit       | RÉSOLU  |
 | J-010 | Scripts `test:unit` / `test:integration` morts             | RÉSOLU  |
-| J-011 | DOC-004 inapplicable : pas de Docusaurus ni TypeDoc        | OUVERT  |
-| J-012 | Thème : 15 paires échouent WCAG AA                         | OUVERT  |
+| J-011 | DOC-004 inapplicable : pas de Docusaurus ni TypeDoc        | RÉSOLU  |
+| J-012 | Thème : 15 paires échouent WCAG AA                         | RÉSOLU  |
 | J-013 | 46 `accessibilityHint` manquants                           | OUVERT  |
 | J-014 | Couplage `components/` → `features/` préexistant           | OUVERT  |
 | J-015 | TS-002 : 127 casts idiomatiques en tests                   | ARBITRÉ |
 | J-016 | Imports de hooks entre features                            | ARBITRÉ |
 | J-017 | Véto natif : faux positif sur les heredocs                 | ACCEPTÉ |
+| J-018 | Véto destructif contournable par une commande multi-lignes | RÉSOLU  |
+| J-019 | `npm run clear` de Docusaurus bloqué par homonymie         | ACCEPTÉ |
 
 ---
 
@@ -230,7 +232,7 @@ par numéro de ligne.
 
 ## J-011 — DOC-004 est une règle morte : ni Docusaurus ni TypeDoc
 
-**Date** : 2026-08-21 · **Statut** : OUVERT — décision Cédric
+**Date** : 2026-08-21 · **Statut** : RÉSOLU le 2026-08-24
 
 **Observé.** `CLAUDE.md` imposait « `npm run docs` doit passer sans erreur » (DOC-004) et
 documentait `docs`, `docs:dev`, `docs:build`. Aucun de ces scripts n'existe, `docs-site/` n'a pas
@@ -240,14 +242,37 @@ listés.
 **Pourquoi ça compte.** Une règle bloquante inexécutable apprend à l'agent que les règles de
 `CLAUDE.md` sont facultatives — ce qui coûte plus cher que la règle elle-même.
 
-**Réponse.** DOC-004 reste dans `CLAUDE.md` mais explicitement marquée inapplicable, avec la
-raison. À trancher : installer Docusaurus + TypeDoc, ou retirer la règle et la section E2E.
+**Réponse (2026-08-24).** Cédric a tranché : outiller. Docusaurus 3 dans `docs-site/` (config,
+sidebars ADR + API, palette indigo) + TypeDoc à la racine (`typedoc.config.mjs`, sortie Markdown).
+`npm run docs` régénère l'API puis construit le site en **11 s**, et devient la **4ᵉ garde du
+pre-push** : DOC-004 quitte la liste « jugement » de `CLAUDE.md` pour devenir un capteur.
+
+Trois pièges rencontrés, tous consignés parce qu'ils reviendront :
+
+1. `onBrokenLinks: 'throw'` ne suffit pas — depuis Docusaurus 3.9 les liens Markdown morts se
+   règlent dans `markdown.hooks.onBrokenMarkdownLinks` ; à la racine, l'option est dépréciée et
+   **silencieusement ignorée**. Le garde-fou paraissait actif sans l'être.
+2. Docusaurus **exclut les fichiers commençant par `_`**. Ma première sonde s'appelait
+   `__probe.md` : elle n'était jamais construite, donc le lien mort n'échouait pas. Un capteur
+   « vert » de plus qui ne testait rien (même famille que J-001). La sonde du self-test s'appelle
+   désormais `probe-harness.md`.
+3. Docusaurus 3 parse les `.md` en MDX, donc toute accolade devient une expression JS : le
+   Markdown généré par TypeDoc (`{sessionId}`, génériques) cassait le build.
+   `markdown.format: 'detect'` rend les `.md` au CommonMark.
+
+**Bonus.** La doc générée était classée sous `presentation/`, `core/`, `infrastructure/` — des
+couches supprimées par le refactor `de6b15c`. **96 tags `@module`** en code de production (178
+fichiers au total avec les tests, qui pointaient encore `__tests__/`) réalignés sur les chemins
+réels. `prettier` a aussi dû être aiguillé : il vérifiait le format des 311 fichiers **générés**
+(`docs-site/docs/api/` ajouté à `.prettierignore`, et le dossier est gitignoré : c'est du dérivé).
+
+Reste ouvert : `e2e/` est toujours vide alors que `POLICIES.md` documente 6 scénarios Maestro.
 
 ---
 
 ## J-012 — Le thème échoue WCAG AA sur 15 paires réellement affichées
 
-**Date** : 2026-08-21 · **Statut** : OUVERT — décision design
+**Date** : 2026-08-21 · **Statut** : RÉSOLU le 2026-08-24
 
 **Observé.** A11Y-001 (« contraste WCAG AA respecté ») était présentée comme bloquante et le thème
 annote ses couleurs de ratios (`// ✅ Texte sur blanc (4.7:1)`). Mesure faite : **ces annotations
@@ -265,8 +290,43 @@ libellé blanc sur bouton plein (`brand` 3.61 clair / 2.84 sombre, `accent` 2.93
 - si une paire repasse le seuil, le test **échoue** pour forcer sa sortie de la liste ;
 - une entrée orpheline (paire disparue) fait échouer le test.
 
-Corriger ces 15 paires implique de repeindre la palette : c'est une décision design, pas une
-correction mécanique. Le harness bloque la régression sans trancher à la place de Cédric.
+Corriger ces 15 paires impliquait de repeindre la palette : décision design, pas correction
+mécanique. Le harness a bloqué la régression sans trancher à la place de Cédric.
+
+**Résolution (2026-08-24).** Deux temps.
+
+D'abord un constat : le chantier harness avait été mené sur `main`, **6 commits en retard** sur
+`origin/develop`, qui portait déjà le rebrand indigo (`617d64b`). Le cliquet a fait exactement son
+travail au rebase : il a signalé que 4 paires atteignaient désormais le seuil et devaient sortir de
+la liste — l'orange à 3,61:1 était devenu de l'indigo `#4F46E5` à **6,29:1**.
+
+Restaient 11 paires. Corrigées par des **steps de palette**, pas par des couleurs inventées :
+
+| Paire                               | Avant  | Après  | Correctif                    |
+| ----------------------------------- | ------ | ------ | ---------------------------- |
+| `light text.success`                | 3,30:1 | 5,02:1 | step 600 → 700               |
+| `light text.warning`                | 2,86:1 | 5,06:1 | step 600 → 700               |
+| `dark text.error`                   | 4,35:1 | 6,59:1 | nouveau step 400 (`#F5737F`) |
+| `dark text.onBrand` sur brand       | 4,47:1 | 6,29:1 | remplissage step 500 → 600   |
+| `text.onBrand` sur danger (2 modes) | 4,17:1 | 5,59:1 | remplissage step 500 → 600   |
+| `text.on*` sur accent (2 modes)     | 2,17:1 | 7,87:1 | **nouveau token `onAccent`** |
+
+Le cas intéressant est l'accent teal. Aucun step ne permet du blanc lisible dessus sans détruire
+la couleur (il faudrait descendre à `accent[700]`, un teal presque noir). La bonne réponse n'était
+pas d'assombrir la marque mais de **retourner le contraste** : sur un remplissage lumineux, le
+libellé est de l'encre. D'où `text.onAccent` (`#1A1A2E`), appliqué aux 3 sites concernés (marqueurs
+de participants des deux cartes, badge « invité » du profil) et ajouté à l'union `TextColor`.
+
+`interactive.danger.default` méritait aussi un mot : ce token sert **à la fois** de remplissage
+(blanc dessus) et de couleur d'icône sur blanc. Le step 500 échouait les deux à 4,17:1 ; le 600
+passe les deux à 5,59:1.
+
+**État : 44 paires vérifiées, `PENDING_DESIGN_DECISION` vide.** Le test a aussi été restructuré :
+`it.each([])` échoue en réclamant un tableau non vide, donc la vérification de dette est désormais
+un test unique qui boucle — un cliquet doit supporter d'avoir zéro dette.
+
+Les commentaires de ratio du thème ont été corrigés là où ils mentaient (`brand[600]` annonçait
+6,4:1 pour 6,29:1 mesuré) et renvoient maintenant au test comme source de vérité.
 
 ---
 
@@ -359,3 +419,65 @@ plutôt que contournable. Deux contournements documentés :
 Les vérifications `rm -rf`, `git push --force` et `git reset --hard` sont, elles, analysées par
 tokens (`shlex`) avec détection de la position de commande : un heredoc qui contient `rm -rf` en
 texte n'est **pas** bloqué. 32 cas de test dans le self-test, dont 14 qui doivent passer.
+
+---
+
+## J-018 — Le véto sur les commandes destructrices était contournable
+
+**Date** : 2026-08-24 · **Statut** : RÉSOLU
+
+**Observé.** J'ai lancé, et le hook a laissé passer, une commande de cette forme :
+
+```
+python3 - <<'PY'
+... du code contenant une apostrophe ...
+PY
+<suppression récursive forcée d'un dossier>
+```
+
+Le dossier a bien été supprimé. Aucun refus. Or ce motif est exactement celui que le hook
+`PreToolUse` est censé interdire.
+
+**Cause — deux défauts qui se cumulent.**
+
+1. `shlex.split()` traite un **retour à la ligne comme un simple espace**. Toute la commande
+   multi-lignes se réduisait donc à _une_ commande dont le nom est `python3` ; la suppression
+   placée sur la ligne suivante n'était qu'un **argument**, jamais soumise à `check_rm`.
+2. Quand `shlex` échouait (guillemets déséquilibrés — un heredoc contenant une apostrophe suffit),
+   le code faisait `return 0`, c'est-à-dire **autoriser**. Un parseur qui abandonne ne doit pas
+   conclure « rien à signaler ».
+
+**Pourquoi c'est grave.** C'est le capteur censé protéger de l'irréversible, et son mode de
+défaillance était silencieux et permissif. Même famille que J-001 — un capteur vert qui ne
+regardait pas — sauf que celui-ci garde des suppressions de fichiers.
+
+**Réponse.**
+
+- Analyse **ligne par ligne** : chaque ligne est tokenisée et jugée séparément.
+- Échec de tokenisation → `check_raw_fallback()`, jeu de regex sur le texte brut, **biaisé vers le
+  refus**. Un parseur en échec refuse, il n'autorise pas.
+- 7 cas ajoutés au self-test : les 3 contournements multi-lignes ci-dessus, et 4 commandes
+  légitimes multi-lignes qui doivent continuer à passer.
+
+**Conséquence assumée.** Une ligne de heredoc qui _mentionne_ une commande destructrice est
+refusée. Deux atténuations : le texte entre backticks est ignoré (une commande réelle n'est jamais
+précédée d'un backtick), et pour le reste le contournement est documenté — outil `Write`, ou
+chaînes assemblées à l'exécution comme dans le self-test. Un véto grossier vaut mieux qu'un véto
+contournable.
+
+---
+
+## J-019 — Le `clear` de Docusaurus bloqué par homonymie
+
+**Date** : 2026-08-24 · **Statut** : ACCEPTÉ — faux positif connu
+
+**Observé.** Le script `clear` lancé depuis `docs-site/` a été refusé. Il s'agissait de
+`docusaurus clear` (vide le cache de build), pas du script homonyme de la racine qui supprime
+`node_modules`.
+
+**Cause.** Le véto compare le **nom du script**, sans savoir de quel `package.json` il provient.
+
+**Réponse.** Faux positif accepté ; contournement : appeler le binaire directement
+(`npx docusaurus clear`). Rendre le véto conscient du répertoire courant demanderait de résoudre
+le `package.json` applicable à chaque appel, pour un gain marginal : les quatre noms bloqués sont
+tous destructeurs à la racine, et l'homonymie ne concerne que celui-ci.

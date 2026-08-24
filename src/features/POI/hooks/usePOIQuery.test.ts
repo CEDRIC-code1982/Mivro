@@ -3,7 +3,7 @@
  * @description Tests unitaires du hook usePOIQuery.
  *              Unit tests for the usePOIQuery hook.
  *
- * @module __tests__/unit/presentation/hooks/usePOIQuery
+ * @module features/POI/hooks/usePOIQuery.test
  */
 
 // [ADDED] Tests unitaires usePOIQuery

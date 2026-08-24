@@ -4,7 +4,7 @@
  * Point of Interest entity from Overpass / OSM.
  *
  * @file PointOfInterest.ts
- * @module core/entities
+ * @module entities/PointOfInterest
  */
 
 import { z } from 'zod'; // [ADDED]

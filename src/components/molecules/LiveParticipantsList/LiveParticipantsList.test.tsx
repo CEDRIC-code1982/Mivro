@@ -3,7 +3,7 @@
  * @description Tests unitaires de la molecule LiveParticipantsList (F4 — vue a11y).
  *              Unit tests for the LiveParticipantsList molecule (F4 — a11y list).
  *
- * @module __tests__/unit/presentation/components/molecules/LiveParticipantsList
+ * @module components/molecules/LiveParticipantsList/LiveParticipantsList.test
  */
 
 // [ADDED] F4 — Tests unitaires LiveParticipantsList

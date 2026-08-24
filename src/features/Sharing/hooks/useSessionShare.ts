@@ -17,7 +17,7 @@
  *              Presentation goes through use cases via the DI container: it
  *              NEVER imports firebase (dependency rule).
  *
- * @module presentation/hooks/useSessionShare
+ * @module features/Sharing/hooks/useSessionShare
  */
 
 // [ADDED] F5 — Hook d'orchestration useSessionShare

@@ -3,7 +3,7 @@
  * @description Tests unitaires de la molecule RealtimeConsentModal (F4 — RGPD).
  *              Unit tests for the RealtimeConsentModal molecule (F4 — GDPR).
  *
- * @module __tests__/unit/presentation/components/molecules/RealtimeConsentModal
+ * @module components/molecules/RealtimeConsentModal/RealtimeConsentModal.test
  */
 
 // [ADDED] F4 — Tests unitaires RealtimeConsentModal

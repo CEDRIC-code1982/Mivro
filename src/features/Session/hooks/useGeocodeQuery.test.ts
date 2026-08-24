@@ -3,7 +3,7 @@
  * @description Tests unitaires du hook useGeocodeQuery.
  *              Unit tests for the useGeocodeQuery hook.
  *
- * @module __tests__/unit/presentation/hooks/useGeocodeQuery
+ * @module features/Session/hooks/useGeocodeQuery.test
  */
 
 // [ADDED] Tests unitaires useGeocodeQuery

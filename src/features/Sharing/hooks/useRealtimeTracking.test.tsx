@@ -7,7 +7,7 @@
  *              arrière-plan (AppState), publication conditionnée au consentement
  *              (RGPD), leaveSession + purge au stop.
  *
- * @module __tests__/unit/presentation/hooks/useRealtimeTracking
+ * @module features/Sharing/hooks/useRealtimeTracking.test
  */
 
 // [ADDED] F4 — Tests unitaires useRealtimeTracking

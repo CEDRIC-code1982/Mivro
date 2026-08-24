@@ -12,7 +12,7 @@
  *              - iOS : `CFBundleURLTypes` (scheme `mivro`) dans Info.plist
  *              - Android : `<intent-filter>` (scheme `mivro`) dans AndroidManifest
  *
- * @module presentation/navigation/linking
+ * @module navigations/linking
  */
 
 // [ADDED] F5 — Configuration deep linking

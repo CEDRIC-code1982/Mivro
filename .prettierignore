@@ -10,6 +10,8 @@ coverage/
 functions/
 docs-site/build/
 docs-site/.docusaurus/
+# Référence API générée par TypeDoc — ne pas formater du généré
+docs-site/docs/api/
 *.jsbundle
 vendor/
 .bundle/

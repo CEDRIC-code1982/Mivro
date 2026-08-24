@@ -24,7 +24,7 @@
  * </Text>
  * ```
  *
- * @module presentation/components/atoms/Text
+ * @module components/atoms/Text/Text
  */
 
 import { useTheme, type Theme } from '@theme';
@@ -58,7 +58,10 @@ type TextColor =
   | 'error'
   | 'success'
   | 'warning'
-  | 'onBrand';
+  | 'onBrand'
+  // [ADDED] Sur un remplissage accent (teal), le blanc n'atteint pas AA :
+  // 'onAccent' est l'encre. On an accent fill, white fails AA — use ink.
+  | 'onAccent';
 
 // [ADDED] Text alignment type
 type TextAlign = 'left' | 'center' | 'right';

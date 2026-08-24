@@ -8,7 +8,7 @@
  *              Allows swapping Nominatim for Google Geocoding, Mapbox, etc.
  *              without touching business logic.
  *
- * @module core/ports/IGeocodeService
+ * @module services/domain/geocode/IGeocodeService
  */
 
 // [ADDED] Port IGeocodeService + GeocodeError + types

@@ -7,7 +7,7 @@
  *              et le midpoint calculé.
  *              Used for participant start locations and the computed midpoint.
  *
- * @module core/entities/Location
+ * @module entities/Location
  */
 
 // [ADDED] Entité Location avec validation Zod

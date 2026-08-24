@@ -3,7 +3,7 @@
  * @description Tests unitaires du port IGeolocationService et GeolocationError.
  *              Unit tests for the IGeolocationService port and GeolocationError.
  *
- * @module __tests__/unit/core/ports/IGeolocationService
+ * @module services/domain/geolocation/IGeolocationService.test
  */
 
 // [ADDED] Tests unitaires GeolocationError

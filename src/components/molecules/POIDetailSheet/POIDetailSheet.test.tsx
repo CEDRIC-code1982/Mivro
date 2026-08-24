@@ -3,7 +3,7 @@
  * @description Tests unitaires de la molecule POIDetailSheet.
  *              Unit tests for the POIDetailSheet molecule.
  *
- * @module __tests__/unit/presentation/components/molecules/POIDetailSheet
+ * @module components/molecules/POIDetailSheet/POIDetailSheet.test
  */
 
 // [ADDED] Tests unitaires POIDetailSheet

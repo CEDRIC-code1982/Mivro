@@ -8,7 +8,7 @@
  *              Allows swapping Sentry for Bugsnag or another provider
  *              without touching business logic.
  *
- * @module core/ports/ICrashReporter
+ * @module services/domain/crash/ICrashReporter
  */
 
 // [ADDED] Port ICrashReporter — interface + types crash reporting

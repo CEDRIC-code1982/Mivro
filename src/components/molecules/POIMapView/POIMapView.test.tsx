@@ -3,7 +3,7 @@
  * @description Tests unitaires de la molecule POIMapView.
  *              Unit tests for the POIMapView molecule.
  *
- * @module __tests__/unit/presentation/components/molecules/POIMapView
+ * @module components/molecules/POIMapView/POIMapView.test
  */
 
 // [ADDED] Tests unitaires POIMapView

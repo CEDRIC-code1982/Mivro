@@ -3,7 +3,7 @@
  * @description Tests unitaires de l'entité GeocodeResult.
  *              Unit tests for the GeocodeResult entity.
  *
- * @module __tests__/unit/core/entities/GeocodeResult
+ * @module entities/GeocodeResult.test
  */
 
 // [ADDED] Tests unitaires entité GeocodeResult

@@ -148,6 +148,56 @@ def check_npm(args: list[str], command: str) -> None:
             )
 
 
+# Fallback patterns, applied to the raw command when it cannot be tokenised.
+# Coarser than the token analysis — a heredoc merely *mentioning* one of these
+# is refused too. That is the intended trade-off: a destructive command that
+# slips through costs more than a false positive the author can work around.
+#
+# One concession to prose: a match preceded by a backtick is ignored. Inline code
+# in Markdown (`rm -rf`, `npm run clear`) is documentation, never an invocation,
+# and writing the harness's own docs would otherwise be impossible from Bash.
+NOT_PROSE = r"(?<![\w`-])"
+
+RAW_FALLBACK_PATTERNS = (
+    (
+        re.compile(NOT_PROSE + r"rm\s+(?:-\w*[rR]\w*f\w*|-\w*f\w*[rR]\w*)(?![\w-])"),
+        "recursive force delete (rm -rf)",
+    ),
+    (
+        re.compile(NOT_PROSE + r"rm\s+(?:-\w+\s+)*--(?:recursive|force)(?![\w-])"),
+        "recursive/force delete (rm --recursive/--force)",
+    ),
+    (
+        re.compile(NOT_PROSE + r"git\s+(?:[^;&|\n`]*\s)?push\b[^;&|\n`]*(?:--force|\s-f(?:\s|$))"),
+        "forced push (git push --force)",
+    ),
+    (
+        re.compile(NOT_PROSE + r"git\s+(?:[^;&|\n`]*\s)?reset\b[^;&|\n`]*--hard"),
+        "git reset --hard",
+    ),
+    (
+        re.compile(
+            NOT_PROSE + r"npm\s+run(?:-script)?\s+(?:pods|ios-clean|android-clean|clear)(?![\w-])"
+        ),
+        "destructive npm script",
+    ),
+)
+
+
+def check_raw_fallback(command: str) -> None:
+    """Last-resort scan of a command that could not be tokenised."""
+    for pattern, what in RAW_FALLBACK_PATTERNS:
+        if pattern.search(command):
+            deny(
+                what,
+                "This command could not be parsed into tokens (unbalanced quotes, "
+                "heredoc...), so it is refused on a raw-text match. Split it: run "
+                "the heredoc alone, then the destructive part on its own line so it "
+                "can be judged properly — or run that part yourself.",
+                command,
+            )
+
+
 def main() -> int:
     try:
         payload = json.load(sys.stdin)
@@ -167,21 +217,36 @@ def main() -> int:
             command,
         )
 
-    try:
-        tokens = shlex.split(command, comments=False, posix=True)
-    except ValueError:
-        # Unbalanced quotes (heredocs, multiline scripts): fall back to the
-        # path-level veto only, already applied above.
-        return 0
+    # One segment per line. shlex treats a newline as plain whitespace, so a
+    # whole multi-line command would collapse into a single "command" whose name
+    # is the first word — and a `rm -rf` on a later line would be read as a mere
+    # argument, never inspected. That is how a destructive command slipped past
+    # this guard (JOURNAL J-018). Splitting on newlines first closes it.
+    #
+    # Consequence, assumed: a heredoc body line is analysed like a command, so a
+    # document that literally writes `rm -rf ...` is refused. Same trade-off as
+    # the native-artefact veto — use the Write tool for that content.
+    for segment in command.splitlines():
+        segment = segment.strip()
+        if not segment:
+            continue
 
-    for words in split_commands(tokens):
-        name, args = command_name(words)
-        if name == "rm":
-            check_rm(args, command)
-        elif name == "git":
-            check_git(args, command)
-        elif name in {"npm", "yarn", "pnpm"}:
-            check_npm(args, command)
+        try:
+            tokens = shlex.split(segment, comments=False, posix=True)
+        except ValueError:
+            # Unbalanced quotes on this line: fall back to raw pattern matching
+            # rather than letting the line through unchecked.
+            check_raw_fallback(segment)
+            continue
+
+        for words in split_commands(tokens):
+            name, args = command_name(words)
+            if name == "rm":
+                check_rm(args, command)
+            elif name == "git":
+                check_git(args, command)
+            elif name in {"npm", "yarn", "pnpm"}:
+                check_npm(args, command)
 
     return 0
 

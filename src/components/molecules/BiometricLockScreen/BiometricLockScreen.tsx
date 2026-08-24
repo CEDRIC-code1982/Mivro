@@ -17,7 +17,7 @@
  *              failure / cancellation (stays locked). Attempts an automatic
  *              prompt on mount / on each lock.
  *
- * @module presentation/components/molecules/BiometricLockScreen
+ * @module components/molecules/BiometricLockScreen/BiometricLockScreen
  */
 
 // [ADDED] F8 — Molecule BiometricLockScreen (overlay bloquant)

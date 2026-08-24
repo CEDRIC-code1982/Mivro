@@ -8,7 +8,7 @@
  * - placeholderData pour transition fluide
  *
  * @file usePOIQuery.ts
- * @module presentation/hooks/usePOIQuery
+ * @module features/POI/hooks/usePOIQuery
  *
  * @example
  *   const { data, isLoading, error } = usePOIQuery({

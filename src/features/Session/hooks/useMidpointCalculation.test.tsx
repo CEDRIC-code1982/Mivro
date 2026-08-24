@@ -3,7 +3,7 @@
  * @description Tests unitaires du hook useMidpointCalculation.
  *              Unit tests for the useMidpointCalculation hook.
  *
- * @module __tests__/unit/presentation/hooks/useMidpointCalculation
+ * @module features/Session/hooks/useMidpointCalculation.test
  */
 
 // [ADDED] Tests unitaires useMidpointCalculation

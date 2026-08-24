@@ -3,7 +3,7 @@
  * @description Tests unitaires de l'entité POICategory.
  *              Unit tests for the POICategory entity.
  *
- * @module __tests__/unit/core/entities/POICategory
+ * @module entities/POICategory.test
  */
 
 // [ADDED] Tests unitaires entité POICategory

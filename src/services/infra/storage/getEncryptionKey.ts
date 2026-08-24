@@ -13,7 +13,7 @@
  *              The key is generated ONCE on first launch
  *              and reused on every subsequent startup.
  *
- * @module infrastructure/storage/getEncryptionKey
+ * @module services/infra/storage/getEncryptionKey
  */
 
 // [ADDED] Gestion de la clé de chiffrement MMKV via Keychain

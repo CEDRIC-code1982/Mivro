@@ -20,7 +20,7 @@
  *              Aucune dépendance infrastructure ni présentation (règle de
  *              dépendance). Reçoit les ports par injection de constructeur.
  *
- * @module core/usecases/JoinSessionUseCase
+ * @module services/domain/sharing/JoinSessionUseCase
  */
 
 // [ADDED] F5 — UseCase JoinSessionUseCase

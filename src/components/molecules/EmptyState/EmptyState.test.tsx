@@ -3,7 +3,7 @@
  * @description Tests unitaires de la molecule EmptyState.
  *              Unit tests for the EmptyState molecule.
  *
- * @module __tests__/unit/presentation/components/molecules/EmptyState
+ * @module components/molecules/EmptyState/EmptyState.test
  */
 
 // [ADDED] Tests unitaires EmptyState

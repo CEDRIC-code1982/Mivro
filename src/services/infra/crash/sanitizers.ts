@@ -8,7 +8,7 @@
  *              - Emails → [REDACTED]
  *              - Tokens / secrets / mots de passe → [REDACTED]
  *
- * @module infrastructure/crash/sanitizers
+ * @module services/infra/crash/sanitizers
  */
 
 // [ADDED] Sanitizers RGPD — scrub GPS, emails, tokens

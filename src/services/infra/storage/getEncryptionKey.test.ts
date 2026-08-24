@@ -6,7 +6,7 @@
  *              Keychain est mocké globalement dans jest.setup.js.
  *              Keychain is globally mocked in jest.setup.js.
  *
- * @module __tests__/unit/infrastructure/storage/getEncryptionKey
+ * @module services/infra/storage/getEncryptionKey.test
  */
 
 // [ADDED] Tests unitaires getEncryptionKey avec mock Keychain

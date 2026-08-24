@@ -13,7 +13,7 @@
  *              parse Zod invalide → invalid_data, mapping erreurs (dont
  *              not_configured), absence de coords dans les logs.
  *
- * @module __tests__/unit/infrastructure/realtime/FirebaseSessionShareService
+ * @module services/infra/realtime/FirebaseSessionShareService.test
  */
 
 // [ADDED] F5 — Tests unitaires FirebaseSessionShareService

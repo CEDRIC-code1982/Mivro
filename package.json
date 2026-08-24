@@ -22,6 +22,9 @@
     "check:arch:graph": "depcruise src --config .dependency-cruiser.js --output-type dot > .dependency-graph.dot",
     "check:diff": "bash scripts/check-diff.sh",
     "check:harness": "bash scripts/harness-selftest.sh",
+    "docs:api": "typedoc",
+    "docs": "typedoc && npm --prefix docs-site run build",
+    "docs:dev": "typedoc && npm --prefix docs-site run start",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run check:arch && npm run check:diff && npm run test:ci",
     "prepare": "husky",
     "pods": "cd ios && rm -rf Pods/ && rm -rf build && rm -rf Podfile.lock && bundle install && bundle exec pod install && cd ..",
@@ -106,6 +109,8 @@
     "lint-staged": "^16.4.0",
     "prettier": "2.8.8",
     "react-test-renderer": "19.2.3",
+    "typedoc": "^0.28.20",
+    "typedoc-plugin-markdown": "^4.12.0",
     "typescript": "^5.8.3"
   },
   "engines": {

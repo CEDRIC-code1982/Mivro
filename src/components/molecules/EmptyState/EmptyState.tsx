@@ -17,7 +17,7 @@
  * />
  * ```
  *
- * @module presentation/components/molecules/EmptyState
+ * @module components/molecules/EmptyState/EmptyState
  */
 
 // [ADDED] Molecule EmptyState

@@ -8,7 +8,7 @@
  *              Transforms an IStorageService into a StateStorage compatible
  *              with zustand/middleware persist().
  *
- * @module infrastructure/storage/zustand-mmkv-adapter
+ * @module services/infra/storage/zustand-mmkv-adapter
  */
 
 // [ADDED] Zustand ↔ MMKV adapter via IStorageService

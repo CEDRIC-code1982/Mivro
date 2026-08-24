@@ -3,7 +3,7 @@
  * @description Tests unitaires du store useRealtimeStore (F4 — NON persisté).
  *              Unit tests for the useRealtimeStore (F4 — NOT persisted).
  *
- * @module __tests__/unit/presentation/stores/useRealtimeStore
+ * @module state/useRealtimeStore.test
  */
 
 // [ADDED] F4 — Tests unitaires useRealtimeStore

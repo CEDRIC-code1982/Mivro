@@ -14,7 +14,7 @@
  *              Le schéma Zod est la source de vérité (runtime + types).
  *              The Zod schema is the source of truth (runtime + types).
  *
- * @module core/entities/Avatar
+ * @module entities/Avatar
  */
 
 // [ADDED] Entité Avatar — avatars emoji prédéfinis (F7)

@@ -12,7 +12,7 @@
  *              infrastructure nor presentation dependency. Validates inputs
  *              before publishing.
  *
- * @module core/usecases/TrackParticipantsUseCase
+ * @module services/domain/realtime/TrackParticipantsUseCase
  */
 
 // [ADDED] F4 — UseCase TrackParticipantsUseCase

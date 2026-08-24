@@ -8,7 +8,7 @@
  *              Verifies RootNavigator displays all 4 tabs
  *              and MapScreen is the default screen.
  *
- * @module __tests__/integration/navigation
+ * @module navigations/navigation.integration.test
  */
 
 // [ADDED] Tests d'intégration navigation

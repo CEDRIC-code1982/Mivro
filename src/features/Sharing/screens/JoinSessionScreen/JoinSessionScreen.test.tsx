@@ -6,7 +6,7 @@
  *              Couvre : état loading / success (navigation vers la carte) /
  *              error (lien expiré, introuvable), réessayer, annuler, a11y, i18n.
  *
- * @module __tests__/unit/presentation/screens/JoinSessionScreen
+ * @module features/Sharing/screens/JoinSessionScreen/JoinSessionScreen.test
  */
 
 // [ADDED] F5 — Tests unitaires JoinSessionScreen

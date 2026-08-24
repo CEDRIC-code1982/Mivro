@@ -3,7 +3,7 @@
  * @description Tests unitaires du use case GetCurrentLocationUseCase.
  *              Unit tests for the GetCurrentLocationUseCase use case.
  *
- * @module __tests__/unit/core/usecases/GetCurrentLocationUseCase
+ * @module services/domain/geolocation/GetCurrentLocationUseCase.test
  */
 
 // [ADDED] Tests unitaires GetCurrentLocationUseCase

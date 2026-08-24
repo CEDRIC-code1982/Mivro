@@ -13,7 +13,7 @@
  *   const useCase = new SearchAddressUseCase(geocodeService);
  *   const results = await useCase.execute({ query: 'Tour Eiffel' });
  *
- * @module core/usecases/SearchAddressUseCase
+ * @module services/domain/geocode/SearchAddressUseCase
  */
 
 // [ADDED] Use case SearchAddressUseCase

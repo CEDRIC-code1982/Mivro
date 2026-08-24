@@ -3,7 +3,7 @@
  * @description Écran Sessions (placeholder MVP).
  *              Sessions screen (MVP placeholder).
  *
- * @module presentation/screens/SessionsScreen
+ * @module features/Session/screens/SessionsScreen/SessionsScreen
  */
 
 // [ADDED] Écran placeholder SessionsScreen avec i18n + theme + a11y

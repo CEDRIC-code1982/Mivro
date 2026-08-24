@@ -21,7 +21,7 @@
  * </Screen>
  * ```
  *
- * @module presentation/components/atoms/Screen
+ * @module components/atoms/Screen/Screen
  */
 
 import { useTheme, type Theme } from '@theme';

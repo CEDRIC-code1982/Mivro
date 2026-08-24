@@ -21,7 +21,7 @@
  *     onDecline={() => setSharingConsent(false)}
  *   />
  *
- * @module presentation/components/molecules/RealtimeConsentModal
+ * @module components/molecules/RealtimeConsentModal/RealtimeConsentModal
  */
 
 // [ADDED] F4 — Molecule RealtimeConsentModal (consentement RGPD séparé)

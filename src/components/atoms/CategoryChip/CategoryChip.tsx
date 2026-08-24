@@ -16,7 +16,7 @@
  * />
  * ```
  *
- * @module presentation/components/atoms/CategoryChip
+ * @module components/atoms/CategoryChip/CategoryChip
  */
 
 // [ADDED] Atome CategoryChip — filtre catégorie POI

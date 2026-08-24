@@ -16,7 +16,7 @@
  * />
  * ```
  *
- * @module presentation/components/molecules/POIListView
+ * @module components/molecules/POIListView/POIListView
  */
 
 // [ADDED] Molecule POIListView — liste de POI triée par distance

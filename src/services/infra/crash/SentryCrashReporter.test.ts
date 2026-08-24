@@ -3,7 +3,7 @@
  * @description Tests unitaires de SentryCrashReporter.
  *              Unit tests for SentryCrashReporter.
  *
- * @module __tests__/unit/infrastructure/crash/SentryCrashReporter
+ * @module services/infra/crash/SentryCrashReporter.test
  */
 
 // [ADDED] Tests unitaires SentryCrashReporter

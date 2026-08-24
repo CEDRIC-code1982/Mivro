@@ -3,7 +3,7 @@
  * @description Tests unitaires pour le helper computeRadius (rayon de zone).
  *              Unit tests for the computeRadius helper (zone radius).
  *
- * @module __tests__/unit/core/utils/geo/radius
+ * @module services/utils/geo/radius.test
  */
 
 // [ADDED] Tests unitaires computeRadius

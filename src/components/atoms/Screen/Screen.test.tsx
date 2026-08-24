@@ -3,7 +3,7 @@
  * @description Tests unitaires de l'atome Screen.
  *              Unit tests for the Screen atom.
  *
- * @module presentation/components/atoms/Screen/__tests__
+ * @module components/atoms/Screen/Screen.test
  */
 
 // [ADDED] Tests unitaires atome Screen

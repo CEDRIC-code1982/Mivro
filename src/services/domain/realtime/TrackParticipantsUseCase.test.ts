@@ -3,7 +3,7 @@
  * @description Tests unitaires du use case TrackParticipantsUseCase (F4).
  *              Unit tests for the TrackParticipantsUseCase (F4).
  *
- * @module __tests__/unit/core/usecases/TrackParticipantsUseCase
+ * @module services/domain/realtime/TrackParticipantsUseCase.test
  */
 
 // [ADDED] F4 — Tests unitaires TrackParticipantsUseCase

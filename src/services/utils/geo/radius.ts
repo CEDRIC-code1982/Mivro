@@ -11,7 +11,7 @@
  *              participants. Used to display a circle on the map
  *              and bound POI search (radius to search for places).
  *
- * @module core/utils/geo/radius
+ * @module services/utils/geo/radius
  */
 
 // [ADDED] Helper rayon de zone (distance max au centroïde)

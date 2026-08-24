@@ -18,7 +18,7 @@
  * />
  * ```
  *
- * @module presentation/components/molecules/POIScreenHeader
+ * @module components/molecules/POIScreenHeader/POIScreenHeader
  */
 
 // [ADDED] Molecule POIScreenHeader — toggle + filtres catégories

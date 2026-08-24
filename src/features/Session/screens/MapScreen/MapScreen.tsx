@@ -7,7 +7,7 @@
  *              midpoint et cercle de zone. Propose une vue liste
  *              alternative pour l'accessibilité (A11Y-006).
  *
- * @module presentation/screens/MapScreen
+ * @module features/Session/screens/MapScreen/MapScreen
  */
 
 // [MODIFIED] Refactor complet — écran F2 carte interactive

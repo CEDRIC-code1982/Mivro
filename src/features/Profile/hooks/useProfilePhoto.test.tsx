@@ -3,7 +3,7 @@
  * @description Tests unitaires du hook useProfilePhoto (F7 passe 2).
  *              Unit tests for the useProfilePhoto hook (F7 pass 2).
  *
- * @module __tests__/unit/presentation/hooks/useProfilePhoto
+ * @module features/Profile/hooks/useProfilePhoto.test
  */
 
 // [ADDED] F7 passe 2 — Tests unitaires useProfilePhoto

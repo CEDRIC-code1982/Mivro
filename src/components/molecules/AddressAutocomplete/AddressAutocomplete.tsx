@@ -15,7 +15,7 @@
  * />
  * ```
  *
- * @module presentation/components/molecules/AddressAutocomplete
+ * @module components/molecules/AddressAutocomplete/AddressAutocomplete
  */
 
 // [MODIFIED] Molecule AddressAutocomplete — Phase 6 (bottom sheet ajouté)

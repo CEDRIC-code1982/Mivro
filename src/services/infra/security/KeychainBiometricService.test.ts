@@ -6,7 +6,7 @@
  *              react-native-keychain est mocké dans jest.setup.js ; chaque test
  *              surcharge le comportement attendu via jest.mocked(...).
  *
- * @module __tests__/unit/infrastructure/security/KeychainBiometricService
+ * @module services/infra/security/KeychainBiometricService.test
  */
 
 // [ADDED] F8 — Tests unitaires KeychainBiometricService

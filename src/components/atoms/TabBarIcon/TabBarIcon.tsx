@@ -20,7 +20,7 @@
  * <TabBarIcon icon={User} focused={false} size={28} accessibilityLabel={t('navigation:tabs.profile')} />
  * ```
  *
- * @module presentation/components/atoms/TabBarIcon
+ * @module components/atoms/TabBarIcon/TabBarIcon
  */
 
 import { useTheme } from '@theme';

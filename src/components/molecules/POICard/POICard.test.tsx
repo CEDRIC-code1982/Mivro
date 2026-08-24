@@ -3,7 +3,7 @@
  * @description Tests unitaires de la molecule POICard.
  *              Unit tests for the POICard molecule.
  *
- * @module __tests__/unit/presentation/components/molecules/POICard
+ * @module components/molecules/POICard/POICard.test
  */
 
 // [ADDED] Tests unitaires POICard

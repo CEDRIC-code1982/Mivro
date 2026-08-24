@@ -3,7 +3,7 @@
  * @description Root Stack Navigator — point d'entrée de la navigation.
  *              Root Stack Navigator — navigation entry point.
  *
- * @module presentation/navigation/RootNavigator
+ * @module navigations/RootNavigator
  */
 
 // [ADDED] Root Stack Navigator avec Native Stack

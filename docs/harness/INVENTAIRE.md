@@ -2,6 +2,14 @@
 
 > Phase 0 du chantier harness. **Constat pur, aucune modification de code.**
 > Date : 2026-08-21 · Branche : `main` · HEAD : `de6b15c`
+>
+> ⚠️ **Les sections 1 à 9 sont un instantané daté, conservé tel quel.** Plusieurs constats ont
+> depuis été corrigés : DOC-004 est outillée, le thème passe WCAG AA, les scripts morts sont
+> réparés. **La section 10 donne l'état courant** — c'est elle qu'il faut lire pour savoir où vit
+> une règle aujourd'hui.
+>
+> Ce document a par ailleurs été écrit depuis `main`, alors 6 commits en retard sur
+> `origin/develop` (voir J-012 dans `JOURNAL-ECHECS.md`).
 
 ---
 
@@ -295,6 +303,7 @@ bloquant immédiatement.
 | Règle de dépendance     | `domain-no-ui` · `domain-no-infra` · `domain-no-app-layers` · `screens-no-adapter` · `screens-no-network-client` · `ui-no-adapter` · `components-no-di` · `entities-pure` · `utils-pure` · `no-circular` | `.dependency-cruiser.js`          |
 | DOC-001 / DOC-002       | `jsdoc/require-jsdoc` · `require-param` · `check-param-names` · `require-returns` · `require-returns-check` · `check-tag-names`                                                                          | `.eslintrc.js`                    |
 | A11Y-001                | `src/theme/contrast.test.ts` (cliquet WCAG)                                                                                                                                                              | test unitaire                     |
+| DOC-004                 | `npm run docs` — TypeDoc + Docusaurus, liens morts en erreur                                                                                                                                             | 4ᵉ garde du pre-push              |
 | A11Y-003 (label + role) | `plugin:react-native-a11y/basic` (10 règles actives)                                                                                                                                                     | `.eslintrc.js`                    |
 | FMT-001                 | pre-push + `npm run check`                                                                                                                                                                               | `.husky/pre-push`                 |
 | Seuils de coverage      | `coverageThreshold` **réellement appliqué** (`test:ci` = `jest --ci --coverage`)                                                                                                                         | `jest.config.js`, `package.json`  |
@@ -303,8 +312,10 @@ bloquant immédiatement.
 
 ### Restées dans `CLAUDE.md` — jugement requis
 
-TS-004 · ERR-001 · ERR-002 · ERR-003 · I18N-002 (strings en prop) · DOC-003 · DOC-004 (inapplicable,
-cf. J-011) · A11Y-002 · A11Y-003 (partie `hint`) · A11Y-004 · A11Y-005 · A11Y-006 · DS-003.
+TS-004 · ERR-001 · ERR-002 · ERR-003 · I18N-002 (strings en prop) · DOC-003 · A11Y-002 · A11Y-003 (partie `hint`) · A11Y-004 · A11Y-005 · A11Y-006 · DS-003.
+
+**12 règles, contre 13 au sortir de la phase 2** : DOC-004 est devenue mécanisable une fois
+Docusaurus + TypeDoc installés (arbitrage Cédric du 2026-08-24, cf. J-011).
 
 Toutes reprises comme grille explicite du subagent `reviewer` (`.claude/agents/reviewer.md`).
 
@@ -318,11 +329,16 @@ détaillée par feature (archive de `CLAUDE.md` v8.9).
 
 | Mesure                              | Avant  | Après                    |
 | ----------------------------------- | ------ | ------------------------ |
-| `CLAUDE.md`                         | 614 l. | **58 l.**                |
-| Règles bloquantes énoncées en prose | 24     | 13 (jugement uniquement) |
-| Règles vérifiées automatiquement    | 5      | 16 familles              |
-| Tests                               | 1133   | 1177                     |
-| Assertions du self-test harness     | 0      | 53                       |
+| `CLAUDE.md`                         | 614 l. | **60 l.**                |
+| Règles bloquantes énoncées en prose | 24     | 12 (jugement uniquement) |
+| Règles vérifiées automatiquement    | 5      | 17 familles              |
+| Tests                               | 1133   | 1178                     |
+| Assertions du self-test harness     | 0      | 61                       |
+| Paires de contraste vérifiées       | 0      | 44 (0 dette)             |
 
 Commandes : `npm run check` (barrière unique) · `npm run check:arch` · `npm run check:diff` ·
-`npm run check:harness` (prouve que les capteurs mordent encore).
+`npm run check:harness` (prouve que les capteurs mordent encore) · `npm run docs` (TypeDoc +
+Docusaurus) · `npm run docs:dev`.
+
+⚠️ Le pre-push a besoin des dépendances de `docs-site/` : `npm --prefix docs-site install`
+après un clone.

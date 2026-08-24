@@ -14,7 +14,7 @@
  *   const result = useCase.execute({ participants });
  *   // { midpoint: {...}, radius: 5000, participantsCount: 3 }
  *
- * @module core/usecases/CalculateMidpointUseCase
+ * @module services/domain/midpoint/CalculateMidpointUseCase
  */
 
 // [ADDED] UseCase CalculateMidpointUseCase — calcul pur sans I/O

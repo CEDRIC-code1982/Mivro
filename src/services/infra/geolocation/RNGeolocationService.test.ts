@@ -3,7 +3,7 @@
  * @description Tests unitaires de l'adapter RNGeolocationService.
  *              Unit tests for the RNGeolocationService adapter.
  *
- * @module __tests__/unit/infrastructure/geolocation/RNGeolocationService
+ * @module services/infra/geolocation/RNGeolocationService.test
  */
 
 // [ADDED] Tests unitaires RNGeolocationService

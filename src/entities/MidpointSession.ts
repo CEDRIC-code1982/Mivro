@@ -6,7 +6,7 @@
  *              Cycle de vie : draft → computed → active → completed.
  *              Lifecycle: draft → computed → active → completed.
  *
- * @module core/entities/MidpointSession
+ * @module entities/MidpointSession
  */
 
 // [ADDED] Entité MidpointSession avec validation Zod

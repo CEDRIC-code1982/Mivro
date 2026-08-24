@@ -8,7 +8,7 @@
  *              sans toucher au code métier.
  *              Allows swapping the lib without touching business logic.
  *
- * @module core/ports/IGeolocationService
+ * @module services/domain/geolocation/IGeolocationService
  */
 
 // [ADDED] Port IGeolocationService + GeolocationError + types

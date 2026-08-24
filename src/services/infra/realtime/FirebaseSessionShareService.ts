@@ -29,10 +29,11 @@
  *              google-services.json (Android). Sans ces fichiers, l'app lève à
  *              l'init Firebase ; le code ci-dessous est prêt dès leur ajout.
  *
- *              firebase = infrastructure UNIQUEMENT : core et presentation
- *              n'importent JAMAIS @react-native-firebase (règle de dépendance).
+ *              firebase = adapter UNIQUEMENT : services/domain, features et
+ *              components n'importent JAMAIS `@react-native-firebase`
+ *              (règle de dépendance, vérifiée par npm run check:arch).
  *
- * @module infrastructure/realtime/FirebaseSessionShareService
+ * @module services/infra/realtime/FirebaseSessionShareService
  */
 
 // [ADDED] F5 — Adapter FirebaseSessionShareService (API modulaire)

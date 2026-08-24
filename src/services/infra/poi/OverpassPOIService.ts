@@ -16,7 +16,7 @@
  * - Client-side cache 5 min (handled by TanStack Query)
  *
  * @file OverpassPOIService.ts
- * @module infrastructure/poi
+ * @module services/infra/poi/OverpassPOIService
  * @see https://wiki.openstreetmap.org/wiki/Overpass_API
  */
 

@@ -3,7 +3,7 @@
  * @description Tests unitaires de la molecule AvatarPicker (F7).
  *              Unit tests for the AvatarPicker molecule (F7).
  *
- * @module __tests__/unit/presentation/components/molecules/AvatarPicker
+ * @module components/molecules/AvatarPicker/AvatarPicker.test
  */
 
 // [ADDED] F7 — Tests unitaires AvatarPicker
