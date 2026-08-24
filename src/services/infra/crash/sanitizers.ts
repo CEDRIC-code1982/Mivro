@@ -97,6 +97,8 @@ export const sanitizeObject = (input: unknown, depth = 0): unknown => {
   }
 
   const result: Record<string, unknown> = {};
+  // Cast justifié : les branches précédentes ont écarté null, les primitifs
+  // et les tableaux ; il ne reste qu'un objet indexable par clé.
   for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
     if (isSensitiveKey(key)) {
       result[key] = '[REDACTED]';

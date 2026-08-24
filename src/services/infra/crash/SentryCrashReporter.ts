@@ -116,11 +116,15 @@ export class SentryCrashReporter implements ICrashReporter {
           event.contexts = sanitizeObject(event.contexts) as typeof event.contexts;
         }
         if (event.extra) {
+          // Cast justifié : sanitizeObject préserve la structure de l'entrée,
+          // mais TypeScript ne peut pas l'inférer à travers la récursion.
           event.extra = sanitizeObject(event.extra) as typeof event.extra;
         }
         if (event.tags) {
           for (const [key, value] of Object.entries(event.tags)) {
             if (typeof value === 'string') {
+              // Cast justifié : l'entrée est un objet littéral, donc la sortie
+              // de sanitizeObject est le même Record (non inférable, cf. ci-dessus).
               const sanitized = sanitizeObject({ [key]: value }) as Record<string, unknown>;
               event.tags[key] = String(sanitized[key]);
             }
@@ -231,6 +235,8 @@ export class SentryCrashReporter implements ICrashReporter {
       crumb.level = SEVERITY_MAP[breadcrumb.level];
     }
     if (breadcrumb.data) {
+      // Cast justifié : breadcrumb.data est déjà un Record, sanitizeObject
+      // renvoie la même forme sans que TypeScript puisse le prouver.
       crumb.data = sanitizeObject(breadcrumb.data) as Record<string, unknown>;
     }
     Sentry.addBreadcrumb(crumb);

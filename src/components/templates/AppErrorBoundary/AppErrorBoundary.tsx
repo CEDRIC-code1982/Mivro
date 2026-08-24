@@ -158,7 +158,7 @@ const createStyles = (theme: Theme) =>
       gap: theme.spacing.lg,
     },
     message: {
-      maxWidth: 320,
+      maxWidth: theme.size.maxTextWidth,
     },
     button: {
       paddingVertical: theme.spacing.md,

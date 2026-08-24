@@ -224,6 +224,33 @@ Verrou biométrique (F8) : `App.tsx` définit le composant `BiometricLockGate` (
 
 ---
 
+## Harness d'agent (2026-08-21)
+
+Les règles vérifiables par un outil ne sont plus énoncées en prose : elles sont exécutées.
+
+| Capteur                                 | Rôle                                                                                     |
+| --------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `.dependency-cruiser.js` (`check:arch`) | Frontières de couches + Atomic Design. 16 règles, toutes prouvées par une violation.     |
+| `.eslintrc.js` + `eslint-rules/`        | TS-001/002/003, I18N-001, LOG-001, DS-001/002, DOC-001/002, A11Y label+role.             |
+| `scripts/check-diff.sh` (`check:diff`)  | Interdit d'introduire `as any`, `@ts-ignore`, `eslint-disable`, un test désactivé.       |
+| `src/theme/contrast.test.ts`            | A11Y-001 : cliquet WCAG sur les tokens du thème.                                         |
+| `jest.config.js` + `test:ci --coverage` | Seuils de couverture réellement bloquants.                                               |
+| Hook `PostToolUse`                      | typecheck (incrémental) ‖ archi du module édité, puis `eslint --fix`. ~3 s, silencieux.  |
+| Hook `PreToolUse`                       | Véto sur `rm -rf`, force-push, `reset --hard`, artefacts natifs.                         |
+| `.husky/pre-push`                       | `check:arch` + `check:diff` + suite Jest complète.                                       |
+| `.claude/agents/reviewer.md`            | Capteur inférentiel : ce qu'aucun outil ne voit, contre `docs/harness/DONE-CONTRACT.md`. |
+| `scripts/harness-selftest.sh`           | 53 assertions : prouve que chaque capteur mord encore. `npm run check:harness`.          |
+
+Les quatre règles ESLint custom vivent dans `eslint-rules/`, exposées via `eslint-local-rules.js`
+(plugin `eslint-plugin-local-rules`). Elles existent parce qu'aucune règle du marché n'exprime
+« interdit **sauf commentaire justificatif** » (TS-002/TS-003) ni le format de log imposé (LOG-001).
+
+Trois documents pilotent la boucle : `docs/harness/INVENTAIRE.md` (quelle règle vit où),
+`DONE-CONTRACT.md` (condition de « terminé », à remplir avant de coder),
+`JOURNAL-ECHECS.md` (un échec observé = un garde-fou ajouté).
+
+---
+
 ## Conventions observées
 
 - **Nommage** : entités `PascalCase.ts` ; ports `I<Nom>Service.ts` ; usecases `<Verbe><Nom>UseCase.ts` ; adapters `<Provider><Port>.ts` (ex `NominatimGeocodeService`) ; hooks `use<Nom>.ts` ; stores `use<Nom>Store.ts`.

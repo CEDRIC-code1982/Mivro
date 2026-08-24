@@ -269,12 +269,16 @@ export class FirebaseRealtimeService implements IRealtimeService {
     const result: RealtimeParticipant[] = [];
     let invalidCount = 0;
 
+    // Cast justifié : la garde ci-dessus a écarté null et les non-objets ;
+    // le snapshot Firebase est alors un dictionnaire indexé par participantId.
     for (const [participantId, value] of Object.entries(raw as Record<string, unknown>)) {
       if (value === null || typeof value !== 'object') {
         invalidCount += 1;
         continue;
       }
 
+      // Cast justifié : value vient d'être gardé comme objet non nul. La forme
+      // réelle reste vérifiée juste après par RealtimeParticipantSchema (TS-004).
       const candidate = { participantId, ...(value as Record<string, unknown>) };
       const parsed = RealtimeParticipantSchema.safeParse(candidate);
       if (parsed.success) {

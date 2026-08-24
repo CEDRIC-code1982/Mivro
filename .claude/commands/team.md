@@ -9,19 +9,23 @@ Tu ne codes pas toi-même : tu délègues aux sous-agents via l'outil Agent, tu 
 
 ## Pré-vol
 
-1. Lis la spec dans `CLAUDE.md > ROADMAP > Backlog` (ou la description du fix).
+1. Lis la spec dans `docs/context/TODO.md` (backlog priorisé) et, pour les blockers externes, `docs/context/RUNBOOK.md`.
 2. Vérifie `docs/context/TODO.md > Décisions en attente` : si une décision produit nécessaire à cette tâche est non tranchée, ou s'il y a une `⚠️ PAUSE OBLIGATOIRE` (compte/secret/fichier externe), **PAUSE et demande à Cédric** AVANT de lancer l'équipe.
+3. **Écris le contrat de fin.** Remplis `docs/harness/DONE-CONTRACT.md` : demande d'origine, hors périmètre, conditions de fin vérifiables, hypothèses prises. C'est ton seul acte d'écriture avant le commit, et il est obligatoire : le `reviewer` rend `NO_CONTRACT` et refuse de reviewer si ce fichier n'est pas rempli pour la tâche en cours.
 
 ## Boucle d'orchestration
 
 1. **Dev** — délègue à `mivro-dev` : implémenter la feature/fix (code applicatif + i18n + DI + docs inline). Récupère la liste des fichiers + signaux (`PAUSE`/`À SPÉCIFIER`).
 2. **Tests** — délègue à `mivro-tester` : écrire/compléter les tests, faire passer `npm run check`.
    - Si le testeur remonte un **bug applicatif** → renvoie-le à `mivro-dev` pour correction, puis relance le testeur. (max 2 tours)
-3. **Review** — délègue à `mivro-reviewer` : revue du diff. Lis le `VERDICT:`.
-   - Si `CHANGES_REQUESTED` (ou n'importe quel finding BLOQUANT/MAJEUR/MINEUR) : **tu ne corriges RIEN toi-même**. Renvoie l'INTÉGRALITÉ des findings à `mivro-dev` → il applique les corrections → relance `mivro-tester` (re-vérifie/complète les tests, `npm run check` vert) → relance `mivro-reviewer` (re-review du nouveau diff). Recommence le cycle dev→tester→reviewer tant que le verdict n'est pas `APPROVED`.
+3. **Review** — délègue à `reviewer` : revue du diff contre le `DONE-CONTRACT`. Lis le `VERDICT:`.
+   - `NO_CONTRACT` → tu as sauté le pré-vol 3. Remplis le contrat, relance la review.
+   - `HARNESS_RED` → `npm run check` échoue : renvoie la sortie à `mivro-dev` / `mivro-tester`, ne consomme pas un tour de review.
+   - Si `CHANGES_REQUESTED` (ou n'importe quel finding BLOQUANT/MAJEUR/MINEUR) : **tu ne corriges RIEN toi-même**. Renvoie l'INTÉGRALITÉ des findings à `mivro-dev` → il applique les corrections → relance `mivro-tester` (re-vérifie/complète les tests, `npm run check` vert) → relance `reviewer` (re-review du nouveau diff). Recommence le cycle dev→tester→reviewer tant que le verdict n'est pas `APPROVED`.
    - **Max 3 tours** ; si toujours pas `APPROVED` après 3 tours, PAUSE et résume les findings restants à Cédric.
    - Un finding MINEUR jugé hors périmètre n'est PAS corrigé en douce : c'est `mivro-dev` (ou `mivro-docs`) qui le consigne explicitement dans `docs/context/TODO.md > Dette technique` ; le reviewer peut alors rendre `APPROVED`.
-4. **Docs** — quand la review est `APPROVED`, délègue à `mivro-docs` : mettre à jour PROGRESS/TODO/ARCHITECTURE + CLAUDE.md roadmap (+ ADR si décision d'archi).
+4. **Docs** — quand la review est `APPROVED`, délègue à `mivro-docs` : mettre à jour PROGRESS/TODO/ARCHITECTURE (+ ADR si décision d'archi). **Ne rallonge pas `CLAUDE.md`** : la roadmap vit dans `TODO.md`, les politiques dans `POLICIES.md`.
+   - Si la section `HARNESS` de la review signale qu'un finding aurait pu être attrapé par un outil, `mivro-docs` ajoute l'entrée correspondante dans `docs/harness/JOURNAL-ECHECS.md`.
 5. **Commit** — relance `npm run check` une dernière fois (doit être vert), puis commit en scopant aux fichiers de la tâche (PAS les fichiers non liés type android/ios/package.json déjà modifiés). Message `feat(<scope>): …` ou `fix(<scope>): … [FIXED]`, avec le co-author Claude.
 
 ## Règles d'orchestration
@@ -30,4 +34,4 @@ Tu ne codes pas toi-même : tu délègues aux sous-agents via l'outil Agent, tu 
 - Ton seul acte d'écriture autorisé est le **commit final** (`git add`/`git commit`) — c'est de la coordination, pas de la correction.
 - Délègue avec des prompts précis : donne à chaque agent le contexte (feature, fichiers touchés, findings à corriger texto). Les agents ne voient pas l'historique de la conversation.
 - Lance dev/tester/reviewer en **séquence** (ils touchent les mêmes fichiers — pas de parallèle qui créerait des conflits).
-- À la fin : résumé pour Cédric (ce qui a été livré, nb de tours de review, points restants/à vérifier sur device).
+- À la fin : résumé pour Cédric (ce qui a été livré, nb de tours de review, points restants/à vérifier sur device), puis remets `docs/harness/DONE-CONTRACT.md` à son modèle vierge (le contrat rempli part dans le commit).

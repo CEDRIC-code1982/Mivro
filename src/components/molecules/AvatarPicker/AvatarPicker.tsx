@@ -141,8 +141,8 @@ const buildStyles = (theme: Theme) =>
       // l'avatar (56) dépasse déjà cette cible.
       padding: theme.spacing.xs,
       borderRadius: theme.radius.full,
-      borderWidth: theme.spacing.xxs,
-      borderColor: 'transparent',
+      borderWidth: theme.borderWidth.thin,
+      borderColor: theme.color.border.none,
       minWidth: theme.touchTarget.min,
       minHeight: theme.touchTarget.min,
       justifyContent: 'center',

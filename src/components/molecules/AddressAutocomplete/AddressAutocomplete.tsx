@@ -187,6 +187,8 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   /**
    * Rendu du contenu conditionnel du bottom sheet.
    * Renders the conditional bottom sheet content.
+   *
+   * @returns Le contenu du bottom sheet / The bottom sheet content
    */
   const renderSheetContent = () => {
     const trimmedQuery = query.trim();

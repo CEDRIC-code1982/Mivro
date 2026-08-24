@@ -61,15 +61,28 @@ jest.mock('@react-navigation/bottom-tabs', () => {
       Screen: ({
         name,
         component: Component,
+        options,
       }: {
         name: string;
         component: React.FC;
-        options?: Record<string, unknown>;
+        options?: { tabBarIcon?: (props: { focused: boolean }) => React.ReactNode };
       }) =>
         ReactMock.createElement(
           View,
           { testID: `tab-screen-${name}` },
           ReactMock.createElement(Text, null, name),
+          // [ADDED] Rend l'icône de l'onglet dans ses deux états, sinon les
+          // callbacks tabBarIcon du navigator ne sont jamais invoqués.
+          // Renders the tab icon in both states, otherwise the navigator's
+          // tabBarIcon callbacks are never invoked.
+          options?.tabBarIcon
+            ? ReactMock.createElement(
+                View,
+                { testID: `tab-icon-${name}` },
+                options.tabBarIcon({ focused: true }),
+                options.tabBarIcon({ focused: false }),
+              )
+            : null,
           ReactMock.createElement(Component, null),
         ),
     }),
@@ -146,6 +159,24 @@ describe('Navigation integration', () => {
     expect(screen.getByTestId('tab-screen-Sessions')).toBeOnTheScreen();
     expect(screen.getByTestId('tab-screen-Create')).toBeOnTheScreen();
     expect(screen.getByTestId('tab-screen-Profile')).toBeOnTheScreen();
+  });
+
+  // ─── Icônes d'onglets (A11Y-003 : label sur chaque icône) ─
+  it('renders an accessible icon for each of the 4 tabs, focused and unfocused', () => {
+    render(
+      <QueryClientProvider client={testQueryClient}>
+        <NavigationContainer>
+          <RootNavigator />
+        </NavigationContainer>
+      </QueryClientProvider>,
+    );
+
+    for (const tab of ['Map', 'Sessions', 'Create', 'Profile']) {
+      expect(screen.getByTestId(`tab-icon-${tab}`)).toBeOnTheScreen();
+    }
+
+    // Chaque icône est rendue 2 fois (focused + non focused) → 8 libellés.
+    expect(screen.getAllByLabelText(/Carte|Sessions|Créer|Profil/)).toHaveLength(8);
   });
 
   // ─── Bottom tabs container ────────────────────────────────

@@ -188,12 +188,12 @@ _Estimation : L. Dépendances : comptes stores._
 
 - [ ] **POI rayon géant** (ex: Paris + Tokyo) : la requête Overpass `(around:RAYON_ÉNORME)` fait timeout/erreur → `POIListView` affiche « Erreur inattendue » au lieu d'un EmptyState. Découvert au QA (Pacifique). À traiter : borner le rayon POI ou mapper le timeout vers un message dédié. (P2)
 - [ ] **Re-vérif device** : confirmer sur iPhone que (a) le champ fantôme F1 a disparu, (b) le footer carte tient en Dynamic Type 200 %. Vérifier aussi qu'aucun autre écran ne casse en 200 %.
-- [ ] **Coverage non mesurée** : `coverage/coverage-summary.json` absent → lancer `npm run test:coverage` et reporter les chiffres dans PROGRESS.md.
+- [x] ~~**Coverage non mesurée**~~ → **FAIT (2026-08-21, harness)** : mesurée à chaque `npm run check`. Global **95,5 % stmts / 85,6 % branches / 93,3 % funcs**, 1177 tests, 86 suites.
 - [ ] **Atoms manquants** : `Button`, `Input`, `IconButton`, `Card`, `Spinner` n'existent pas — à créer via skill `create-atom` quand une feature les requiert.
 - [ ] **Ports placeholders** : dossiers `infrastructure/{eta,analytics}` encore vides — à remplir (V1 OSRM / PostHog). `realtime/` rempli par F4.
 - [ ] **`SessionsScreen`** : squelette 72 l. — historique sessions à implémenter (AsyncStorage, cf. STORAGE).
 - [ ] **react-native-maps shim** : `skipLibCheck` désactive le check des `.d.ts` libs — surveiller les régressions de types externes.
-- [ ] **`borderWidth: 1` en dur** (magic number) répandu dans plusieurs écrans — relevé par la review F7, **non introduit par F7**. Envisager un token `borderWidth` dans le thème (DS-001). (P2)
+- [x] ~~**`borderWidth: 1` en dur**~~ → **FAIT (2026-08-21, harness)** : tokens `theme.borderWidth` (`none`/`hairline`/`thin`/`thick`) et `theme.size.marker` ajoutés ; la règle ESLint `local-rules/no-magic-style-values` interdit désormais tout nouveau magic number dans un `StyleSheet.create()`.
 - [ ] **`AvatarPicker` `fallbackName={avatar.emoji}`** : fallback inatteignable pour un id connu (cosmétique / robustesse défensive). Relevé par la review F7 — à nettoyer ou documenter. (P3)
 - [ ] **`normalizePath` (F7 p2)** : `ImagePickerProfilePhotoService.normalizePath` fait `uri.replace('file://', '')` ; utiliser plutôt `decodeURIComponent(uri.replace(/^file:\/\//, ''))` pour gérer les chemins avec caractères encodés (espaces, accents). Relevé par la review F7 — durcissement. (P3)
 - [ ] **Contrat `IProfilePhotoService.deletePhoto` (F7 p2)** : renforcer la TSDoc pour stipuler que la méthode **ne doit JAMAIS rejeter** (best-effort : un fichier absent / non supprimable ne casse pas la mise à jour du profil). Relevé par la review F7. (P3)
@@ -201,7 +201,38 @@ _Estimation : L. Dépendances : comptes stores._
 - [ ] **Label midpoint hardcodé (I18N-001, pré-existant — pas F4)** : le marker midpoint dans `SessionMapView.tsx` (`accessibilityLabel="Point de rencontre"`) est une string en dur → passer par `useTranslation()`. Relevé pendant la review F4 mais antérieur à F4. (P3)
 - [ ] **Rules : `sessions/$sessionId` sans `$other: false` (F5, review — résiduel)** : le niveau `sessions/$sessionId` n'a pas de `"$other": { ".validate": false }` → un client qui connaît l'UUID pourrait écrire un **sous-nœud frère arbitraire** (au-delà de `meta`/`members`/`participants`). Risque **MVP-sans-auth assumé** (protection = UUID non devinable, capability URL ; cf. `database.rules.README.md`). À corriger avec le durcissement **Firebase Anonymous Auth**. (P2/P3)
 - [ ] **`expiresAt` sans purge automatique (F5, RGPD)** : `meta.expiresAt` est **vérifié à l'ouverture** (join refusé si expiré) mais **n'efface aucune donnée** côté serveur → les nœuds de sessions expirées **persistent** dans RTDB. Nécessite une **Cloud Function cron / TTL serveur** pour supprimer les sessions expirées. À planifier. (P2)
-- [ ] **`test:ci` ne passe pas `--coverage` (F5, tester)** : `npm run check` → `test:ci` ne mesure pas la couverture, donc les `coverageThreshold` de `jest.config.js` (core 90 / infra 70 / presentation 50 / global 70) **ne sont PAS enforced** par la CI locale. Si l'intention est que la CI **bloque** sur la couverture, ajouter `--coverage` à `test:ci`. (P2)
+- [x] ~~**`test:ci` ne passe pas `--coverage`**~~ → **FAIT (2026-08-21, harness)** : `test:ci` = `jest --ci --coverage`, les `coverageThreshold` sont donc réellement bloquants dans `npm run check`. A nécessité de couvrir les 4 callbacks `tabBarIcon` de `BottomTabsNavigator` (seul seuil qui échouait : `src/navigations/` functions 42,85 % < 50 %).
+
+---
+
+## Harness d'agent (2026-08-21) — points ouverts
+
+Mise en place : capteurs computationnels (`check:arch`, `check:diff`, hooks `PostToolUse` /
+`PreToolUse`, pre-push), migration des règles mécanisables de `CLAUDE.md` vers ESLint /
+dependency-cruiser / Jest, capteur inférentiel (`reviewer` + `DONE-CONTRACT`).
+Détail : `docs/harness/INVENTAIRE.md` · échecs et arbitrages : `docs/harness/JOURNAL-ECHECS.md`.
+
+- [ ] ⚠️ **A11Y-001 — le thème échoue WCAG AA sur 15 paires** (J-012). L'orange de marque
+      `#E55A24` donne **3.61:1** sur fond blanc, pas 4.7:1 comme l'annote `theme/index.ts`.
+      Concerné : `text.brand`, `text.success`, `text.warning` en clair ; `text.error` en sombre ;
+      l'anneau de focus en clair (2.84:1 pour un seuil de 3:1) ; **les 6** combinaisons de libellé
+      blanc sur bouton plein. `src/theme/contrast.test.ts` bloque toute régression et listera la
+      dette jusqu'à correction. **Décision design requise** (repeindre la palette). (P1 — a11y)
+- [ ] **A11Y-003 — 46 `accessibilityHint` manquants** (J-013). Les 10 autres règles
+      `react-native-a11y/basic` sont actives et vertes. Un hint est de la copie utilisateur à
+      écrire + traduire → reste au reviewer. (P2)
+- [ ] ⚠️ **DOC-004 inapplicable** (J-011) : ni Docusaurus ni TypeDoc installés, `docs-site/` sans
+      `package.json`, `e2e/` vide alors que 6 scénarios Maestro sont documentés. **À trancher** :
+      installer l'outillage, ou retirer DOC-004 et la section E2E. (P2)
+- [ ] **Couplage `components/` → `features/`** (J-014) : 4 molecules POI importent
+      `@features/POI/utils/poiIcons`, `AddressAutocomplete` importe
+      `@features/Session/hooks/useGeocodeQuery`. Exemptions explicites dans
+      `.dependency-cruiser.js` — toute nouvelle violation est bloquée. Sortie de dette : remonter
+      `poiIcons` dans `components/`, `useGeocodeQuery` dans `src/hooks/`. (P2)
+- [ ] **`src/navigations/` branches à exactement 50 %** : pile sur le seuil, donc fragile. Un
+      `if` non couvert de plus fera rougir `npm run check`. (P3)
+- [ ] **`src/components/organisms/` vide** : la règle `organisms-no-upper` est posée mais sans
+      maillon à garder pour l'instant. (P3)
 
 ---
 

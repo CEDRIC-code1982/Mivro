@@ -283,3 +283,45 @@ export const touchTarget = {
   // Confortable pour cibles fréquentes (FAB, tabs)
   large: 56,
 } as const;
+
+// ═══════════════════════════════════════════════════════════════
+// ÉPAISSEURS DE BORDURE — Border widths
+// ═══════════════════════════════════════════════════════════════
+
+export const borderWidth = {
+  none: 0,
+  // Séparateurs, bordures d'input au repos / dividers, resting input borders
+  hairline: 1,
+  // Bordure d'état : sélection, participant live / state border
+  thin: 2,
+  // Contour de marker sur carte (lisibilité sur tuiles) / map marker outline
+  thick: 3,
+} as const;
+
+export type BorderWidthToken = keyof typeof borderWidth;
+
+// ═══════════════════════════════════════════════════════════════
+// TAILLES — Dimensions propres d'un élément
+// ═══════════════════════════════════════════════════════════════
+//
+// `spacing` sert aux écarts entre éléments, `size` aux dimensions de
+// l'élément lui-même. Les deux échelles restent volontairement distinctes.
+//
+// `spacing` is for gaps between elements, `size` for an element's own
+// dimensions. The two scales stay deliberately separate.
+// ═══════════════════════════════════════════════════════════════
+
+export const size = {
+  // Diamètres des markers de carte / map marker diameters
+  marker: {
+    // Marker live participant (halo) / live participant halo
+    sm: 28,
+    // Marker point de départ participant / participant origin marker
+    md: 36,
+    // Marker midpoint (le résultat, donc le plus visible) / midpoint marker
+    lg: 48,
+  },
+  // Largeur max d'une colonne de texte lisible (~50 caractères)
+  // Max width of a readable text column (~50 characters)
+  maxTextWidth: 320,
+} as const;

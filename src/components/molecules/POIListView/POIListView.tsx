@@ -164,6 +164,8 @@ const POIListView: React.FC<POIListViewProps> = ({
  * Séparateur stable entre les POICard (extrait pour éviter le warning
  * react/no-unstable-nested-components).
  * Stable separator between POICards.
+ *
+ * @returns Le séparateur rendu / The rendered separator
  */
 const POIListSeparator: React.FC = () => {
   const theme = useTheme();

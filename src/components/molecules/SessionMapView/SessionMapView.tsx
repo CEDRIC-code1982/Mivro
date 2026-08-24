@@ -227,27 +227,27 @@ const createStyles = (theme: Theme) =>
     },
     markerCircle: {
       borderRadius: theme.radius.full,
-      borderWidth: 3,
+      borderWidth: theme.borderWidth.thick,
       borderColor: theme.color.surface.primary,
       justifyContent: 'center',
       alignItems: 'center',
       ...theme.elevation.md,
     },
     participantMarker: {
-      width: 36,
-      height: 36,
+      width: theme.size.marker.md,
+      height: theme.size.marker.md,
       backgroundColor: theme.color.interactive.accent.default,
     },
     midpointMarker: {
-      width: 48,
-      height: 48,
+      width: theme.size.marker.lg,
+      height: theme.size.marker.lg,
       backgroundColor: theme.color.interactive.brand.default,
     },
     // [ADDED] F4 — Marker live (halo) distinct des points de départ
     liveMarker: {
-      width: 28,
-      height: 28,
-      borderWidth: 2,
+      width: theme.size.marker.sm,
+      height: theme.size.marker.sm,
+      borderWidth: theme.borderWidth.thin,
     },
     liveMarkerOnline: {
       backgroundColor: theme.color.feedback.successBg,

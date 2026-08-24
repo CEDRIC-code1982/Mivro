@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+# ---------------------------------------------------------------------------
+# PostToolUse hook — runs after Write/Edit on a .ts/.tsx file.
+#
+#   1. tsc --noEmit    project-wide, incremental so it stays ~1.4 s
+#   2. depcruise       layer boundaries, on the edited module only  ~0.9 s
+#   3. eslint --fix    the edited file only                         ~1.7 s
+#
+# Steps 1 and 2 run concurrently, so the wall clock is max(1.4, 0.9) + 1.7,
+# which keeps the whole hook around 3 s. Step 3 runs last because it rewrites
+# the file, and must not race with a reader.
+#
+# Silent on success. On failure: exit 2 so Claude Code feeds stderr back to the
+# agent, with the full compiler / cruiser / linter output.
+#
+# Reads the tool payload as JSON on stdin.
+# ---------------------------------------------------------------------------
+set -uo pipefail
+
+ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+cd "$ROOT" || exit 0
+
+# --- extract the edited path from the hook payload -------------------------
+PAYLOAD="$(cat)"
+FILE="$(printf '%s' "$PAYLOAD" | python3 -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+ti = data.get("tool_input") or {}
+print(ti.get("file_path") or ti.get("notebook_path") or "")
+' 2>/dev/null)"
+
+case "$FILE" in
+  *.ts | *.tsx) ;;
+  *) exit 0 ;;
+esac
+
+[ -f "$FILE" ] || exit 0
+
+# Path relative to the repo root: depcruise resolves its rules against it.
+REL_FILE="${FILE#"$ROOT"/}"
+
+CACHE_DIR="$ROOT/node_modules/.cache/mivro-harness"
+mkdir -p "$CACHE_DIR" 2>/dev/null || true
+TSBUILDINFO="$CACHE_DIR/tsc.tsbuildinfo"
+LOCK="$CACHE_DIR/tsc.lock"
+TSC_LOG="$(mktemp)"
+DC_LOG="$(mktemp)"
+trap 'rm -f "$TSC_LOG" "$DC_LOG"; rmdir "$LOCK" 2>/dev/null || true' EXIT
+
+# --- step 1: typecheck (background) ---------------------------------------
+# Parallel edits would race on the same .tsbuildinfo, so take a short lock and
+# fall back to a non-incremental run rather than corrupting the cache.
+run_typecheck() {
+  local waited=0
+  while ! mkdir "$LOCK" 2>/dev/null; do
+    # Reap a lock left behind by a killed process.
+    if [ -d "$LOCK" ] && [ -n "$(find "$LOCK" -maxdepth 0 -mmin +2 2>/dev/null)" ]; then
+      rmdir "$LOCK" 2>/dev/null || true
+      continue
+    fi
+    waited=$((waited + 1))
+    if [ "$waited" -gt 60 ]; then
+      npx --no-install tsc --noEmit >"$TSC_LOG" 2>&1
+      return $?
+    fi
+    sleep 0.2
+  done
+
+  npx --no-install tsc --noEmit --incremental --tsBuildInfoFile "$TSBUILDINFO" >"$TSC_LOG" 2>&1
+  local code=$?
+  # A cache written by another TS version makes tsc bail out; rebuild once.
+  # Substring-match with `case`, not `grep -q`, which would exit early and turn
+  # a SIGPIPE into a false failure under `pipefail`.
+  if [ "$code" -ne 0 ] && case "$(cat "$TSC_LOG")" in *tsbuildinfo*) true ;; *) false ;; esac; then
+    rm -f "$TSBUILDINFO"
+    npx --no-install tsc --noEmit --incremental --tsBuildInfoFile "$TSBUILDINFO" >"$TSC_LOG" 2>&1
+    code=$?
+  fi
+
+  rmdir "$LOCK" 2>/dev/null || true
+  return $code
+}
+
+run_typecheck &
+TSC_PID=$!
+
+# --- step 2: architecture, edited module only (background) ----------------
+# Production code under src/ only: .dependency-cruiser.js already excludes
+# tests and ambient declarations, so cruising them would be a no-op.
+DC_PID=""
+case "$REL_FILE" in
+  *.test.ts | *.test.tsx | *.d.ts | src/test-utils/*) ;;
+  src/*)
+    npx --no-install depcruise "$REL_FILE" --config .dependency-cruiser.js >"$DC_LOG" 2>&1 &
+    DC_PID=$!
+    ;;
+  *) ;;
+esac
+
+wait "$TSC_PID"
+TSC_CODE=$?
+
+DC_CODE=0
+if [ -n "$DC_PID" ]; then
+  wait "$DC_PID"
+  DC_CODE=$?
+fi
+
+# --- step 3: lint + autofix on the touched file ---------------------------
+ESLINT_OUT="$(npx --no-install eslint --fix "$FILE" 2>&1)"
+ESLINT_CODE=$?
+
+if [ "$TSC_CODE" -eq 0 ] && [ "$DC_CODE" -eq 0 ] && [ "$ESLINT_CODE" -eq 0 ]; then
+  exit 0
+fi
+
+{
+  echo "✖ Harness check failed after editing $REL_FILE"
+  if [ "$TSC_CODE" -ne 0 ]; then
+    echo
+    echo "--- tsc --noEmit (exit $TSC_CODE) ---"
+    cat "$TSC_LOG"
+  fi
+  if [ "$DC_CODE" -ne 0 ]; then
+    echo
+    echo "--- check:arch on $REL_FILE (exit $DC_CODE) ---"
+    cat "$DC_LOG"
+    echo
+    echo "A layer boundary was crossed. Depend on a port from services/domain and"
+    echo "let serviceContainer wire the adapter; see .dependency-cruiser.js."
+  fi
+  if [ "$ESLINT_CODE" -ne 0 ]; then
+    echo
+    echo "--- eslint --fix $REL_FILE (exit $ESLINT_CODE) ---"
+    printf '%s\n' "$ESLINT_OUT"
+    echo
+    echo "Remaining problems are NOT auto-fixable. Fix the code — do not silence"
+    echo "the tool: check-diff blocks a suppression comment or a cast to any."
+  fi
+} >&2
+
+exit 2

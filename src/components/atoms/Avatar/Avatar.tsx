@@ -103,6 +103,8 @@ const Avatar: React.FC<AvatarProps> = ({
   /**
    * Sélectionne le contenu selon l'ordre photo > emoji > initiale.
    * Picks the content following the photo > emoji > initial order.
+   *
+   * @returns Le contenu affiché dans l'avatar / The avatar content
    */
   const renderContent = (): React.ReactElement => {
     if (hasPhoto) {

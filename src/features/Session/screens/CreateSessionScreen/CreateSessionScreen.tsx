@@ -24,7 +24,6 @@ import { Screen, Text } from '@components/atoms';
 import AddressAutocomplete from '@components/molecules/AddressAutocomplete';
 import EmptyState from '@components/molecules/EmptyState';
 import ParticipantCard from '@components/molecules/ParticipantCard';
-import type { Participant } from '@entities/MidpointSession';
 import { useCreateSessionFlow } from '@features/Session/hooks/useCreateSessionFlow';
 import { useMidpointCalculation } from '@features/Session/hooks/useMidpointCalculation';
 import type { BottomTabsParamList } from '@navigations/types'; // [ADDED]
@@ -81,6 +80,8 @@ const CreateSessionScreen: React.FC = () => {
   /**
    * Rendu du compteur de participants.
    * Renders the participant counter.
+   *
+   * @returns Le compteur de participants / The participant counter
    */
   const renderCounter = () => (
     <View style={styles.counterContainer} testID="create-counter">
@@ -96,6 +97,8 @@ const CreateSessionScreen: React.FC = () => {
   /**
    * Rendu de l'erreur GPS.
    * Renders the GPS error card.
+   *
+   * @returns La carte d'erreur GPS, ou null si aucune / The GPS error card, or null
    */
   const renderGpsError = () => {
     if (gpsError == null) return null;
@@ -114,6 +117,8 @@ const CreateSessionScreen: React.FC = () => {
   /**
    * Rendu de la notice GPS non-bloquante (information, pas erreur).
    * Renders the non-blocking GPS notice (informational, not an error).
+   *
+   * @returns La notice GPS, ou null si aucune / The GPS notice, or null
    */
   const renderGpsNotice = () => {
     if (gpsNotice == null) return null;
@@ -168,7 +173,7 @@ const CreateSessionScreen: React.FC = () => {
           />
         ) : (
           <View style={styles.listContent} testID="create-participants-list">
-            {(participants as Participant[]).map((item) => (
+            {participants.map((item) => (
               <ParticipantCard
                 key={item.id}
                 participant={item}

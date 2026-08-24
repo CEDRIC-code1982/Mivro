@@ -13,6 +13,12 @@ import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Screen, Text } from '@components/atoms';
 
+/**
+ * Écran placeholder de l'historique des sessions.
+ * Placeholder screen for the session history.
+ *
+ * @returns Composant SessionsScreen / SessionsScreen component
+ */
 const SessionsScreen: React.FC = () => {
   const { t } = useTranslation('sessions');
   const theme = useTheme();

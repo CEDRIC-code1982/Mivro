@@ -1,0 +1,32 @@
+#!/usr/bin/env sh
+# ---------------------------------------------------------------------------
+# pre-push — the last gate before code leaves the machine.
+#
+#   1. check:arch  — dependency-cruiser (layer boundaries, Atomic Design)
+#   2. check:diff  — no banned escape hatch in the pushed commits
+#   3. test:ci     — the full Jest suite
+#
+# Bypass (only for a genuine emergency): git push --no-verify
+# ---------------------------------------------------------------------------
+set -e
+
+# Range actually being pushed: upstream..HEAD, falling back to main..HEAD.
+UPSTREAM="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
+if [ -z "$UPSTREAM" ]; then
+  if git rev-parse --verify --quiet main >/dev/null 2>&1; then
+    UPSTREAM="main"
+  else
+    UPSTREAM="HEAD~1"
+  fi
+fi
+
+printf '▸ pre-push 1/3  architecture (check:arch)\n'
+npm run --silent check:arch
+
+printf '▸ pre-push 2/3  banned patterns (check:diff, range %s...HEAD)\n' "$UPSTREAM"
+bash scripts/check-diff.sh "$UPSTREAM...HEAD"
+
+printf '▸ pre-push 3/3  full test suite (test:ci)\n'
+npm run --silent test:ci
+
+printf '✔ pre-push: all gates green\n'

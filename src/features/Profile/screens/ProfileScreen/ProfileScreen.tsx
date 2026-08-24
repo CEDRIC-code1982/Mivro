@@ -66,6 +66,12 @@ const nextThemeMode = (current: ThemeMode): ThemeMode => {
   return THEME_CYCLE[nextIdx] ?? 'system';
 };
 
+/**
+ * Écran de profil : identité, avatar, thème, verrou biométrique.
+ * Profile screen: identity, avatar, theme, biometric lock.
+ *
+ * @returns Composant ProfileScreen / ProfileScreen component
+ */
 const ProfileScreen: React.FC = () => {
   const { t } = useTranslation('profile');
   const { t: tBio } = useTranslation('biometric'); // [ADDED] F8

@@ -1,9 +1,9 @@
 /**
  * @file RNGeolocationService.ts
- * @description Implémentation IGeolocationService basée sur
- *              @react-native-community/geolocation.
- *              IGeolocationService implementation based on
- *              @react-native-community/geolocation.
+ * @description Implémentation IGeolocationService basée sur le paquet
+ *              `@react-native-community/geolocation`.
+ *              IGeolocationService implementation based on the
+ *              `@react-native-community/geolocation` package.
  *
  *              Gère / Handles:
  *              - Demande de permission runtime (Android 6+ et iOS)

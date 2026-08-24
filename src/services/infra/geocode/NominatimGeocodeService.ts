@@ -241,6 +241,9 @@ export class NominatimGeocodeService implements IGeocodeService {
           'User-Agent': USER_AGENT,
           Accept: 'application/json',
         },
+        // Cast AbortSignal — mêmes raisons que dans search() ci-dessus : les types
+        // globaux RN diffèrent des types DOM et exactOptionalPropertyTypes refuse
+        // l'union undefined | null.
         signal: options.signal as RequestInit['signal'],
       });
 

@@ -307,6 +307,8 @@ export class FirebaseSessionShareService implements ISessionShareService {
       return null;
     }
 
+    // Cast justifié : la garde ci-dessus a écarté null et les non-objets. Les
+    // valeurs lues ensuite passent par un schéma Zod avant tout usage (TS-004).
     const node = raw as Record<string, unknown>;
     // Une session sans meta n'est pas une session partagée valide (peut n'avoir
     // que `participants` F4) → on la considère absente côté partage.
@@ -317,8 +319,12 @@ export class FirebaseSessionShareService implements ISessionShareService {
     const membersRaw = node[MEMBERS_NODE];
     const members: Array<Record<string, unknown>> = [];
     if (membersRaw !== null && typeof membersRaw === 'object') {
+      // Cast justifié : membersRaw vient d'être gardé comme objet non nul ;
+      // Firebase stocke les membres en dictionnaire indexé par memberId.
       for (const [memberId, value] of Object.entries(membersRaw as Record<string, unknown>)) {
         if (value !== null && typeof value === 'object') {
+          // Cast justifié : value gardé comme objet non nul juste au-dessus ; la
+          // forme réelle est validée par le schéma Zod plus bas (TS-004).
           members.push({ memberId, ...(value as Record<string, unknown>) });
         }
       }

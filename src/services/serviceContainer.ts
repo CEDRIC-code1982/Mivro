@@ -179,7 +179,7 @@ export const initContainer = (encryptionKey: string): Container => {
   };
 
   console.log(
-    `[INFO][container][initContainer][?][${new Date().toISOString().slice(11, 19)}] ` +
+    `[INFO][serviceContainer][initContainer][?][${new Date().toISOString().slice(11, 19)}] ` +
       'DI container initialized',
   );
 

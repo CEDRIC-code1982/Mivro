@@ -55,7 +55,6 @@ const timestamp = (): string => new Date().toISOString().slice(11, 19);
  * que la session n'est pas partagée.
  * Call once from the map screen. The hook is inert while not shared.
  *
- * @returns void
  */
 export const useSharedSessionSync = (): void => {
   // Références STABLES uniquement (Zustand v5) — pas de dérivé recréé.

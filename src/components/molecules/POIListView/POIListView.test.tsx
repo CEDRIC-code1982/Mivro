@@ -116,7 +116,7 @@ describe('POIListView', () => {
     // The closest (CLOSE_POI) should appear first
     const names = getAllByText(/Resto|Café/);
     expect(names.length).toBeGreaterThan(0);
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- asserted above
+    // Non-null assertion justifiée : la longueur a été assertée juste au-dessus.
     expect(names[0]!.props.children).toBe('Resto Proche');
   });
 

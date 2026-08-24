@@ -29,6 +29,8 @@ import {
   motion,
   zIndex,
   touchTarget,
+  borderWidth,
+  size,
 } from './tokens';
 
 // ═══════════════════════════════════════════════════════════════
@@ -65,6 +67,9 @@ const lightSemantic = {
     strong: palette.neutral[400], // Bordures emphase
     focus: palette.brand[500], // Anneau de focus a11y
     error: palette.error[500],
+    // Bordure réservant la place d'un état sélectionné, sans la dessiner
+    // Border reserving the room of a selected state, without drawing it
+    none: 'transparent',
   },
 
   // États interactifs
@@ -135,6 +140,9 @@ const darkSemantic = {
     strong: palette.neutral[600],
     focus: palette.brand[400], // #818CF8
     error: palette.error[500],
+    // Bordure réservant la place d'un état sélectionné, sans la dessiner
+    // Border reserving the room of a selected state, without drawing it
+    none: 'transparent',
   },
 
   interactive: {
@@ -193,6 +201,8 @@ const buildTheme = (mode: 'light' | 'dark') => ({
   motion,
   zIndex,
   touchTarget,
+  borderWidth,
+  size,
   // Accès direct aux primitifs si besoin spécifique (rare)
   // Direct access to primitives for edge cases (rare)
   palette,

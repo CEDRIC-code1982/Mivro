@@ -205,7 +205,7 @@ const createStyles = (theme: Theme) =>
     },
     markerCircle: {
       borderRadius: theme.radius.full,
-      borderWidth: 3,
+      borderWidth: theme.borderWidth.thick,
       borderColor: theme.color.surface.primary,
       justifyContent: 'center',
       alignItems: 'center',
