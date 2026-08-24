@@ -78,7 +78,7 @@ const JoinSessionScreen: React.FC = () => {
       <View style={styles.root} testID="join-screen-loading">
         <ActivityIndicator
           size="large"
-          color={theme.color.interactive.brand.default}
+          color={theme.color.text.brand}
           accessibilityRole="progressbar"
           accessibilityLabel={t('join.loadingAccessibilityLabel')}
         />
@@ -98,7 +98,7 @@ const JoinSessionScreen: React.FC = () => {
       <View style={styles.root} testID="join-screen-success">
         <CheckCircle2
           size={theme.spacing.xxl}
-          color={theme.color.interactive.brand.default}
+          color={theme.color.text.brand}
           accessibilityElementsHidden
         />
         <Text variant="h3" weight="bold" style={styles.title}>
@@ -133,7 +133,7 @@ const JoinSessionScreen: React.FC = () => {
     <View style={styles.root} testID="join-screen-error">
       <AlertTriangle
         size={theme.spacing.xxl}
-        color={theme.color.interactive.danger.default}
+        color={theme.color.text.error}
         accessibilityElementsHidden
       />
       <Text variant="h3" weight="bold" style={styles.title}>

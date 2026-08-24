@@ -33,6 +33,19 @@ const AA_TEXT = 4.5;
 /** Composant d'interface ou objet graphique porteur de sens / UI component */
 const AA_UI = 3;
 
+/**
+ * Fonds de tuiles de carte les plus clairs et les plus foncés rencontrés.
+ * Lightest and darkest map tile backgrounds encountered.
+ *
+ * Approximation volontaire : on ne contrôle pas le rendu des tuiles, donc on
+ * borne. Le cas dur est la tuile claire, puisque le mode sombre pousse à
+ * choisir des couleurs claires.
+ */
+const MAP_TILES = {
+  light: '#F1EFE9',
+  white: '#FFFFFF',
+} as const;
+
 // ═══════════════════════════════════════════════════════════════
 // CALCUL DU CONTRASTE
 // ═══════════════════════════════════════════════════════════════
@@ -90,12 +103,54 @@ interface Pair {
 }
 
 /**
- * Construit les paires réellement utilisées par l'UI pour un mode donné.
+ * Compose une couleur `rgba(...)` sur un fond opaque.
+ * Composites an `rgba(...)` colour over an opaque background.
+ *
+ * Sans ça, les fonds `feedback.*Bg` (semi-transparents en mode sombre) ne
+ * seraient pas mesurables et resteraient hors du cliquet.
+ *
+ * @param rgba - Couleur au format `rgba(r, g, b, a)`
+ * @param baseHex - Fond opaque sous-jacent
+ * @returns La couleur composée, en hexadécimal
+ */
+const flatten = (rgba: string, baseHex: string): string => {
+  const parts = rgba.match(/rgba?\(([^)]+)\)/);
+  if (!parts?.[1]) {
+    return rgba;
+  }
+  const [r, g, b, a] = parts[1].split(',').map((value) => Number(value.trim()));
+  const base = baseHex.replace('#', '');
+  const channels = [0, 2, 4].map((offset) => parseInt(base.slice(offset, offset + 2), 16));
+  // `rgb(...)` sans canal alpha vaut opaque.
+  const alpha = a ?? 1;
+  const mix = [r ?? 0, g ?? 0, b ?? 0].map((channel, index) =>
+    Math.round(channel * alpha + (channels[index] ?? 0) * (1 - alpha)),
+  );
+  return `#${mix.map((value) => value.toString(16).padStart(2, '0')).join('')}`;
+};
+
+/**
+ * Construit les paires réellement rendues par l'UI pour un mode donné.
  * Builds the pairs the UI actually renders for a given mode.
  *
- * `surface.tertiary` est volontairement exclu : il porte du chrome imbriqué,
- * pas du texte courant. `border.subtle` / `border.default` / `border.strong`
- * sont exclus aussi — WCAG n'impose pas 3:1 aux séparateurs décoratifs.
+ * Cinq rôles sont couverts, parce qu'un token de couleur ne se juge pas dans
+ * l'abstrait mais dans l'usage :
+ *
+ * 1. **texte sur surface** — seuil 4,5:1 ;
+ * 2. **libellé sur remplissage** — un bouton plein porte `text.onBrand` ou
+ *    `text.onAccent` selon la teinte du remplissage, seuil 4,5:1 ;
+ * 3. **remplissage contre surface** — la frontière du composant doit être
+ *    perceptible (WCAG 1.4.11), seuil 3:1. C'est le rôle qui manquait et qui a
+ *    laissé passer la régression J-020 ;
+ * 4. **indicateur porteur de sens** — anneau de focus, bordure d'erreur, 3:1 ;
+ * 5. **avant-plan sur tuile de carte** — les tuiles ne suivent pas le thème,
+ *    donc un token calé sur les surfaces de l'app y est invalide, 3:1.
+ *
+ * `border.subtle` / `default` / `strong` restent exclus : WCAG n'impose rien aux
+ * séparateurs décoratifs. Sur `surface.tertiary` (chrome imbriqué : chips,
+ * cercles d'icône) l'app ne rend que `text.primary`, `text.secondary` et
+ * `text.brand` — les autres combinaisons ne sont pas testées parce qu'elles
+ * n'existent pas à l'écran.
  *
  * @param mode - 'light' ou 'dark' / 'light' or 'dark'
  * @returns Les paires à vérifier / The pairs to check
@@ -104,62 +159,116 @@ const buildPairs = (mode: 'light' | 'dark'): readonly Pair[] => {
   const { color } = mode === 'light' ? lightTheme : darkTheme;
   const pairs: Pair[] = [];
 
-  const textTokens = ['primary', 'secondary', 'tertiary', 'brand', 'error', 'success', 'warning'];
-  const surfaceTokens = ['primary', 'secondary'];
+  const push = (label: string, foreground: string, background: string, threshold: number): void => {
+    pairs.push({ label: `${mode} ${label}`, foreground, background, threshold });
+  };
 
+  // ── 1. Texte sur surface ────────────────────────────────────────────────
+  const textTokens = ['primary', 'secondary', 'tertiary', 'brand', 'error', 'success', 'warning'];
   for (const textToken of textTokens) {
-    for (const surfaceToken of surfaceTokens) {
-      const foreground = color.text[textToken as keyof typeof color.text];
-      const background = color.surface[surfaceToken as keyof typeof color.surface];
-      pairs.push({
-        label: `${mode} text.${textToken} on surface.${surfaceToken}`,
-        foreground,
-        background,
-        threshold: AA_TEXT,
-      });
+    for (const surfaceToken of ['primary', 'secondary'] as const) {
+      push(
+        `text.${textToken} on surface.${surfaceToken}`,
+        color.text[textToken as keyof typeof color.text],
+        color.surface[surfaceToken],
+        AA_TEXT,
+      );
+    }
+  }
+  for (const textToken of ['primary', 'secondary', 'brand'] as const) {
+    push(
+      `text.${textToken} on surface.tertiary`,
+      color.text[textToken],
+      color.surface.tertiary,
+      AA_TEXT,
+    );
+  }
+  push('text.inverse on surface.inverse', color.text.inverse, color.surface.inverse, AA_TEXT);
+
+  // Texte d'état sur son fond de feedback (semi-transparent en mode sombre).
+  for (const [textToken, bgToken] of [
+    ['error', 'errorBg'],
+    ['success', 'successBg'],
+    ['warning', 'warningBg'],
+  ] as const) {
+    push(
+      `text.${textToken} on feedback.${bgToken}`,
+      color.text[textToken],
+      flatten(color.feedback[bgToken], color.surface.primary),
+      AA_TEXT,
+    );
+  }
+
+  // ── 2. Libellé sur remplissage ──────────────────────────────────────────
+  // L'accent teal est trop lumineux pour du blanc : il porte `text.onAccent`.
+  //
+  // `hover` n'existe pas en React Native ; il est testé quand même pour que la
+  // valeur ne devienne pas un piège si un jour le web entre dans le périmètre.
+  // `pressed` est bien rendu (6 sites l'utilisent).
+  //
+  // `disabled` porte `text.tertiary`, pas `text.onBrand` : le libellé encre du
+  // mode sombre disparaissait sur le gris désactivé (1,63:1, cf. J-021). Seuil
+  // 3:1 — WCAG exempte les contrôles inactifs, mais un libellé doit rester
+  // perceptible.
+  for (const state of ['default', 'hover', 'pressed'] as const) {
+    for (const fill of ['brand', 'danger'] as const) {
+      push(
+        `text.onBrand on interactive.${fill}.${state}`,
+        color.text.onBrand,
+        color.interactive[fill][state],
+        AA_TEXT,
+      );
+    }
+    push(
+      `text.onAccent on interactive.accent.${state}`,
+      color.text.onAccent,
+      color.interactive.accent[state],
+      AA_TEXT,
+    );
+  }
+
+  for (const fill of ['brand', 'accent', 'danger'] as const) {
+    push(
+      `text.tertiary on interactive.${fill}.disabled`,
+      color.text.tertiary,
+      color.interactive[fill].disabled,
+      AA_UI,
+    );
+  }
+
+  // ── 3. Remplissage contre surface (frontière du composant) ──────────────
+  // `accent` est hors périmètre, et c'est une exclusion raisonnée, pas un angle
+  // mort : WCAG 1.4.11 vise « l'information visuelle nécessaire pour identifier
+  // un composant d'interface ». Les deux seuls remplissages accent de l'app n'en
+  // sont pas — le badge « invité » de ProfileScreen n'est pas interactif et son
+  // texte porte l'information (7,87:1), et les marqueurs de participants des
+  // cartes sont cernés d'un anneau `surface.primary` dont la frontière se juge
+  // contre les tuiles, pas contre la surface de l'app. Assombrir le teal jusqu'à
+  // 3:1 sur blanc (accent[700]) reviendrait à renoncer au teal de la charte.
+  // Si un jour un BOUTON accent apparaît, il faudra le rajouter ici.
+  for (const fill of ['brand', 'danger'] as const) {
+    for (const surfaceToken of ['primary', 'secondary', 'tertiary'] as const) {
+      push(
+        `interactive.${fill}.default against surface.${surfaceToken}`,
+        color.interactive[fill].default,
+        color.surface[surfaceToken],
+        AA_UI,
+      );
     }
   }
 
-  // Texte inversé sur fond inversé (toasts sombres) / inverse text on inverse surface
-  pairs.push({
-    label: `${mode} text.inverse on surface.inverse`,
-    foreground: color.text.inverse,
-    background: color.surface.inverse,
-    threshold: AA_TEXT,
-  });
+  // ── 4. Indicateurs porteurs de sens ─────────────────────────────────────
+  push('border.focus on surface.primary', color.border.focus, color.surface.primary, AA_UI);
+  push('border.error on surface.primary', color.border.error, color.surface.primary, AA_UI);
 
-  // Libellés de boutons pleins / solid button labels.
-  // Le teal accent est trop lumineux pour du blanc : son libellé est de l'encre
-  // (`text.onAccent`). Les remplissages brand et danger portent du blanc.
-  // The teal accent is too bright for white: its label is ink.
-  for (const interactiveToken of ['brand', 'danger'] as const) {
-    pairs.push({
-      label: `${mode} text.onBrand on interactive.${interactiveToken}.default`,
-      foreground: color.text.onBrand,
-      background: color.interactive[interactiveToken].default,
-      threshold: AA_TEXT,
-    });
+  // ── 5. Avant-plan sur les tuiles de carte ───────────────────────────────
+  // Les tuiles ne suivent pas le thème : elles restent claires en mode sombre.
+  // Un token calé sur les surfaces de l'app y est donc invalide, et c'est ce
+  // rôle manquant qui a rendu le cercle de rayon invisible (1,73:1, cf. J-021).
+  // Map tiles stay light in dark mode, so theme-relative tokens are invalid.
+  for (const [tileLabel, tile] of Object.entries(MAP_TILES)) {
+    push(`map.stroke on ${tileLabel} tile`, color.map.stroke, tile, AA_UI);
   }
-  pairs.push({
-    label: `${mode} text.onAccent on interactive.accent.default`,
-    foreground: color.text.onAccent,
-    background: color.interactive.accent.default,
-    threshold: AA_TEXT,
-  });
-
-  // Indicateurs porteurs de sens : focus a11y et bordure d'erreur (3:1)
-  pairs.push({
-    label: `${mode} border.focus on surface.primary`,
-    foreground: color.border.focus,
-    background: color.surface.primary,
-    threshold: AA_UI,
-  });
-  pairs.push({
-    label: `${mode} border.error on surface.primary`,
-    foreground: color.border.error,
-    background: color.surface.primary,
-    threshold: AA_UI,
-  });
 
   return pairs;
 };

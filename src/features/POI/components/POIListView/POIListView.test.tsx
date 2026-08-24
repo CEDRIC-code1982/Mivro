@@ -3,16 +3,16 @@
  * @description Tests unitaires de la molecule POIListView.
  *              Unit tests for the POIListView molecule.
  *
- * @module components/molecules/POIListView/POIListView.test
+ * @module features/POI/components/POIListView/POIListView.test
  */
 
 // [ADDED] Tests unitaires POIListView
 
 import { fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
-import POIListView from '@components/molecules/POIListView';
 import type { Coordinates } from '@entities/Location';
 import type { PointOfInterest } from '@entities/PointOfInterest';
+import POIListView from '@features/POI/components/POIListView';
 
 // ─── Mock i18n ────────────────────────────────────────────────
 jest.mock('react-i18next', () => ({

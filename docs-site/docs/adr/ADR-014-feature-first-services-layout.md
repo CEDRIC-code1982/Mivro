@@ -59,6 +59,12 @@ physique) change.
 - **Frontière feature vs partagé** : choix de garder **tous** les composants dans
   le kit global (Atomic Design) plutôt que des composants par feature, pour
   honorer DS-004.
+  > ⚠️ **Renversé par ADR-015** (2026-08-24). Ce choix produisait 5 imports
+  > `components/ → features/` interdits par la règle de dépendance, tous sur des
+  > composants qu'une seule feature utilisait. Un composant mono-feature vit
+  > désormais dans `src/features/<X>/components/`. DS-004 continue de régir
+  > `src/components/`.
+  <!-- markdownlint-disable-line -->
 - L'ADR-002 devient partiellement obsolète **sur la forme** (le layout y décrit
   n'existe plus) — d'où cette ADR qui l'actualise.
 

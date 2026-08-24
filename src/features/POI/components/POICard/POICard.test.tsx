@@ -3,15 +3,15 @@
  * @description Tests unitaires de la molecule POICard.
  *              Unit tests for the POICard molecule.
  *
- * @module components/molecules/POICard/POICard.test
+ * @module features/POI/components/POICard/POICard.test
  */
 
 // [ADDED] Tests unitaires POICard
 
 import { fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
-import POICard from '@components/molecules/POICard';
 import type { PointOfInterest } from '@entities/PointOfInterest';
+import POICard from '@features/POI/components/POICard';
 
 // ─── Mock i18n ────────────────────────────────────────────────
 jest.mock('react-i18next', () => ({

@@ -3,15 +3,15 @@
  * @description Tests unitaires de la molecule POIScreenHeader.
  *              Unit tests for the POIScreenHeader molecule.
  *
- * @module components/molecules/POIScreenHeader/POIScreenHeader.test
+ * @module features/POI/components/POIScreenHeader/POIScreenHeader.test
  */
 
 // [ADDED] Tests unitaires POIScreenHeader
 
 import { fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
-import POIScreenHeader from '@components/molecules/POIScreenHeader';
 import { ALL_POI_CATEGORIES } from '@entities/POICategory';
+import POIScreenHeader from '@features/POI/components/POIScreenHeader';
 
 // ─── Mock i18n ────────────────────────────────────────────────
 jest.mock('react-i18next', () => ({

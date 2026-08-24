@@ -31,7 +31,7 @@ Depuis le refactor du 2026-07-13, l'organisation est **feature-first** (aligné 
 - Le seul point de câblage concret est `src/services/serviceContainer.ts`.
 - **Tests co-localisés** : chaque `*.test.ts(x)` vit à côté de son sujet ; les tests d'intégration en `*.integration.test.tsx` ; E2E Maestro à la racine `e2e/`.
 
-Tests : **85** suites, **1133** cas (`npm run check` vert au 2026-07-13).
+Tests : **86** suites, **1226** cas (`npm run check` vert au 2026-08-24).
 
 ---
 
@@ -41,15 +41,16 @@ Tests : **85** suites, **1133** cas (`npm run check` vert au 2026-07-13).
 src/
 ├── features/                       feature-first : écrans + hooks propres à la feature (tests co-localisés)
 │   ├── Session/    (F1+F2)  screens/{CreateSessionScreen,MapScreen,SessionsScreen}/ · hooks/{useCreateSessionFlow,useMidpointCalculation,useGeocodeQuery}
-│   ├── POI/        (F3)     screens/POIScreen/ · hooks/{usePOIQuery} · utils/poiIcons
+│   ├── POI/        (F3)     screens/POIScreen/ · components/{POICard,POIDetailSheet,POIListView,POIMapView,POIScreenHeader} · hooks/{usePOIQuery} · utils/poiIcons
 │   ├── Sharing/    (F4+F5)  screens/JoinSessionScreen/ · hooks/{useSessionShare,useSharedSessionSync,useRealtimeTracking}
 │   ├── Profile/    (F7)     screens/ProfileScreen/ · hooks/{useAuth,useProfilePhoto}
 │   └── Biometric/  (F8)     hooks/{useBiometricLock}
 ├── components/                     KIT UI GLOBAL — Atomic Design (DS-004), chaque <Nom>/<Nom>.tsx + <Nom>.test.tsx
+│   │                               Ne contient QUE du partagé entre features : un composant
+│   │                               qui ne sert qu'à une feature vit dans features/<X>/components/
 │   ├── atoms/       Text, Screen, TabBarIcon, CategoryChip, Avatar
-│   ├── molecules/   AddressAutocomplete, AvatarPicker, BiometricLockScreen, EmptyState,
-│   │                LiveParticipantsList, POICard, POIDetailSheet, POIListView, POIMapView,
-│   │                POIScreenHeader, ParticipantCard, RealtimeConsentModal, SessionMapView
+│   ├── molecules/   AvatarPicker, BiometricLockScreen, EmptyState, LiveParticipantsList,
+│   │                ParticipantCard, RealtimeConsentModal, SessionMapView
 │   ├── organisms/   (vide)
 │   └── templates/   AppErrorBoundary
 ├── services/
@@ -187,7 +188,10 @@ Persistance via `zustand-mmkv-adapter` (infrastructure) câblé dans le containe
 - **Atoms** : `Text`, `Screen`, `TabBarIcon`, `CategoryChip`, `Avatar`
   - `Avatar` (F7) : ordre de rendu **photo (`photoUri`, `<Image>`) > emoji (`avatarId`) > initiale (`fallbackName`)**. Source unique de la logique d'initiale (réutilisée par `ParticipantCard`). Photo ajoutée en passe 2.
   - ⚠️ `Button`, `Input`, `IconButton`, `Card`, `Spinner` **n'existent pas** — à créer au besoin (skill `create-atom`).
-- **Molecules** : `AddressAutocomplete` (+ `AddressResultItem`), `AvatarPicker`, `EmptyState`, `LiveParticipantsList`, `POICard`, `POIDetailSheet`, `POIListView`, `POIMapView`, `POIScreenHeader`, `ParticipantCard`, `RealtimeConsentModal`, `SessionMapView`
+- **Molecules partagées** (`src/components/molecules/`) : `AvatarPicker`, `BiometricLockScreen`, `EmptyState`, `LiveParticipantsList`, `ParticipantCard`, `RealtimeConsentModal`, `SessionMapView`
+- **Composants de feature** (`src/features/<X>/components/`) : `POICard`, `POIDetailSheet`, `POIListView`, `POIMapView`, `POIScreenHeader` (POI) · `AddressAutocomplete` + `AddressResultItem` (Session)
+  - Le critère est l'usage réel, pas la taille : un composant utilisé par une seule feature appartient à cette feature. Ces six-là ne servaient qu'à `POIScreen` et `CreateSessionScreen`, et leur présence dans le kit global forçait deux imports `components/ → features/` (`poiIcons`, `useGeocodeQuery`). Les déplacer a supprimé la cause au lieu de promouvoir du code feature en « partagé » (voir `docs/harness/JOURNAL-ECHECS.md`, J-014).
+  - Un composant de feature est **présentationnel** : la règle `feature-components-presentational` lui interdit le conteneur de DI, ce sont les hooks de la feature qui portent les données.
   - `AvatarPicker` (F7) : grille des 20 avatars en `accessibilityRole="radiogroup"` (A11Y-003), composant l'atom `Avatar`.
   - `LiveParticipantsList` (F4) : vue liste textuelle alternative à la carte temps réel (A11Y-006) — nom, statut online/offline, distance au midpoint ; état empty géré.
   - `RealtimeConsentModal` (F4) : consentement RGPD explicite et **séparé** au partage de position.

@@ -14,7 +14,7 @@
  * />
  * ```
  *
- * @module components/molecules/POICard/POICard
+ * @module features/POI/components/POICard/POICard
  */
 
 // [ADDED] Molecule POICard — carte POI
@@ -87,11 +87,7 @@ const POICard: React.FC<POICardProps> = ({ poi, distanceMeters, onPress, testID 
     >
       {/* [ADDED] Icône catégorie dans cercle */}
       <View style={styles.iconCircle}>
-        <Icon
-          size={CATEGORY_ICON_SIZE}
-          color={theme.color.interactive.brand.default}
-          strokeWidth={1.5}
-        />
+        <Icon size={CATEGORY_ICON_SIZE} color={theme.color.text.brand} strokeWidth={1.5} />
       </View>
 
       {/* [ADDED] Texte : nom + catégorie + distance */}

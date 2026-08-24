@@ -175,7 +175,7 @@ const App: React.FC = () => {
   if (!ready) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.color.surface.primary }]}>
-        <ActivityIndicator size="large" color={theme.color.interactive.brand.default} />
+        <ActivityIndicator size="large" color={theme.color.text.brand} />
       </View>
     );
   }

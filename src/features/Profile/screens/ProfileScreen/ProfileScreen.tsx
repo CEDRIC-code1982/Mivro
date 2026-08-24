@@ -302,7 +302,11 @@ const ProfileScreen: React.FC = () => {
                     accessibilityHint={t('photo.removeHint')}
                     testID="profile-photo-remove"
                   >
-                    <Text variant="body" weight="semibold" color="onBrand">
+                    <Text
+                      variant="body"
+                      weight="semibold"
+                      color={isPhotoBusy ? 'tertiary' : 'onBrand'}
+                    >
                       {t('photo.remove')}
                     </Text>
                   </Pressable>
@@ -313,7 +317,7 @@ const ProfileScreen: React.FC = () => {
               {isPhotoBusy ? (
                 <View style={styles.photoStatus} accessibilityLiveRegion="polite">
                   <ActivityIndicator
-                    color={theme.color.interactive.brand.default}
+                    color={theme.color.text.brand}
                     accessibilityLabel={t('photo.loading')}
                     testID="profile-photo-loading"
                   />
@@ -381,7 +385,11 @@ const ProfileScreen: React.FC = () => {
                 accessibilityHint={t('displayName.saveHint')}
                 testID="profile-name-save"
               >
-                <Text variant="body" weight="semibold" color="onBrand">
+                <Text
+                  variant="body"
+                  weight="semibold"
+                  color={!isNameValid || !isNameDirty ? 'tertiary' : 'onBrand'}
+                >
                   {t('displayName.save')}
                 </Text>
               </Pressable>
@@ -433,7 +441,7 @@ const ProfileScreen: React.FC = () => {
               {/* État loading (ERR-003) */}
               {biometricBusy ? (
                 <View style={styles.photoStatus} accessibilityLiveRegion="polite">
-                  <ActivityIndicator color={theme.color.interactive.brand.default} />
+                  <ActivityIndicator color={theme.color.text.brand} />
                 </View>
               ) : null}
 

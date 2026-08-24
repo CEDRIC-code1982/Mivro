@@ -209,26 +209,28 @@ module.exports = {
       name: 'components-no-features',
       severity: 'error',
       comment:
-        'The global UI kit must not depend on a feature. Lift the shared piece up, or keep the component inside the feature. GRANDFATHERED: the two modules in pathNot pre-date the rule (see docs/harness/JOURNAL-ECHECS.md, entry J-014) — do not add to that list, move the code instead.',
+        'The global UI kit must not depend on a feature — it is what every feature shares, so it cannot know any of them. No exemption: the five POI components and AddressAutocomplete that used to force one now live in their own feature (see docs/harness/JOURNAL-ECHECS.md, entry J-014).',
       from: { path: '^src/components/' },
+      to: { path: '^src/features/' },
+    },
+    {
+      name: 'no-cross-feature-private-import',
+      severity: 'error',
+      comment:
+        'A feature must not reach into another feature: its screens, its components and its utils are private. Cross-feature HOOK reuse stays allowed on purpose (useAuth, useBiometricLock and useSessionShare are app-wide) — see docs/harness/JOURNAL-ECHECS.md, entry J-016.',
+      from: { path: '^src/features/([^/]+)/' },
       to: {
-        path: '^src/features/',
-        pathNot: [
-          '^src/features/POI/utils/poiIcons\\.ts$',
-          '^src/features/Session/hooks/useGeocodeQuery\\.ts$',
-        ],
+        path: '^src/features/([^/]+)/(screens|utils|components)/',
+        pathNot: '^src/features/$1/',
       },
     },
     {
-      name: 'no-cross-feature-screen-import',
+      name: 'feature-components-presentational',
       severity: 'error',
       comment:
-        'A feature must not import another feature screen or feature-local util. Cross-feature HOOK reuse is allowed on purpose (useAuth, useBiometricLock, useSessionShare are app-wide) — see docs/harness/JOURNAL-ECHECS.md, entry J-016.',
-      from: { path: '^src/features/([^/]+)/' },
-      to: {
-        path: '^src/features/([^/]+)/(screens|utils)/',
-        pathNot: '^src/features/$1/',
-      },
+        'A feature component must not reach for the DI container directly: the feature hooks own that. Receive data through props, or through a hook of the same feature.',
+      from: { path: '^src/features/[^/]+/components/' },
+      to: { path: ['^src/services/serviceContainer\\.ts$', '^src/services/queryClient\\.ts$'] },
     },
 
     // ---------------------------------------------------------------------

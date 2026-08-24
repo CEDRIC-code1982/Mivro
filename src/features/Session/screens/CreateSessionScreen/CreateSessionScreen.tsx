@@ -21,9 +21,9 @@ import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Screen, Text } from '@components/atoms';
-import AddressAutocomplete from '@components/molecules/AddressAutocomplete';
 import EmptyState from '@components/molecules/EmptyState';
 import ParticipantCard from '@components/molecules/ParticipantCard';
+import AddressAutocomplete from '@features/Session/components/AddressAutocomplete';
 import { useCreateSessionFlow } from '@features/Session/hooks/useCreateSessionFlow';
 import { useMidpointCalculation } from '@features/Session/hooks/useMidpointCalculation';
 import type { BottomTabsParamList } from '@navigations/types'; // [ADDED]
@@ -259,7 +259,7 @@ const buildStyles = (theme: Theme) =>
       backgroundColor: theme.color.feedback.errorBg,
       borderRadius: theme.radius.md,
       borderWidth: 1,
-      borderColor: theme.color.interactive.danger.default,
+      borderColor: theme.color.border.error,
     },
     // [FIXED P1] Notice non-bloquante — style info neutre (pas erreur)
     noticeCard: {

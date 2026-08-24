@@ -19,7 +19,7 @@
  * />
  * ```
  *
- * @module components/molecules/POIMapView/POIMapView
+ * @module features/POI/components/POIMapView/POIMapView
  */
 
 // [ADDED] Molecule POIMapView — carte avec POI markers
@@ -110,7 +110,7 @@ const POIMapView: React.FC<POIMapViewProps> = ({
   }, [participants, midpoint, pois]);
 
   // Couleur du cercle de zone avec 15% opacité
-  const circleFillColor = `${theme.color.interactive.brand.default}26`;
+  const circleFillColor = theme.color.map.strokeFill;
 
   return (
     <View style={styles.container} testID={testID}>
@@ -131,7 +131,7 @@ const POIMapView: React.FC<POIMapViewProps> = ({
           center={midpoint}
           radius={radius}
           fillColor={circleFillColor}
-          strokeColor={theme.color.interactive.brand.default}
+          strokeColor={theme.color.map.stroke}
           strokeWidth={1.5}
           testID={testID ? `${testID}-circle` : undefined}
         />

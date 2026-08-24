@@ -87,6 +87,8 @@ export const palette = {
   },
   error: {
     50: '#FCE8EA',
+    200: '#FBC7CD', // État pressé d'un remplissage destructif en sombre
+    300: '#F9A2AA', // État survolé d'un remplissage destructif en sombre
     400: '#F5737F', // Erreur en texte sur fond sombre (6,59:1)
     500: '#E63946', // Bordure d'erreur (UI, 4,17:1 ≥ 3:1) — INSUFFISANT en texte
     600: '#C62836', // Erreur en texte sur blanc (5,59:1) + blanc dessus (5,59:1)

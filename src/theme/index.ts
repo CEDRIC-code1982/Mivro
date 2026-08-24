@@ -85,9 +85,13 @@ const lightSemantic = {
       disabled: palette.neutral[300],
     },
     accent: {
+      // Le teal de la charte est vif : ses états s'ÉCLAIRCISSENT au lieu de
+      // s'assombrir, sinon le libellé `text.onAccent` (encre) deviendrait
+      // illisible sur un teal foncé. Même logique qu'en mode sombre.
+      // A bright accent lightens on interaction, so its ink label stays legible.
       default: palette.accent[400], // #2EC4B6 — teal participants (clair)
-      hover: palette.accent[500],
-      pressed: palette.accent[600],
+      hover: palette.accent[300],
+      pressed: palette.accent[200],
       disabled: palette.neutral[300],
     },
     neutral: {
@@ -105,6 +109,22 @@ const lightSemantic = {
       pressed: palette.error[800],
       disabled: palette.neutral[300],
     },
+  },
+
+  // Couleurs rendues SUR LA CARTE — identiques en clair et en sombre.
+  //
+  // Les tuiles de react-native-maps ne suivent pas le thème de l'app : elles
+  // restent claires en mode sombre. Un token `text.*` ou `interactive.*`, calé
+  // sur les surfaces du thème, y est donc invalide — c'est ce qui a rendu le
+  // cercle de rayon invisible en sombre (1,73:1, cf. JOURNAL J-021).
+  //
+  // Map tiles do not follow the app theme: they stay light in dark mode, so a
+  // theme-relative token is invalid on them. These values are tile-relative.
+  map: {
+    // Trait du cercle de rayon — 5,47:1 sur tuile claire, 6,29:1 sur blanc.
+    stroke: palette.brand[600],
+    // Remplissage du même cercle : décoratif, le trait porte l'information.
+    strokeFill: `${palette.brand[600]}26`,
   },
 
   // Feedback
@@ -138,8 +158,12 @@ const darkSemantic = {
     error: palette.error[400], // 6,59:1 (le 500 ne donnait que 4,35:1 sur bg sombre)
     success: palette.success[500], // 7,95:1
     warning: palette.warning[500], // 9,82:1
-    onBrand: palette.neutral[0], // 6,29:1
-    // Idem mode clair : encre sur remplissage teal — 9,16:1.
+    // En sombre, un remplissage doit être CLAIR pour se détacher du fond ;
+    // du blanc dessus ne peut alors plus atteindre AA. Le libellé est donc de
+    // l'encre, comme sur l'accent. Encre sur brand[400] : 5,72:1.
+    // A dark-mode fill must be light to stand out, so its label is ink.
+    onBrand: '#1A1A2E',
+    // Idem : encre sur remplissage teal — 9,16:1.
     onAccent: '#1A1A2E',
   },
 
@@ -156,12 +180,14 @@ const darkSemantic = {
 
   interactive: {
     brand: {
-      // 600 et non 500 : le blanc sur brand[500] plafonne à 4,47:1, juste sous
-      // AA. Le remplissage sombre rejoint donc celui du mode clair.
-      // White on brand[500] caps at 4,47:1, just under AA.
-      default: palette.brand[600],
-      hover: palette.brand[700],
-      pressed: palette.brand[800],
+      // Remplissage CLAIR portant de l'encre. brand[500] était un cul-de-sac :
+      // ni le blanc (4,47:1) ni l'encre (3,82:1) n'y atteignent AA. Et
+      // l'assombrir en brand[600] tombait à 2,88:1 face au fond sombre
+      // (frontière WCAG 1.4.11) — c'est le bug corrigé en J-020.
+      // brand[400] : frontière 6,07:1, encre dessus 5,72:1.
+      default: palette.brand[400],
+      hover: palette.brand[300],
+      pressed: palette.brand[200],
       disabled: palette.neutral[700],
     },
     accent: {
@@ -177,12 +203,29 @@ const darkSemantic = {
       disabled: palette.neutral[800],
     },
     danger: {
-      // Idem mode clair : 600 pour servir remplissage ET icône/texte.
-      default: palette.error[600],
-      hover: palette.error[700],
-      pressed: palette.error[800],
+      // Même logique que brand : remplissage clair, encre dessus.
+      // error[400] : frontière 6,59:1, encre dessus 6,21:1.
+      default: palette.error[400],
+      hover: palette.error[300],
+      pressed: palette.error[200],
       disabled: palette.neutral[700],
     },
+  },
+
+  // Couleurs rendues SUR LA CARTE — identiques en clair et en sombre.
+  //
+  // Les tuiles de react-native-maps ne suivent pas le thème de l'app : elles
+  // restent claires en mode sombre. Un token `text.*` ou `interactive.*`, calé
+  // sur les surfaces du thème, y est donc invalide — c'est ce qui a rendu le
+  // cercle de rayon invisible en sombre (1,73:1, cf. JOURNAL J-021).
+  //
+  // Map tiles do not follow the app theme: they stay light in dark mode, so a
+  // theme-relative token is invalid on them. These values are tile-relative.
+  map: {
+    // Trait du cercle de rayon — 5,47:1 sur tuile claire, 6,29:1 sur blanc.
+    stroke: palette.brand[600],
+    // Remplissage du même cercle : décoratif, le trait porte l'information.
+    strokeFill: `${palette.brand[600]}26`,
   },
 
   feedback: {
@@ -302,4 +345,15 @@ export const useTheme = (): Theme => {
 
 // Re-export des primitifs pour cas avancés (composables hors composants)
 // Re-export primitives for advanced cases (outside components)
-export { palette, spacing, typography, radius, elevation, motion, zIndex, touchTarget };
+export {
+  palette,
+  spacing,
+  typography,
+  radius,
+  elevation,
+  motion,
+  zIndex,
+  touchTarget,
+  borderWidth,
+  size,
+};

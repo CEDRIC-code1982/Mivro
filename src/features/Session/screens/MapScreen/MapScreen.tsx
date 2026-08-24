@@ -359,8 +359,8 @@ const MapScreen: React.FC = () => {
               <View style={styles.midpointIconRow}>
                 <Star
                   size={theme.spacing.xl}
-                  color={theme.color.interactive.brand.default}
-                  fill={theme.color.interactive.brand.default}
+                  color={theme.color.text.brand}
+                  fill={theme.color.text.brand}
                 />
                 <Text variant="body" weight="bold">
                   {t('list.midpoint')}
@@ -505,7 +505,7 @@ const buildStyles = (theme: Theme, bottomInset: number) =>
       padding: theme.spacing.lg,
       gap: theme.spacing.xs,
       borderWidth: 1,
-      borderColor: theme.color.interactive.brand.default,
+      borderColor: theme.color.text.brand,
       marginBottom: theme.spacing.sm,
     },
     midpointIconRow: {

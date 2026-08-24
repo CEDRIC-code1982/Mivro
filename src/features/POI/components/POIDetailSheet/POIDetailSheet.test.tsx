@@ -3,7 +3,7 @@
  * @description Tests unitaires de la molecule POIDetailSheet.
  *              Unit tests for the POIDetailSheet molecule.
  *
- * @module components/molecules/POIDetailSheet/POIDetailSheet.test
+ * @module features/POI/components/POIDetailSheet/POIDetailSheet.test
  */
 
 // [ADDED] Tests unitaires POIDetailSheet
@@ -11,8 +11,8 @@
 import { fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
 import { Linking } from 'react-native';
-import POIDetailSheet from '@components/molecules/POIDetailSheet';
 import type { PointOfInterest } from '@entities/PointOfInterest';
+import POIDetailSheet from '@features/POI/components/POIDetailSheet';
 
 // ─── Mock i18n ────────────────────────────────────────────────
 jest.mock('react-i18next', () => ({

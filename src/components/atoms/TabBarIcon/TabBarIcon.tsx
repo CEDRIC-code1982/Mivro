@@ -77,7 +77,7 @@ const TabBarIcon: React.FC<TabBarIconProps> = ({
   const theme = useTheme();
 
   // [ADDED] Couleur selon l'état focused — tokens thème (DS-001)
-  const color = focused ? theme.color.interactive.brand.default : theme.color.text.tertiary;
+  const color = focused ? theme.color.text.brand : theme.color.text.tertiary;
 
   // [ADDED] StrokeWidth plus épais quand actif — effet visuel
   const strokeWidth = focused ? STROKE_WIDTH_FOCUSED : STROKE_WIDTH_DEFAULT;

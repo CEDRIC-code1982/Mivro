@@ -108,11 +108,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
           hitSlop={styles.hitSlop}
           testID={testID ? `${testID}-remove` : undefined}
         >
-          <X
-            size={theme.typography.fontSize.body}
-            color={theme.color.interactive.danger.default}
-            strokeWidth={2}
-          />
+          <X size={theme.typography.fontSize.body} color={theme.color.text.error} strokeWidth={2} />
         </Pressable>
       )}
     </View>

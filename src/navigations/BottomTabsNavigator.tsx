@@ -73,7 +73,7 @@ const BottomTabsNavigator: React.FC = () => {
       initialRouteName={initialTab}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: theme.color.interactive.brand.default,
+        tabBarActiveTintColor: theme.color.text.brand,
         tabBarInactiveTintColor: theme.color.text.tertiary,
         tabBarStyle: {
           backgroundColor: theme.color.surface.primary,

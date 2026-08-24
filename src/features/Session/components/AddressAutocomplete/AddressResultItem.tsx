@@ -11,7 +11,7 @@
  * />
  * ```
  *
- * @module components/molecules/AddressAutocomplete/AddressResultItem
+ * @module features/Session/components/AddressAutocomplete/AddressResultItem
  */
 
 // [ADDED] AddressResultItem — item de la liste autocomplete

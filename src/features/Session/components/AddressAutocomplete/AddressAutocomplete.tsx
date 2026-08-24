@@ -15,7 +15,7 @@
  * />
  * ```
  *
- * @module components/molecules/AddressAutocomplete/AddressAutocomplete
+ * @module features/Session/components/AddressAutocomplete/AddressAutocomplete
  */
 
 // [MODIFIED] Molecule AddressAutocomplete — Phase 6 (bottom sheet ajouté)
@@ -209,7 +209,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
           style={styles.loadingContainer}
           {...(testID != null && { testID: `${testID}-loading` })}
         >
-          <ActivityIndicator size="large" color={theme.color.interactive.brand.default} />
+          <ActivityIndicator size="large" color={theme.color.text.brand} />
           <Text variant="small" color="secondary">
             {t('autocomplete.loading')}
           </Text>
@@ -315,12 +315,9 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
           testID={testID ? `${testID}-gps-button` : undefined}
         >
           {isAddingByGps ? (
-            <ActivityIndicator size="small" color={theme.color.interactive.brand.default} />
+            <ActivityIndicator size="small" color={theme.color.text.brand} />
           ) : (
-            <MapPin
-              size={theme.typography.fontSize.bodyLg}
-              color={theme.color.interactive.brand.default}
-            />
+            <MapPin size={theme.typography.fontSize.bodyLg} color={theme.color.text.brand} />
           )}
           <Text variant="body" weight="semibold" color={isDisabled ? 'tertiary' : 'brand'}>
             {t('autocomplete.useGps')}
@@ -423,7 +420,7 @@ const buildStyles = (theme: Theme) =>
       paddingVertical: theme.spacing.md,
       paddingHorizontal: theme.spacing.lg,
       borderWidth: 1,
-      borderColor: theme.color.interactive.brand.default,
+      borderColor: theme.color.text.brand,
       borderRadius: theme.radius.md,
       minHeight: theme.touchTarget.min,
     },

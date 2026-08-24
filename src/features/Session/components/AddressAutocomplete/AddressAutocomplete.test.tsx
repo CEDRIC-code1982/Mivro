@@ -3,15 +3,15 @@
  * @description Tests unitaires de la molecule AddressAutocomplete.
  *              Unit tests for the AddressAutocomplete molecule.
  *
- * @module components/molecules/AddressAutocomplete/AddressAutocomplete.test
+ * @module features/Session/components/AddressAutocomplete/AddressAutocomplete.test
  */
 
 // [MODIFIED] Tests unitaires AddressAutocomplete — Phase 6 (bottom sheet)
 
 import { fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
-import AddressAutocomplete from '@components/molecules/AddressAutocomplete';
 import type { GeocodeResult } from '@entities/GeocodeResult';
+import AddressAutocomplete from '@features/Session/components/AddressAutocomplete';
 import { GeocodeError } from '@services/domain/geocode/IGeocodeService';
 
 // ─── Mock i18n ──────────────────────────────────────────────

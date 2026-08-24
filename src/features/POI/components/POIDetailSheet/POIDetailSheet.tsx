@@ -14,7 +14,7 @@
  * />
  * ```
  *
- * @module components/molecules/POIDetailSheet/POIDetailSheet
+ * @module features/POI/components/POIDetailSheet/POIDetailSheet
  */
 
 // [ADDED] Molecule POIDetailSheet — détail POI en bottom sheet
@@ -160,11 +160,7 @@ const POIDetailSheet: React.FC<POIDetailSheetProps> = ({
               {/* [ADDED] Header : icône + nom + catégorie */}
               <View style={styles.header} testID={testID ? `${testID}-header` : undefined}>
                 {Icon != null && (
-                  <Icon
-                    size={LARGE_ICON_SIZE}
-                    color={theme.color.interactive.brand.default}
-                    strokeWidth={1.5}
-                  />
+                  <Icon size={LARGE_ICON_SIZE} color={theme.color.text.brand} strokeWidth={1.5} />
                 )}
                 <View style={styles.headerText}>
                   <Text variant="h4" weight="bold" numberOfLines={2}>

@@ -28,12 +28,14 @@
 | J-011 | DOC-004 inapplicable : pas de Docusaurus ni TypeDoc        | RÉSOLU  |
 | J-012 | Thème : 15 paires échouent WCAG AA                         | RÉSOLU  |
 | J-013 | 46 `accessibilityHint` manquants                           | OUVERT  |
-| J-014 | Couplage `components/` → `features/` préexistant           | OUVERT  |
+| J-014 | Couplage `components/` → `features/` préexistant           | RÉSOLU  |
 | J-015 | TS-002 : 127 casts idiomatiques en tests                   | ARBITRÉ |
 | J-016 | Imports de hooks entre features                            | ARBITRÉ |
 | J-017 | Véto natif : faux positif sur les heredocs                 | ACCEPTÉ |
 | J-018 | Véto destructif contournable par une commande multi-lignes | RÉSOLU  |
 | J-019 | `npm run clear` de Docusaurus bloqué par homonymie         | ACCEPTÉ |
+| J-020 | Le cliquet de contraste a validé sa propre régression      | RÉSOLU  |
+| J-021 | Deux rôles hors modèle : tuile de carte et état désactivé  | RÉSOLU  |
 
 ---
 
@@ -481,3 +483,194 @@ contournable.
 (`npx docusaurus clear`). Rendre le véto conscient du répertoire courant demanderait de résoudre
 le `package.json` applicable à chaque appel, pour un gain marginal : les quatre noms bloqués sont
 tous destructeurs à la racine, et l'homonymie ne concerne que celui-ci.
+
+---
+
+## J-014 bis — Résolution du couplage `components/` → `features/`
+
+**Date** : 2026-08-24 · **Statut** : RÉSOLU — l'exemption de cliquet est supprimée
+
+**Le constat qui change tout.** Avant de déplacer quoi que ce soit, une vérification d'usage :
+
+| Composant             | Importé par                      |
+| --------------------- | -------------------------------- |
+| `POICard`             | `POIListView` uniquement         |
+| `POIDetailSheet`      | `POIScreen` uniquement           |
+| `POIListView`         | `POIScreen` uniquement           |
+| `POIMapView`          | `POIScreen` uniquement           |
+| `POIScreenHeader`     | `POIScreen` uniquement           |
+| `AddressAutocomplete` | `CreateSessionScreen` uniquement |
+
+**Aucun de ces six composants n'était partagé.** Le couplage `components/ → features/` n'était donc
+pas le problème : c'en était le **symptôme**. Six composants de feature vivaient dans le kit UI
+global, et de là ils avaient besoin de `poiIcons` (POI) et `useGeocodeQuery` (Session) — d'où les
+imports interdits.
+
+**Trois options étaient sur la table.**
+
+1. **Remonter les deux modules partagés** — `poiIcons` dans `components/`, `useGeocodeQuery` dans
+   `src/hooks/`. Le plus petit diff (2 fichiers), mais il promeut du mapping d'icônes POI et du
+   géocodage Session au rang de « partagé » alors qu'ils ne le sont pas, et laisse les composants
+   POI dans le kit global. **Soigne le symptôme.**
+2. **Déplacer tous les composants mono-feature** — `BiometricLockScreen` → Biometric,
+   `RealtimeConsentModal` et `LiveParticipantsList` → Sharing, `SessionMapView` → Session,
+   `AvatarPicker` → Profile. Taxonomie idéale, mais diff large et qui touche quatre features
+   sans qu'aucune règle ne l'exige. **Mérite sa propre tâche.**
+3. **Déplacer les six qui créent la violation.** Retenu.
+
+**Réponse.** `src/features/POI/components/` et `src/features/Session/components/` créés, les six
+dossiers déplacés avec `git mv` (historique préservé), 9 fichiers d'imports réécrits, 13 tags
+`@module` réalignés.
+
+Côté règles :
+
+- `components-no-features` perd ses deux exemptions `pathNot` — **plus aucun grandfathering**. Le
+  kit UI global ne peut plus connaître une feature, point.
+- `no-cross-feature-screen-import` devient **`no-cross-feature-private-import`** et couvre
+  désormais `screens`, `utils` **et** `components` : les composants d'une feature sont privés au
+  même titre que ses écrans. La réutilisation de **hooks** entre features reste autorisée (cf. le
+  J-016 d'origine).
+- Nouvelle règle **`feature-components-presentational`** : un composant de feature n'accède pas au
+  conteneur de DI. Sans elle, déplacer un composant près de son écran l'autoriserait implicitement
+  à faire ce que le kit global n'a jamais pu faire — la frontière aurait été déplacée, pas tenue.
+
+3 sondes ajoutées au self-test (dont `components-no-features`, qui n'en avait aucune : la règle
+n'était vérifiée par personne, seulement par l'absence de violation réelle).
+
+**Ce qui reste.** Cinq molecules mono-feature dorment encore dans `src/components/molecules/`
+(`AvatarPicker`, `BiometricLockScreen`, `LiveParticipantsList`, `RealtimeConsentModal`,
+`SessionMapView`) ; `ParticipantCard` sert à deux features et reste donc partagée à juste titre.
+Aucune ne viole de règle
+aujourd'hui — c'est l'option 2 ci-dessus, à traiter séparément si le besoin apparaît.
+
+---
+
+## J-020 — Le cliquet de contraste a validé sa propre régression
+
+**Date** : 2026-08-24 · **Statut** : RÉSOLU · **Trouvé par** : le subagent `reviewer`
+
+**Observé.** En corrigeant J-012, j'ai assombri `interactive.brand.default` (step 500 → 600) et
+`interactive.danger.default` (500 → 600) en mode sombre pour que du blanc y devienne lisible. Le
+test de contraste est resté vert 44/44, `PENDING_DESIGN_DECISION` vide, `npm run check` à 0, et
+j'ai déclaré « 0 dette ». Le reviewer a mesuré 12 usages réels passés **sous** le seuil :
+
+| Site                                  | Avant  | Après      |
+| ------------------------------------- | ------ | ---------- |
+| Onglet actif (`TabBarIcon`)           | 4,06:1 | **2,88:1** |
+| Icône de catégorie (`POICard`)        | 3,33:1 | **2,37:1** |
+| Bordure du bouton « Ma position »     | 4,06:1 | **2,88:1** |
+| Icône « retirer » (`ParticipantCard`) | 3,94:1 | **2,94:1** |
+| Piste du switch biométrie             | 4,06:1 | **2,88:1** |
+
+Pire symptôme : l'onglet **actif** devenait moins lisible que les onglets **inactifs**
+(`text.tertiary`, 5,81:1).
+
+**Cause — une erreur de raisonnement, puis un capteur qui ne pouvait pas la voir.**
+
+1. J'avais identifié que `interactive.danger.default` sert **à la fois** de remplissage et de
+   couleur d'icône — je l'ai même écrit en commentaire comme justification du changement. Mais je
+   n'ai raisonné que sur du blanc sur fond clair. En mode sombre, les deux rôles tirent en sens
+   **opposés** : un remplissage doit être foncé pour porter du blanc, et clair pour se détacher
+   d'un fond sombre. Assombrir a résolu un rôle en cassant l'autre.
+2. `buildPairs()` n'utilisait `interactive.*.default` que comme **arrière-plan**, jamais comme
+   avant-plan. Le test ne pouvait structurellement pas voir la modification qu'il était censé
+   garder. Un test aveugle sur l'axe modifié ne garantit rien sur cet axe — et il est pire qu'un
+   test absent, parce qu'il signe.
+
+**Réponse — 1. Le thème distingue les rôles.**
+
+- Un token `interactive.*` est un **remplissage**. Pour un avant-plan (icône, spinner, bordure,
+  tint), le token est `text.*`. Les **22 usages** avant-plan ont migré vers `text.brand` /
+  `text.error` (`text.brand` vaut brand[300] en sombre, 9,09:1, et brand[600] en clair, 6,29:1).
+- En mode sombre, un remplissage est **clair et porte de l'encre** : `interactive.brand.default`
+  passe à brand[400] (frontière 6,07:1, encre dessus 5,72:1) et `text.onBrand` devient l'encre.
+  brand[500] était un cul-de-sac : ni le blanc (4,47:1) ni l'encre (3,82:1) n'y atteignent AA.
+  C'est la même bascule que pour le teal accent, généralisée.
+- Les états d'un remplissage vif **s'éclaircissent** au lieu de s'assombrir, en clair comme en
+  sombre, sinon le libellé encre devient illisible au survol.
+
+**Réponse — 2. Le cliquet couvre les quatre rôles.** `contrast.test.ts` passe de 44 à 80 paires :
+
+1. texte sur surface — dont `surface.tertiary`, sur les tokens qui y sont réellement rendus ;
+2. libellé sur remplissage — `default`, **`hover` et `pressed`** compris, `text.onBrand` ou
+   `text.onAccent` selon la teinte ;
+3. **remplissage contre surface** (WCAG 1.4.11, seuil 3:1) — le rôle qui manquait ;
+4. indicateurs porteurs de sens (focus, bordure d'erreur).
+
+Le test compose aussi les `rgba` des `feedback.*Bg` au lieu de les exclure : l'assertion « ne
+teste que des couleurs hexadécimales résolues » **entérinait** la limite au lieu de la lever.
+
+Une seule exclusion subsiste, et elle est raisonnée plutôt que subie : les remplissages `accent`
+sont hors du rôle 3, parce que les deux seuls de l'app ne sont pas des composants d'interface (un
+badge non interactif dont le texte porte l'information, et des marqueurs de carte cernés d'un
+anneau dont la frontière se juge contre les tuiles). Le commentaire le dit et précise qu'un
+**bouton** accent devrait être rajouté.
+
+**Piste non retenue pour l'instant.** Le reviewer proposait une règle ESLint locale interdisant
+`theme.color.interactive.*` en valeur de `color=` / `tintColor=` / `borderColor`. C'est exactement
+la confusion de rôle qui a produit les 12 sites, et ce serait le capteur le plus direct. Non fait :
+la distinction remplissage/avant-plan est parfois portée par une variable intermédiaire, donc une
+règle purement syntaxique aurait des angles morts — à évaluer (`docs/context/TODO.md`).
+
+**Leçon.** Un cliquet ne protège que les axes qu'il mesure. Avant de modifier un token, la question
+n'est pas « le test est-il vert ? » mais « le test regarde-t-il ce que je change ? ».
+
+---
+
+## J-021 — Deux rôles hors modèle : la tuile de carte et l'état désactivé
+
+**Date** : 2026-08-24 · **Statut** : RÉSOLU · **Trouvé par** : le subagent `reviewer`, 2ᵉ passe
+
+**Observé.** Le correctif de J-020 a réparé le contraste contre les surfaces de l'app… et l'a cassé
+sur deux fonds que le cliquet ne modélisait pas. Les deux en mode sombre, les deux introduits par
+le correctif lui-même.
+
+| Site                                        | Avant J-020 | Après J-020 | Corrigé |
+| ------------------------------------------- | ----------- | ----------- | ------- |
+| Cercle de rayon sur les tuiles de carte     | 3,88:1      | **1,73:1**  | 5,47:1  |
+| Libellé « Enregistrer » désactivé (Profile) | 10,44:1     | **1,63:1**  | 4,07:1  |
+
+**Cause 1 — les tuiles de carte ne suivent pas le thème.** En migrant les avant-plans de
+`interactive.*` vers `text.*`, j'ai aussi migré le `strokeColor` du cercle de rayon des deux
+cartes. Or ce trait n'est pas rendu sur une surface de l'app : il est rendu sur les tuiles
+`react-native-maps`, qui restent **claires** en mode sombre (aucun `customMapStyle` dans le
+projet). `text.brand` sombre vaut `brand[300]` `#A5B4FC` — un lavande clair sur une tuile claire.
+Le cercle devenait invisible.
+
+La dichotomie que j'avais posée — `interactive.*` = remplissage, `text.*` = avant-plan — est
+définie **contre les surfaces du thème**. Sur la carte, aucune des deux familles n'est valide.
+Il manquait une troisième catégorie.
+
+**Cause 2 — `disabled` n'était pas dans le modèle.** Le rôle « libellé sur remplissage » couvrait
+`default`, `hover` et `pressed`, jamais `disabled`. Or `ProfileScreen` pose `color="onBrand"` sur
+un remplissage `interactive.brand.disabled` (`neutral[700]`), et J-020 avait fait passer
+`text.onBrand` du blanc à l'encre en mode sombre. Résultat : le bouton « Enregistrer », **désactivé
+dès l'ouverture de l'écran**, affichait de l'encre sur du gris foncé.
+
+**Réponse.**
+
+- Nouvelle famille `color.map.*` (`stroke`, `strokeFill`), **identique en clair et en sombre**,
+  calée sur les tuiles claires (`brand[600]` : 5,47:1 sur tuile, 6,29:1 sur blanc). Les quatre
+  usages carte y sont routés.
+- Les libellés de bouton désactivé passent à `text.tertiary` (4,07:1 en sombre, 3,27:1 en clair),
+  en reprenant le motif déjà employé par `CreateSessionScreen` et `AddressAutocomplete` —
+  il existait, je ne l'avais pas cherché.
+- Le cliquet passe de 80 à **90 paires** et gagne deux rôles :
+  - **rôle 5** — avant-plan sur tuile de carte, avec deux fonds de tuile bornants
+    (`#F1EFE9` et `#FFFFFF`) ;
+  - **rôle 2 étendu** — `disabled` inclus, seuil 3:1 (WCAG exempte les contrôles inactifs, mais un
+    libellé doit rester perceptible).
+- Au passage : `interactive.danger.pressed` en sombre passe de `error[50]` (rose quasi blanc, faute
+  de step intermédiaire) à un `error[200]` ajouté à la palette ; et
+  `CreateSessionScreen` utilise `border.error` au lieu de `text.error` pour une bordure.
+
+**Leçon — la deuxième de suite sur le même capteur.** J-020 disait : « un cliquet ne protège que
+les axes qu'il mesure ». J-021 précise : **corriger un axe peut casser un axe voisin non modélisé.**
+Les deux fois, le test est resté vert et c'est la revue qui a vu. Le réflexe à garder : après une
+modification de token, lister les **fonds** sur lesquels ce token est rendu — pas seulement les
+surfaces du thème — et vérifier qu'ils sont tous dans le modèle.
+
+**Dette restante, préexistante et non introduite ici** : les marqueurs live de `SessionMapView`
+(`liveMarkerOnline` = `feedback.successBg` + bordure `text.success`) sont eux aussi rendus sur les
+tuiles, à ~1,78:1. Consigné dans `docs/context/TODO.md` plutôt que corrigé au passage, pour ne pas
+absorber silencieusement un défaut antérieur dans le correctif d'un autre.

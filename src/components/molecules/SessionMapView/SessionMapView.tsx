@@ -116,7 +116,7 @@ const SessionMapView: React.FC<SessionMapViewProps> = ({
 
   // Couleur du cercle de zone avec 15% opacité (hex 26)
   // Zone circle color with 15% opacity (hex 26)
-  const circleFillColor = `${theme.color.interactive.brand.default}26`;
+  const circleFillColor = theme.color.map.strokeFill;
 
   return (
     <View
@@ -145,7 +145,7 @@ const SessionMapView: React.FC<SessionMapViewProps> = ({
           center={midpoint}
           radius={radius}
           fillColor={circleFillColor}
-          strokeColor={theme.color.interactive.brand.default}
+          strokeColor={theme.color.map.stroke}
           strokeWidth={1.5}
           testID={testID ? `${testID}-circle` : undefined}
         />

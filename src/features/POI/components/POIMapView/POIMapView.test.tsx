@@ -3,17 +3,17 @@
  * @description Tests unitaires de la molecule POIMapView.
  *              Unit tests for the POIMapView molecule.
  *
- * @module components/molecules/POIMapView/POIMapView.test
+ * @module features/POI/components/POIMapView/POIMapView.test
  */
 
 // [ADDED] Tests unitaires POIMapView
 
 import { fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
-import POIMapView from '@components/molecules/POIMapView';
 import type { Coordinates } from '@entities/Location';
 import type { Participant } from '@entities/MidpointSession';
 import type { PointOfInterest } from '@entities/PointOfInterest';
+import POIMapView from '@features/POI/components/POIMapView';
 
 // ─── Mock react-native-maps ────────────────────────────────
 jest.mock('react-native-maps', () => {

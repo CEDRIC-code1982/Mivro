@@ -16,7 +16,7 @@
  * />
  * ```
  *
- * @module components/molecules/POIListView/POIListView
+ * @module features/POI/components/POIListView/POIListView
  */
 
 // [ADDED] Molecule POIListView — liste de POI triée par distance
@@ -28,9 +28,9 @@ import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
 import Text from '@components/atoms/Text';
 import EmptyState from '@components/molecules/EmptyState';
-import POICard from '@components/molecules/POICard';
 import type { Coordinates } from '@entities/Location';
 import type { PointOfInterest } from '@entities/PointOfInterest';
+import POICard from '@features/POI/components/POICard';
 import { distanceBetween } from '@services/utils/geo';
 
 /**
@@ -104,7 +104,7 @@ const POIListView: React.FC<POIListViewProps> = ({
   if (isLoading) {
     return (
       <View style={styles.centerContainer} testID={testID ? `${testID}-loading` : undefined}>
-        <ActivityIndicator size="large" color={theme.color.interactive.brand.default} />
+        <ActivityIndicator size="large" color={theme.color.text.brand} />
         <Text variant="body" color="secondary" align="center">
           {t('list.loading')}
         </Text>

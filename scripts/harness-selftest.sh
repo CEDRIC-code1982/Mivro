@@ -207,15 +207,22 @@ arch screens-no-network-client src/features/POI/screens/POIScreen/__probe.ts \
 arch ui-no-adapter src/state/__probe.ts \
   "import { MMKVStorageService } from '@services/infra/storage/MMKVStorageService';" \
   "export const p = MMKVStorageService;"
+arch components-no-features src/components/molecules/EmptyState/__probe.ts \
+  "import { POI_GENERIC_ICON } from '@features/POI/utils/poiIcons';" "export const p = POI_GENERIC_ICON;"
 arch atoms-no-upper src/components/atoms/Text/__probe.ts \
-  "import { POICard } from '@components/molecules/POICard/POICard';" "export const p = POICard;"
+  "import EmptyState from '@components/molecules/EmptyState';" "export const p = EmptyState;"
 arch entities-no-ui-package src/entities/__probe.ts \
   "import { StyleSheet } from 'react-native';" "export const p = StyleSheet;"
 arch utils-pure src/services/utils/geo/__probe.ts \
   "import { CalculateMidpointUseCase } from '@services/domain/midpoint/CalculateMidpointUseCase';" \
   "export const p = CalculateMidpointUseCase;"
-arch no-cross-feature-screen-import src/features/Session/screens/MapScreen/__probe.ts \
+arch no-cross-feature-private-import src/features/Session/screens/MapScreen/__probe.ts \
   "import { POIScreen } from '@features/POI/screens/POIScreen/POIScreen';" "export const p = POIScreen;"
+# A feature's components are private too, not just its screens.
+arch no-cross-feature-private-import src/features/Session/screens/MapScreen/__probe.ts \
+  "import POICard from '@features/POI/components/POICard';" "export const p = POICard;"
+arch feature-components-presentational src/features/POI/components/POICard/__probe.ts \
+  "import { container } from '@services/serviceContainer';" "export const p = container;"
 
 if npx --no-install depcruise src --config .dependency-cruiser.js >/dev/null 2>&1; then
   ok "production code is clean once the probes are removed"

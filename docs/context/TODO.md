@@ -227,11 +227,25 @@ Détail : `docs/harness/INVENTAIRE.md` · échecs et arbitrages : `docs/harness/
       (`presentation/`, `core/`, `infrastructure/`) réalignés sur les chemins réels (J-011).
 - [ ] **E2E Maestro toujours fictif** : `e2e/` est vide alors que 6 scénarios sont documentés dans
       `POLICIES.md`. À écrire, ou à retirer de la doc. (P2)
-- [ ] **Couplage `components/` → `features/`** (J-014) : 4 molecules POI importent
-      `@features/POI/utils/poiIcons`, `AddressAutocomplete` importe
-      `@features/Session/hooks/useGeocodeQuery`. Exemptions explicites dans
-      `.dependency-cruiser.js` — toute nouvelle violation est bloquée. Sortie de dette : remonter
-      `poiIcons` dans `components/`, `useGeocodeQuery` dans `src/hooks/`. (P2)
+- [x] ~~**Couplage `components/` → `features/`**~~ → **FAIT (2026-08-24)** : vérification d'usage
+      faite, aucun des 6 composants concernés n'était partagé. Les 5 composants POI sont passés dans
+      `features/POI/components/` et `AddressAutocomplete` dans `features/Session/components/`. Les
+      exemptions `pathNot` de `.dependency-cruiser.js` sont **supprimées**, la règle inter-features
+      couvre désormais aussi `components/`, et une règle
+      `feature-components-presentational` interdit la DI dans un composant de feature (J-014).
+- [ ] **Marqueurs live illisibles sur la carte** (J-021, préexistant) : `liveMarkerOnline` de
+      `SessionMapView` utilise `feedback.successBg` + bordure `text.success`, rendus sur les tuiles
+      de carte (qui restent claires en mode sombre) → ~1,78:1. À router vers la nouvelle famille
+      `theme.color.map.*`, qui est calée sur les tuiles et non sur les surfaces du thème. Non
+      corrigé ici pour ne pas absorber un défaut antérieur dans le correctif d'un autre. (P2 — a11y)
+- [ ] **Règle ESLint « interactive.\* n'est pas un avant-plan »** (J-020) : une règle locale
+      interdisant `theme.color.interactive.*` en valeur de `color=` / `tintColor=` / `borderColor`
+      attraperait la confusion de rôle qui a produit 12 régressions de contraste. À évaluer : la
+      distinction passe parfois par une variable intermédiaire, donc angles morts possibles. (P2)
+- [ ] **Molecules mono-feature restantes** : `AvatarPicker` (Profile), `BiometricLockScreen`
+      (Biometric), `LiveParticipantsList` + `RealtimeConsentModal` (Sharing), `SessionMapView`
+      (Session) vivent encore dans le kit global. Aucune ne viole de règle — à déplacer si on veut
+      la taxonomie complète. (P3)
 - [ ] **`src/navigations/` branches à exactement 50 %** : pile sur le seuil, donc fragile. Un
       `if` non couvert de plus fera rougir `npm run check`. (P3)
 - [ ] **`src/components/organisms/` vide** : la règle `organisms-no-upper` est posée mais sans
