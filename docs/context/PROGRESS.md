@@ -302,13 +302,13 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 
 ---
 
-## Métriques actuelles (2026-06-29, post-F8 Biométrie)
+## Métriques actuelles (mesurées le 2026-08-24)
 
 | Métrique                           | Valeur                                                            |
 | ---------------------------------- | ----------------------------------------------------------------- |
-| Fichiers code (`src/`, hors tests) | 120                                                               |
-| Suites de tests                    | 85                                                                |
-| Tests (cas) — `npm run check`      | 1133                                                              |
+| Fichiers code (`src/`, hors tests) | 124                                                               |
+| Suites de tests                    | 86                                                                |
+| Tests (cas) — `npm run check`      | 1226                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |
@@ -321,7 +321,7 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 
 > F8 : +port `IBiometricService` (adapter `KeychainBiometricService`, infra/security), +store flag `usePreferencesStore.biometricEnabled`, +hook `useBiometricLock`, +molecule `BiometricLockScreen`, +gate `BiometricLockGate` dans `App.tsx`, +namespace i18n `biometric`. (F5 avait ajouté `SharedSession`, `ISessionShareService`/`FirebaseSessionShareService`, `ShareSession`/`JoinSession`, `useSharedSessionStore`, `useSessionShare` & `useSharedSessionSync`, `JoinSessionScreen`, `navigation/linking.ts`, namespace `share`.) Restent vides : `infrastructure/{eta,analytics}/`.
 > Coverage F8 (review) : core / infra / presentation au-dessus des seuils CI (core 90 / infra 70 / presentation 50 / global 70).
-> ⚠️ `coverage/coverage-summary.json` absent (les chiffres ci-dessus viennent des reviews) ; lancer `npm run test:coverage` pour le détail réel. ⚠️ `test:ci` ne passe **pas** `--coverage` → les `coverageThreshold` de `jest.config.js` **ne sont PAS enforced** par `npm run check` (seuils CI cibles : core 90 % / infra 70 % / presentation 50 % / global 70 %) — voir TODO.
+> Couverture **réellement appliquée** depuis le 2026-08-21 : `test:ci` = `jest --ci --coverage`, donc les `coverageThreshold` de `jest.config.js` bloquent `npm run check`. Mesure du 2026-08-24 : **95,5 % stmts / 85,7 % branches / 93,3 % funcs**. ⚠️ `coverage/coverage-summary.json` n'est toujours pas écrit (pas de `coverageReporters` dans `jest.config.js`) — à ajouter si on veut mécaniser la mise à jour de ce tableau.
 
 ---
 
@@ -331,7 +331,7 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 - **react-native-maps + `exactOptionalPropertyTypes`** : incompatibilité → `skipLibCheck: true` + shim `src/types/react-native-maps.d.ts` (alias tsconfig).
 - **`@gorhom/bottom-sheet`** : utilisé pour `POIDetailSheet` (attention au `BottomSheetTextInput` si saisie dans une sheet).
 - **react-native-reanimated 4** : plugin Babel requis (worklets) — vérifier `babel.config.js`.
-- **Rename MidPoint → Mivro** : conflit App Store (ADR-011) ; le bundle id iOS historique reste `com.cedricpineau.midpoint`, le MMKV id est passé à `mivro-storage`.
+- **Rename MidPoint → Mivro** : conflit App Store (ADR-011) ; le bundle id iOS a depuis été migré vers `com.cedricpineau.mivro` (comme l'`applicationId` Android, vérifié 2026-08-24), le MMKV id est passé à `mivro-storage`.
 - **Sentry `beforeSend`** : scrubbing obligatoire des coordonnées GPS / emails / tokens (`sanitizers.ts`) — RGPD.
 - **i18n clés mortes** : les messages `errors.geocode_*` existaient en FR/EN mais n'étaient jamais utilisés (l'UI affichait `noResults`). Penser à vérifier que les clés d'erreur sont bien câblées à l'UI.
 - **Fallback silencieux trompeur** : `GetCurrentLocationUseCase` masquait l'échec du reverse geocode derrière une adresse « lat, lon ». Un use case qui « dégrade » doit **remonter le fait** (drapeau) pour que l'UI puisse informer l'utilisateur.

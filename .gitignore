@@ -91,6 +91,9 @@ yarn-error.log
 # [ADDED] Firebase config natifs — clés client propres au projet, ne JAMAIS committer
 android/app/google-services.json
 ios/Mivro/GoogleService-Info.plist
+# Garde defensive : le fichier vit dans ios/Mivro/ (cf. ligne ci-dessus), mais Xcode
+# le repose parfois a la racine de ios/ selon comment on l'ajoute a la cible.
+ios/GoogleService-Info.plist
 
 # [ADDED] Cloud Functions deps
 functions/node_modules/

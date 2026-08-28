@@ -84,8 +84,9 @@ _Estimation : L. Dépendances : `@react-native-firebase/app` + `/database` (v25,
 
 **Reste à Cédric (actions console Firebase + natives) :**
 
-- [ ] **Console Firebase — app iOS** : enregistrer l'app iOS (bundle id `com.cedricpineau.midpoint`) → télécharger `GoogleService-Info.plist` → l'ajouter à la cible Xcode
-- [ ] **Console Firebase — app Android** : enregistrer l'app Android (même `applicationId` `com.cedricpineau.midpoint`) → télécharger `google-services.json` → le placer dans `android/app/`
+- [x] ~~**Console Firebase — app iOS**~~ → **FAIT (2026-08-24)** : app enregistrée (bundle `com.cedricpineau.mivro`), `ios/Mivro/GoogleService-Info.plist` en place et **référencé dans la cible Xcode** (4 occurrences dans `project.pbxproj`, présent en Copy Bundle Resources).
+- [x] ~~**Console Firebase — app Android**~~ → **FAIT (2026-08-24)** : app enregistrée (`applicationId` `com.cedricpineau.mivro`), `google-services.json` en place dans le module app, plugin Google Services déjà câblé.
+- [x] ~~**Créer `.env`**~~ → **FAIT (2026-08-24)** : `.env` porte `FIREBASE_DATABASE_URL` en `europe-west1`. ⚠️ Pour le recréer après un clone, **jamais** `cp` sec (il écraserait un `.env` local non versionné) : `[ -f .env ] || cp .env.example .env`. `react-native-config` le lit au build natif → rebuild ensuite.
 - [ ] **Déployer les rules** : `firebase deploy --only database` (ou copier `database.rules.json` dans Console → Realtime Database → Règles)
 - [ ] **iOS** : `cd ios && pod install` (le CDN CocoaPods avait flanché côté CI ; `use_modular_headers!` est déjà au Podfile)
 - [ ] **Vérif device** : live multi-appareils (positions qui bougent en temps réel) + **opti batterie réelle** (5s/30s + coupure background)
@@ -261,4 +262,4 @@ Détail : `docs/harness/INVENTAIRE.md` · échecs et arbitrages : `docs/harness/
 - [x] ⚠️ **F8 « compte requis »** : ~~verrou biométrique réservé aux comptes ou ouvert aux guests ?~~ → **tranché (MVP) : opt-in pour TOUT utilisateur, guest inclus** — la contrainte « compte requis » du backlog est relâchée car F6 (Auth) reste bloqué par les comptes dev. **Réversible** : à re-durcir quand F6 existera. Pas d'ADR dédié (décision MVP). (F8, 2026-06-29)
 - [ ] ⚠️ **Comptes dev F6** : Google Cloud + Apple Developer prêts ?
 - [ ] ⚠️ **PostHog** : VPS d'auto-hébergement provisionné ?
-- [ ] ⚠️ **Bundle id** : iOS reste `com.cedricpineau.midpoint` malgré le rename Mivro — à figer ou migrer avant la beta ?
+- [x] ~~⚠️ **Bundle id** : iOS reste `com.cedricpineau.midpoint`~~ → **obsolète (vérifié 2026-08-24)** : les deux plateformes sont sur `com.cedricpineau.mivro`. La migration a déjà eu lieu.

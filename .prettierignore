@@ -15,3 +15,8 @@ docs-site/docs/api/
 *.jsbundle
 vendor/
 .bundle/
+
+# Config generee par la console Firebase : son format ne nous appartient pas.
+# Necessaire car Prettier 2.8 ne lit pas .gitignore et le glob de format:check
+# inclut *.json. (Les .plist sont hors du glob : rien a ignorer pour eux.)
+android/app/google-services.json

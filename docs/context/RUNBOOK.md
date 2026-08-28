@@ -10,6 +10,89 @@
 
 ---
 
+## F4 / F5 — Configuration Firebase
+
+Identifiants réels du projet, source de vérité :
+
+| Élément                 | Valeur                                                                |
+| ----------------------- | --------------------------------------------------------------------- |
+| Projet Firebase         | `mivro-40125` (RTDB `europe-west1`)                                   |
+| Numéro de projet        | `145975054406`                                                        |
+| Bundle id iOS / Android | `com.cedricpineau.mivro` (identique sur les deux plateformes)         |
+| URL RTDB                | `https://mivro-40125-default-rtdb.europe-west1.firebasedatabase.app/` |
+
+**Coût** : plan **Spark (gratuit)** suffisant pour la RTDB. Le plan **Blaze** n'est requis que pour
+les Cloud Functions (purge RGPD, voir « Filet RGPD » plus bas).
+
+---
+
+### ✅ Déjà en place (vérifié le 2026-08-24)
+
+**Ne pas refaire ces étapes.** Elles sont décrites ici pour pouvoir être rejouées après un
+`git clone` : les deux fichiers de config sont gitignorés, donc absents d'un dépôt frais.
+
+| Élément                               | État                                                                        |
+| ------------------------------------- | --------------------------------------------------------------------------- |
+| App iOS enregistrée dans Firebase     | ✅ bundle `com.cedricpineau.mivro`                                          |
+| `ios/Mivro/GoogleService-Info.plist`  | ✅ présent, **référencé dans la cible Xcode** et dans Copy Bundle Resources |
+| App Android enregistrée dans Firebase | ✅ package `com.cedricpineau.mivro`                                         |
+| `android/app/google-services.json`    | ✅ présent, plugin Google Services `4.4.2` déjà câblé                       |
+| `.env`                                | ✅ présent, porte `FIREBASE_DATABASE_URL`                                   |
+| `.firebaserc`                         | ✅ présent, alias `default` → `mivro-40125`                                 |
+
+⚠️ **Piège si tu dois re-télécharger le plist** : il ne suffit pas de le déposer dans le Finder,
+mais il ne faut **pas non plus** le re-glisser dans Xcode si la référence existe déjà — Xcode
+créerait une **seconde** `PBXFileReference` pour le même fichier et le build échouerait sur
+`Multiple commands produce .../Mivro.app/GoogleService-Info.plist`.
+
+Pour vérifier l'état de la référence avant de toucher à quoi que ce soit :
+
+```bash
+grep -c 'GoogleService-Info.plist' ios/Mivro.xcodeproj/project.pbxproj   # 4 = déjà référencé
+```
+
+Si le compteur vaut 0 (dépôt fraîchement cloné, plist re-téléchargé) : ouvrir
+`ios/Mivro.xcworkspace` — le **workspace**, pas le projet — glisser le `.plist` sur le dossier
+**Mivro** du navigateur de projet, cocher **Copy items if needed** et la cible **Mivro**, puis
+vérifier que le fichier apparaît dans cible Mivro → **Build Phases** → **Copy Bundle Resources**.
+La référence doit porter `path = "Mivro/GoogleService-Info.plist"` : un chemin relatif au groupe
+racine, qui vaut `ios/`.
+
+Pour recréer les fichiers manquants après un clone : les re-télécharger depuis Console Firebase →
+⚙️ **Paramètres du projet** → **Général** → « Vos applications », et `[ -f .env ] || cp .env.example .env`.
+
+---
+
+### ⏳ Reste à faire
+
+Ces deux commandes passent par ton compte Google, avec authentification navigateur :
+
+```bash
+firebase login
+firebase deploy --only database
+```
+
+`firebase-tools` est installé (15.28.2) et `.firebaserc` pointe déjà sur `mivro-40125`, donc pas
+besoin de `firebase use --add`.
+
+Vérifier ensuite dans la console : **Realtime Database → Règles** doit afficher le contenu de
+`database.rules.json` — racine en `.read: false` / `.write: false`, seul le nœud `sessions` ouvert —
+et **pas** les règles all-deny par défaut. Le modèle de sécurité est détaillé dans
+`database.rules.README.md`.
+
+Puis **rebuild natif obligatoire** : `react-native-config` lit `.env` au moment du build, pas au
+reload Metro.
+
+```bash
+npm run ios
+npx react-native run-android
+```
+
+Enfin, suivre les lignes **F4** et **F5** de la matrice de test plus bas. Test minimal : deux
+appareils dans la même session, bouger l'un fait bouger son marqueur chez l'autre en 1-2 s.
+
+---
+
 ## F6 — Auth Google / Apple
 
 **État du code** : prêt. `src/entities/User.ts` modélise déjà `AuthenticatedUser`
@@ -153,8 +236,9 @@ Prérequis : **Google Play Console (25 $ une fois)**.
 
 ### Prérequis avant tout test
 
-1. Fichiers de config Firebase **en place** (gitignorés — tu les as déjà) :
+1. Fichiers de config Firebase **en place** (gitignorés) :
    `android/app/google-services.json` et `ios/Mivro/GoogleService-Info.plist`.
+   ✅ Vérifiés présents et référencés le 2026-08-24 — voir « Configuration Firebase ».
 2. `.env` contient `FIREBASE_DATABASE_URL=https://mivro-40125-default-rtdb.europe-west1.firebasedatabase.app/`.
 3. **Déployer les bonnes règles RTDB** (⚠️ pas les règles all-deny) :
    ```bash
