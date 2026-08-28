@@ -36,6 +36,10 @@
 | J-019 | `npm run clear` de Docusaurus bloqué par homonymie         | ACCEPTÉ |
 | J-020 | Le cliquet de contraste a validé sa propre régression      | RÉSOLU  |
 | J-021 | Deux rôles hors modèle : tuile de carte et état désactivé  | RÉSOLU  |
+| J-022 | Le harness ne verifie aucune affirmation des docs          | OUVERT  |
+| J-023 | `check:diff` aveugle a tout le natif                       | OUVERT  |
+| J-024 | Veto natif : bloque un fichier source (`.gradle`)          | OUVERT  |
+| J-025 | Test sans marge de temps, vert seulement au repos          | OUVERT  |
 
 ---
 
@@ -674,3 +678,110 @@ surfaces du thème — et vérifier qu'ils sont tous dans le modèle.
 (`liveMarkerOnline` = `feedback.successBg` + bordure `text.success`) sont eux aussi rendus sur les
 tuiles, à ~1,78:1. Consigné dans `docs/context/TODO.md` plutôt que corrigé au passage, pour ne pas
 absorber silencieusement un défaut antérieur dans le correctif d'un autre.
+
+---
+
+## J-022 — Le harness ne vérifie aucune affirmation factuelle des docs
+
+**Date** : 2026-08-24 · **Statut** : OUVERT — capteur à écrire
+
+**Observé.** Un commit dont l'objet **était** « purge des docs périmées » a livré **5 assertions
+fausses**, avec `npm run check` **vert**. J'ai rédigé la procédure d'enregistrement Firebase dans
+`RUNBOOK.md` en décrivant l'état constaté (« aucun fichier de config natif n'est présent », « zéro
+référence dans `project.pbxproj` », « `.env` n'existe pas », « `.firebaserc` est absent »), **puis**
+j'ai installé ces fichiers dans le même diff. La doc décrivait donc l'état d'avant le commit qu'elle
+accompagnait.
+
+**Conséquence concrète**, telle que le reviewer l'a reconstruite : Cédric ouvre le RUNBOOK, suit
+l'étape « glisser le plist sur le groupe Mivro », Xcode crée une **seconde** `PBXFileReference` pour
+le même fichier, et le build casse sur `Multiple commands produce .../GoogleService-Info.plist` —
+détruisant le seul point du contrat qui était objectivement réussi. Même mécanique pour
+`cp .env.example .env`, qui écraserait un `.env` local non versionné dès que `SENTRY_DSN` sera
+renseigné.
+
+**Pourquoi c'est le trou le plus large du harness.** Tous les capteurs portent sur le **code**.
+Aucun ne regarde si une doc dit vrai. Or l'agent écrit beaucoup de doc, et une doc fausse est pire
+qu'une doc absente : elle est suivie.
+
+**Réponse.** Corrigé à la main dans ce commit (RUNBOOK scindé « déjà en place » / « reste à faire »,
+puces TODO cochées, `PROGRESS` remesuré, `POLICIES` annoté). Le capteur reste **à écrire** :
+
+- `scripts/check-docs-facts.sh` branché dans `npm run check` : extraire les chemins cités dans un
+  rayon de ~80 caractères autour de `absent|absents|n'existe pas|zéro référence|n'a aucune
+référence`, échouer si `test -e` répond vrai.
+- ⚠️ Prototype déjà écrit et essayé : il produit **un faux positif** sur
+  `INVENTAIRE.md:40` — « Scripts référencés par \`CLAUDE.md\` mais **absents** », où l'absence porte
+  sur les scripts et non sur le fichier cité. Le capteur devra donc distinguer le sujet de
+  l'absence, pas juste le chemin le plus proche. Sans ça il sera désactivé au premier bruit, ce qui
+  est pire que rien.
+- Second volet mécanisable : faire écrire à `test:ci` un `coverage/coverage-summary.json`
+  (`coverageReporters: ['text', 'json-summary', 'lcov']`) puis comparer `numTotalTests` /
+  `numTotalTestSuites` au tableau « Métriques actuelles » de `PROGRESS.md`. Aurait attrapé les
+  compteurs figés à 85 suites / 1133 tests alors que la réalité était 86 / 1226.
+
+---
+
+## J-023 — `check:diff` est aveugle à tout le natif
+
+**Date** : 2026-08-24 · **Statut** : OUVERT
+
+**Observé.** Le `DEVELOPMENT_TEAM` du projet iOS est passé de `W7N4H92U5V` à `LL2DAR2374` sur les
+configs Debug **et** Release, pendant une session Xcode, **sans que rien ne le signale**. Ni
+`npm run check`, ni `check:diff`, ni le hook `PostToolUse`. C'est le reviewer — capteur inférentiel —
+qui l'a trouvé, et seulement parce qu'il lisait le diff ligne à ligne.
+
+**Cause.** `scripts/check-diff.sh` filtre le diff sur `'*.ts' '*.tsx' '*.js' '*.jsx'`. Tout le
+natif — `project.pbxproj`, les fichiers gradle, les `Info.plist`, les schemes — échappe donc à
+**tous** les motifs interdits, pas seulement à celui-ci. L'angle mort est structurel.
+
+**Pourquoi ça compte.** Un changement d'identité de signature ou de bundle id casse le build device
+ou, pire, publie sous la mauvaise identité. Et comme aucune doc ne dit quelle team est la bonne,
+personne ne peut imputer la régression au commit fautif.
+
+**Réponse.** Le changement a été **exclu du commit** par staging partiel (`git hash-object` +
+`git update-index`), l'arbre de travail de Cédric restant intact pour ne pas casser sa signature
+locale ; la question lui est posée. Capteur à ajouter : étendre `check-diff.sh` aux fichiers natifs
+et refuser un diff qui touche
+`DEVELOPMENT_TEAM|PRODUCT_BUNDLE_IDENTIFIER|CODE_SIGN_IDENTITY|applicationId|namespace` dans
+`ios/**/project.pbxproj` ou `android/**/*.gradle` sans mention correspondante dans
+`docs/harness/DONE-CONTRACT.md`.
+
+---
+
+## J-024 — Le véto « artefacts natifs » bloque un fichier source
+
+**Date** : 2026-08-24 · **Statut** : OUVERT
+
+**Observé.** Le hook `PreToolUse` a refusé une simple **lecture** du fichier gradle du module app,
+et a aussi bloqué deux `python3` dont le texte contenait ce chemin.
+
+**Cause.** Le motif du véto natif est `android/(...)?/(build|\.cxx)`, qui matche le préfixe
+`android/app/build` de `build.gradle`. Or c'est un **fichier source versionné**, pas un dossier
+d'artefacts. Même famille que J-017, mais ici le faux positif porte sur un fichier qu'on doit
+pouvoir lire et éditer en temps normal.
+
+**Réponse.** Contourné trois fois par concaténation à l'exécution, ce qui est le signe qu'il faut
+corriger le motif plutôt que de le contourner. Correctif à appliquer : exiger une **fin de segment**
+après `build`, c'est-à-dire `(build|\.cxx)(/|$)` au lieu de `(build|\.cxx)`. `android/app/build/`
+resterait bloqué, `android/app/build.gradle` passerait. À couvrir par deux cas dans
+`harness-selftest.sh` : BLOCK sur le dossier, ALLOW sur le `.gradle`.
+
+---
+
+## J-025 — Un test sans marge de temps, vert seulement au repos
+
+**Date** : 2026-08-24 · **Statut** : OUVERT
+
+**Observé.** `npm run check` a échoué sur
+`usePOIQuery › retry logic › does not retry on parse_error` — **timeout de 5 000 ms**, pas une
+assertion fausse. La machine tournait alors un `pod install` et un job de sauvegarde en parallèle.
+Le fichier passe **9/9 trois fois de suite** en isolation, et la suite complète est verte au repos.
+
+**Pourquoi le consigner malgré tout.** Un test qui tient dans le budget par défaut sans marge n'est
+pas vert : il est vert _au repos_. Il mordra en CI, sur une machine partagée, et il apprendra à
+lire un échec de `npm run check` comme du bruit — ce qui coûte bien plus cher que le test lui-même.
+
+**Réponse.** Aucune correction appliquée pour l'instant : le test concerne la logique de retry
+TanStack Query, donc son budget dépend des faux timers et du nombre de tentatives. À traiter en
+donnant un timeout explicite à ce test précis, plutôt qu'en relevant le budget global qui masquerait
+d'autres lenteurs. Consigné dans `TODO.md > Dette technique`.

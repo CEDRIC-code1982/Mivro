@@ -187,6 +187,8 @@ _Estimation : L. Dépendances : comptes stores._
 
 ## Dette technique connue
 
+- [ ] **Test sans marge de temps** (J-025) : `usePOIQuery > retry logic > does not retry on parse_error` depasse les 5 000 ms par defaut quand la machine est chargee (observe pendant un `pod install` concurrent). Passe 9/9 en isolation. Donner un timeout explicite a ce test precis plutot que relever le budget global, qui masquerait d'autres lenteurs. (P2)
+
 - [ ] **POI rayon géant** (ex: Paris + Tokyo) : la requête Overpass `(around:RAYON_ÉNORME)` fait timeout/erreur → `POIListView` affiche « Erreur inattendue » au lieu d'un EmptyState. Découvert au QA (Pacifique). À traiter : borner le rayon POI ou mapper le timeout vers un message dédié. (P2)
 - [ ] **Re-vérif device** : confirmer sur iPhone que (a) le champ fantôme F1 a disparu, (b) le footer carte tient en Dynamic Type 200 %. Vérifier aussi qu'aucun autre écran ne casse en 200 %.
 - [x] ~~**Coverage non mesurée**~~ → **FAIT (2026-08-21, harness)** : mesurée à chaque `npm run check`. Global **95,5 % stmts / 85,6 % branches / 93,3 % funcs**, 1177 tests, 86 suites.
