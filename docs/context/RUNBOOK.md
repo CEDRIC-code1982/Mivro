@@ -63,25 +63,31 @@ Pour recréer les fichiers manquants après un clone : les re-télécharger depu
 
 ---
 
+### ✅ Règles RTDB déployées (2026-08-24)
+
+`firebase login` puis `firebase deploy --only database` ont été exécutés. Les règles publiées sont
+**structurellement identiques** à `database.rules.json` — vérifié par comparaison du JSON de la
+console avec le fichier du dépôt.
+
+Surface d'écriture effective, auditée après déploiement :
+
+| Chemin                                      | Accès                      |
+| ------------------------------------------- | -------------------------- |
+| racine                                      | `.read`/`.write` = `false` |
+| `/sessions/$sessionId/meta`                 | ouvert                     |
+| `/sessions/$sessionId/members/$memberId`    | ouvert                     |
+| `/sessions/$sessionId/participants/$partId` | ouvert                     |
+
+Les trois chemins ouverts vivent sous un `$sessionId` qui est un UUID non devinable : c'est le
+modèle **capability URL** assumé pour le MVP sans auth. Détail dans `database.rules.README.md`.
+
+⚠️ Dette connue : **pas de `$other: { ".validate": false }` au niveau `sessions/$sessionId`**. Un
+client qui connaît l'UUID peut donc écrire un nœud frère arbitraire à côté de `meta`, `members` et
+`participants`. À durcir avec Firebase Anonymous Auth — voir `TODO.md > Dette technique`.
+
 ### ⏳ Reste à faire
 
-Ces deux commandes passent par ton compte Google, avec authentification navigateur :
-
-```bash
-firebase login
-firebase deploy --only database
-```
-
-`firebase-tools` est installé (15.28.2) et `.firebaserc` pointe déjà sur `mivro-40125`, donc pas
-besoin de `firebase use --add`.
-
-Vérifier ensuite dans la console : **Realtime Database → Règles** doit afficher le contenu de
-`database.rules.json` — racine en `.read: false` / `.write: false`, seul le nœud `sessions` ouvert —
-et **pas** les règles all-deny par défaut. Le modèle de sécurité est détaillé dans
-`database.rules.README.md`.
-
-Puis **rebuild natif obligatoire** : `react-native-config` lit `.env` au moment du build, pas au
-reload Metro.
+Rebuild natif — `react-native-config` lit `.env` au moment du build, pas au reload Metro.
 
 ```bash
 npm run ios

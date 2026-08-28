@@ -87,7 +87,7 @@ _Estimation : L. Dépendances : `@react-native-firebase/app` + `/database` (v25,
 - [x] ~~**Console Firebase — app iOS**~~ → **FAIT (2026-08-24)** : app enregistrée (bundle `com.cedricpineau.mivro`), `ios/Mivro/GoogleService-Info.plist` en place et **référencé dans la cible Xcode** (4 occurrences dans `project.pbxproj`, présent en Copy Bundle Resources).
 - [x] ~~**Console Firebase — app Android**~~ → **FAIT (2026-08-24)** : app enregistrée (`applicationId` `com.cedricpineau.mivro`), `google-services.json` en place dans le module app, plugin Google Services déjà câblé.
 - [x] ~~**Créer `.env`**~~ → **FAIT (2026-08-24)** : `.env` porte `FIREBASE_DATABASE_URL` en `europe-west1`. ⚠️ Pour le recréer après un clone, **jamais** `cp` sec (il écraserait un `.env` local non versionné) : `[ -f .env ] || cp .env.example .env`. `react-native-config` le lit au build natif → rebuild ensuite.
-- [ ] **Déployer les rules** : `firebase deploy --only database` (ou copier `database.rules.json` dans Console → Realtime Database → Règles)
+- [x] ~~**Déployer les rules**~~ → **FAIT (2026-08-24)** : `firebase deploy --only database` exécuté, règles publiées vérifiées identiques à `database.rules.json` (racine deny, 3 chemins ouverts sous `sessions/$sessionId`).
 - [ ] **iOS** : `cd ios && pod install` (le CDN CocoaPods avait flanché côté CI ; `use_modular_headers!` est déjà au Podfile)
 - [ ] **Vérif device** : live multi-appareils (positions qui bougent en temps réel) + **opti batterie réelle** (5s/30s + coupure background)
 
