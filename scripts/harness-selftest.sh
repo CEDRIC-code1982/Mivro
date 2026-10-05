@@ -43,14 +43,12 @@ trap cleanup EXIT INT TERM
 ok() { PASS=$((PASS + 1)); printf '  \033[32m/\033[0m %s\n' "$1"; }
 bad() { FAIL=$((FAIL + 1)); printf '  \033[31mX\033[0m %s\n' "$1"; }
 # A case that calls an undefined helper must fail, not vanish (JOURNAL J-048).
-command_not_found_handle() {
-  bad "command not found in the self-test: $1"
-  return 127
-}
-# Bash 3.2 (macOS) has no command_not_found_handle: catch the 127 instead.
-if ((BASH_VERSINFO[0] < 4)); then
-  trap '(($? == 127)) && bad "command not found in the self-test (exit 127)"' ERR
-fi
+# An ERR trap, not command_not_found_handle: from Bash 4 on, that handler runs
+# in a separate execution environment, so a FAIL counted there is lost (J-051).
+# The trap runs in the shell that saw the 127, on every Bash version; -E
+# (errtrace) makes functions inherit it, so a dead call inside a helper counts.
+set -E
+trap 'SELFTEST_RC=$? SELFTEST_LINE=$LINENO; ((SELFTEST_RC == 127)) && bad "exit 127 at line ${SELFTEST_LINE}: command not found?"' ERR
 section() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 expect_exit() { # expect_exit <wanted> <got> <label>
   if [ "$2" -eq "$1" ]; then ok "$3"; else bad "$3 (exit $2, wanted $1)"; fi
@@ -811,6 +809,9 @@ printf '{}' | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/ok.json" >/dev/
 expect_exit 1 $? "an unrecognised audit report is red (J-050)"
 printf '' | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/ok.json" >/dev/null
 expect_exit 1 $? "an empty audit report is red (J-050)"
+printf '[]' | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/ok.json" >/dev/null 2>"$AUDIT_DIR/list.err"
+expect_exit 1 $? "a JSON list as audit report is red (J-051)"
+if [ -s "$AUDIT_DIR/list.err" ]; then bad "a JSON list as audit report gives no traceback (J-051)"; else ok "a JSON list as audit report gives no traceback (J-051)"; fi
 printf '{"auditReportVersion":2,"vulnerabilities":{"x":{"severity":"high","via":["y"]}}}' |
   python3 scripts/check-audit-verdict.py "$AUDIT_DIR/ok.json" >/dev/null
 expect_exit 1 $? "a severe package with no traceable advisory is red (J-050)"

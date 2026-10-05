@@ -219,8 +219,10 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
       J-048 et J-049 (J-051).
 - [ ] ⚠️ Décision de Cédric : activer le sandbox Bash de Claude Code (`EN-ATTENTE.md` §3, J-051),
       seule fermeture imposée par l'OS pour la lecture de `~/.ssh` et `~/.config/gh`.
-- [ ] Session `MIVRO_HARNESS_UNLOCK=1`, en mode par défaut : appliquer `EN-ATTENTE.md` §2 à §4
-      (J-051), relock.
+- [x] ~~EN-ATTENTE §2 et §4 (J-051)~~ → appliqués le 2026-10-05 ; self-test à 395 assertions.
+- [x] ~~`npm run harness:relock` après §2 et §4~~ → **FAIT (2026-10-05)**.
+- [ ] Première CI : vérifier vert le pas `self-test counts a dead call (J-051)` (preuve Bash 5 de
+      J-048), puis passer J-048 RÉSOLU.
 - [ ] Commit de `harness/en-attente-5-8`, push et PR vers `develop`.
 - [ ] **J-040 lot 1** : commandes exactes dans `EN-ATTENTE.md` §1 (branche `fix/j-040-npm-audit`,
       lockfile seul, rebuild natif et test sur appareil). Préalable à la protection de branche.

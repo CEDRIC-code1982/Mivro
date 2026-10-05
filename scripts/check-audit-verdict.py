@@ -22,7 +22,7 @@ try:
 except ValueError:
     report = None
 if not isinstance(report, dict) or "error" in report:
-    text = raw if report is None else json.dumps(report.get("error"))
+    text = raw if not isinstance(report, dict) else json.dumps(report.get("error"))
     if any(marker in text for marker in NETWORK_MARKERS):
         print("npm registry unreachable")
         sys.exit(3)

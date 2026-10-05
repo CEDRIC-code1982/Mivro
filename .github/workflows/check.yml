@@ -78,6 +78,12 @@ jobs:
       - name: Harness self-test
         run: npm run check:harness
 
+      - name: self-test counts a dead call (J-051)
+        run: |
+          sed '/^section() {/a\
+          undefined_helper_ci_probe' scripts/harness-selftest.sh > /tmp/st-dead.sh
+          bash /tmp/st-dead.sh | grep -q ' 1 failed'
+
   security:
     name: security
     runs-on: ubuntu-latest

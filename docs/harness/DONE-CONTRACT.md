@@ -7,32 +7,30 @@
 
 ## Tâche
 
-**Titre** : Appliquer EN-ATTENTE §5 à §8 en session déverrouillée (J-048, J-049, J-050)
+**Titre** : Appliquer EN-ATTENTE §2 et §4 en session déverrouillée (J-051)
 
-**Demande d'origine, en une phrase** : « applique EN-ATTENTE §5 à §8 », puis « relance le reviewer
-sur l'arbre et commit ».
+**Demande d'origine, en une phrase** : « applique EN-ATTENTE §2 et §4 ».
 
-**Branche** : `harness/en-attente-5-8`, issue de `harness/beton` (`a941268`).
+**Branche** : `harness/en-attente-5-8` (pas encore mergée dans `develop`), à la suite de `653ea5d`.
 
 **Hors périmètre explicite** :
 
-- §1 (J-040 lot 1, `npm update`) : réservé à Cédric, hors Claude Code, branche `fix/j-040-npm-audit`.
+- §1 (J-040 lot 1, `npm update`) : réservé à Cédric, hors Claude Code.
+- §3 (sandbox pour la lecture des secrets) : décision de Cédric, non demandée ici.
 - `npm run harness:relock` : Cédric le lance hors Claude Code.
-- Push et PR : sur demande explicite de Cédric.
+- Commit, push et PR : sur demande explicite de Cédric.
 
 ---
 
 ## Conditions de fin
 
-| #   | Condition                                                                                                                                             | Comment on le vérifie                                                |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| 1   | §5, J-048 : un appel du self-test à une commande inconnue est compté comme un échec, y compris sous Bash 3.2                                          | `command_not_found_handle` et repli 127 ; preuve sur une copie       |
-| 2   | §6, J-049 : un Read de `~/.config/gh/hosts.yml` (toutes casses) ou de `~/.ssh/*` est refusé ; un Read ordinaire, harness compris, reste autorisé      | cas `read_guard` et `guard` du self-test ; matcher `Read` du hook    |
-| 3   | §7, J-050 : `prettier --write -c <harness>` et `-w -c` refusés ; ESLint `-o`, `--output-file`, `--cache-location` vers le harness refusés             | cas `guard BLOCK` du self-test                                       |
-| 4   | §7 : pas de régression de la garde : commandes des capteurs, `prettier --config X --write docs/…`, `eslint -o /tmp/…` autorisés                       | cas `guard ALLOW` du self-test ; stage `check` vert                  |
-| 5   | §8, J-050 : le juge `audit` est rouge sur `{}`, `''`, un paquet sévère non traçable, une entrée acceptée mal justifiée ; inchangé sur le vrai rapport | cas hors ligne du self-test ; `check -- --only audit` (rouge, lot 1) |
-| 6   | J-048 à J-050 marqués RÉSOLU au journal ; seule l'entrée §1 reste dans `EN-ATTENTE.md`                                                                | relecture                                                            |
-| 7   | Aucune régression ; comptes d'assertions à jour (INVENTAIRE, PROGRESS, TODO)                                                                          | `npm run check:harness` : 393 passed, 0 failed (374 avant)           |
+| #   | Condition                                                                                                                    | Comment on le vérifie                                                       |
+| --- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| 1   | §2 : un appel mort du self-test est compté par un trap `ERR` sans condition de version, `set -E` posé                        | copies du self-test sous Bash 3.2 : niveau supérieur et fonction → 1 failed |
+| 2   | §2 : la CI prouve le comptage sous Bash 5 (pas `self-test counts a dead call (J-051)` au job `battery`)                      | relecture de `check.yml` ; le pas lui-même rejoué en local                  |
+| 3   | §4 : le juge `audit` sur `[]` rend exit 1 avec un message, sans trace Python                                                 | deux nouveaux cas du self-test (exit, stderr vide)                          |
+| 4   | §2 et §4 retirés d'`EN-ATTENTE.md` ; J-048 et J-051 mis à jour au journal (Bash 5 non vérifié tant que la CI n'a pas tourné) | relecture                                                                   |
+| 5   | Aucune régression ; comptes d'assertions à jour (INVENTAIRE, PROGRESS, TODO)                                                 | `npm run check:harness` : 395 passed, 0 failed (393 avant)                  |
 
 ---
 

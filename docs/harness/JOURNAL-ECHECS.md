@@ -1623,7 +1623,7 @@ Les huit cas sont au self-test §2, et la forme `/USERS/.../MIVRO/scripts/check.
 
 ## J-048 — Un cas du self-test appelé avant que sa fonction existe
 
-**Date** : 2026-10-05 · **Statut** : ROUVERT par J-051 — le handler ne compte rien sous Bash 4+ (CI) ; correctif : `EN-ATTENTE.md` §2
+**Date** : 2026-10-05 · **Statut** : OUVERT — correctif J-051 appliqué (trap `ERR` sans condition de version) ; reste la preuve sous Bash 5, à la première CI
 
 **Observé.** Le cas J-046 `edit_guard 2 "$HOME/.claude/CLAUDE.md"` était écrit en section 1 de
 `scripts/harness-selftest.sh`, alors que `edit_guard` n'est définie qu'en section 2. Bash affichait
@@ -1646,6 +1646,37 @@ l'arbre propre.
 
 **Leçon.** Une règle de shell se prouve sur le shell qui la lance : le Bash du poste n'est pas
 celui de la CI.
+
+**Rouvert, puis corrigé** (J-051, 2026-10-05, session déverrouillée). Sous Bash 4+,
+`command_not_found_handle` tourne dans un environnement séparé : le `bad` s'affichait, mais le
+compteur ne bougeait pas. Le handler est retiré. Le self-test pose `set -E` et un trap `ERR` sans
+condition de version, qui compte un `bad` dans le shell qui a vu le 127.
+
+Preuve sous `/bin/bash` 3.2.57, sur des copies du self-test (agent, puis 10e revue) :
+
+| Cas                                                        | Résultat              |
+| ---------------------------------------------------------- | --------------------- |
+| Copie corrigée, cas inchangés                              | 393 passed, 0 failed  |
+| Appel mort au niveau supérieur                             | 1 failed              |
+| Appel mort dans une fonction (`set -E`)                    | 1 failed              |
+| Appel mort dans `x=$(...)`                                 | 1 failed              |
+| Échec ordinaire : `false`, `(exit 2)`, `return 1`          | 0 failed              |
+| Échec compté dans un sous-shell (perdu, comme sous Bash 5) | seul le parent compte |
+
+Aucun cas existant ne sort en 127 : `grep 127` ne trouve que le trap.
+
+Sous Bash 5, la preuve est le pas `self-test counts a dead call (J-051)` du job `battery` : il lance
+une copie avec un appel mort et exige `1 failed`. J-048 passe RÉSOLU quand ce pas est vert sur la
+CI.
+
+**Limites connues.**
+
+- Un trap `ERR` ne se déclenche pas dans une condition. `if appel_mort; then`, `f || x` et `f && x`
+  donnent 0 failed (rejoué par la 10e revue). Le self-test appelle ses helpers en instruction
+  simple, suivie de `expect_exit … $?`.
+- Un appel mort placé en dernière commande d'un helper est compté deux fois : une fois dans la
+  fonction grâce à `-E`, une fois chez l'appelant, puisque la fonction rend 127. Le défaut va dans le
+  sens sûr : le bilan surcompte, il ne masque rien.
 
 ---
 
@@ -1702,8 +1733,8 @@ chaîne `via`. Les cas vérifiés sur des copies (16 + 11) sont entrés au self-
 
 ## J-051 — Neuvième revue : deux fermetures déclarées qui ne tenaient pas
 
-**Date** : 2026-10-05 · **Statut** : OUVERT — correctifs dans `EN-ATTENTE.md` §2 à §4 ; le §3
-demande une décision de Cédric (sandbox)
+**Date** : 2026-10-05 · **Statut** : OUVERT — §2 et §4 appliqués le 2026-10-05 (Bash 5 à prouver
+par la CI) ; le §3 demande une décision de Cédric (sandbox)
 
 **Observé.** La revue du delta §5 à §8 confirme J-050 fermé : garde Prettier/ESLint par outil,
 sans régression sur les 13 commandes des capteurs, et juge `audit` rouge sur tout rapport vide ou
@@ -1731,8 +1762,24 @@ mal formé. Elle rouvre deux entrées déclarées RÉSOLU le même jour :
 
 **Réponse prévue.**
 
-- Un trap `ERR` sans condition de version, avec `set -E`, prouvé sur des copies (`EN-ATTENTE.md`
-  §2).
+- Un trap `ERR` sans condition de version, avec `set -E`, prouvé sur des copies : preuve et
+  limites dans J-048.
 - Le sandbox, avec `denyRead` sur `~/.ssh` et `~/.config/gh`, plus `allowUnsandboxedCommands:
-false` dans les settings utilisateur (§3, décision de Cédric).
+false` dans les settings utilisateur (`EN-ATTENTE.md` §3, décision de Cédric).
 - La garde Bash refuse en plus les deux commandes qui affichent le jeton.
+
+**Appliqué** (2026-10-05, session déverrouillée) :
+
+- l'ancien §2 d'EN-ATTENTE, c'est-à-dire le trap `ERR` et le pas CI `self-test counts a dead call
+(J-051)` ;
+- l'ancien §4 : `check-audit-verdict.py` rend exit 1 avec un message, sans trace Python, sur un
+  rapport JSON qui n'est pas un objet (`[]` par exemple). Deux cas sont au self-test.
+
+Reste le §3 (sandbox), en attente de la décision de Cédric. J-051 reste OUVERT jusque-là, et
+jusqu'à la preuve de J-048 sur la CI.
+
+**Vu par la 10e revue, à consigner comme règle** : le paramètre fictif `PROOF` laissé dans J-048,
+et un renvoi vers une section supprimée d'EN-ATTENTE, auraient pu être attrapés par `docrefs`.
+Il faudrait (a) refuser un renvoi « `EN-ATTENTE.md` §N » sans titre `### N.` correspondant, et
+(b) refuser un mot en capitales isolé et en gras dans le journal, hors liste blanche (OUVERT,
+RÉSOLU…). C'est un changement du harness, à décrire dans EN-ATTENTE à la prochaine passe.

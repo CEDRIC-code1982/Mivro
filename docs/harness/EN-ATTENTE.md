@@ -13,7 +13,8 @@ tous été appliqués : le 2026-09-28, puis le 2026-10-01 en session déverrouil
 de `check-deps.js` ont été posés par Cédric le 2026-10-05, avec le premier verrou. Les points 2 à 4
 (garde `prettier --config`, J-047, capteur `audit` à avis acceptés) ont été appliqués le 2026-10-05
 en session déverrouillée. Les points 5 à 8 (J-048 à J-050) l'ont été le 2026-10-05 aussi, en
-session déverrouillée. Reste le point 1.
+session déverrouillée. Les points 2 et 4 (J-051 : trap `ERR` du self-test, juge `audit` sur `[]`)
+l'ont été le 2026-10-05 aussi. Restent le point 1 et le point 3 (décision de Cédric).
 
 ## Pour Cédric seul
 
@@ -46,58 +47,6 @@ Ces changements du harness sont prêts mais pas appliqués. En session déverrou
 mode auto de Claude Code refuse à l'agent toute écriture dans ses propres contrôles. Passe en mode
 par défaut pour approuver les éditions toi-même, puis dis « applique EN-ATTENTE §N » : l'agent les
 pose, relance le self-test et retire les entrées.
-
-### 2. Self-test : compter un appel mort avec un trap `ERR`, sur toute version de Bash (J-051)
-
-Le correctif J-048 comptait l'échec dans `command_not_found_handle`. Or, à partir de Bash 4, ce
-handler tourne dans un environnement d'exécution séparé (manuel Bash, §3.7.2) : le
-`FAIL=$((FAIL + 1))` y est perdu. Sur la CI (Bash 5), un appel mort affichait donc un X rouge,
-mais le bilan restait « 0 failed ». Le repli `trap ERR` n'était posé que sous Bash 3.2.
-
-Dans `scripts/harness-selftest.sh`, remplacer le bloc `command_not_found_handle` + `if
-((BASH_VERSINFO[0] < 4))` par :
-
-```bash
-# A case that calls an undefined helper must fail, not vanish (JOURNAL J-048).
-# An ERR trap, not command_not_found_handle: from Bash 4 on, that handler runs
-# in a separate execution environment, so a FAIL counted there is lost (J-051).
-# The trap runs in the shell that saw the 127, on every Bash version; -E
-# (errtrace) makes functions inherit it, so a dead call inside a helper counts.
-set -E
-trap 'SELFTEST_RC=$? SELFTEST_LINE=$LINENO; ((SELFTEST_RC == 127)) && bad "exit 127 at line ${SELFTEST_LINE}: command not found?"' ERR
-```
-
-`$LINENO` et non `$BASH_COMMAND` : sous Bash 3.2, `$BASH_COMMAND` dans le trap affiche la commande
-du trap lui-même.
-
-Preuve, sur des copies du self-test, avec `/bin/bash` 3.2.57 :
-
-| Cas                                                           | Résultat               |
-| ------------------------------------------------------------- | ---------------------- |
-| A. copie corrigée, cas inchangés                              | 393 passed, 0 failed   |
-| B. appel mort au niveau supérieur                             | 393 passed, 1 failed   |
-| C. appel mort dans une fonction (couvert grâce à `set -E`)    | 393 passed, 1 failed   |
-| D. échec compté dans un sous-shell (perdu, comme sous Bash 5) | 393 passed, 1 failed ¹ |
-| E. self-test actuel, appel mort, Bash 3.2 (pour comparaison)  | 393 passed, 1 failed   |
-
-¹ L'échec du sous-shell est perdu, et seul celui du shell parent est compté. C'est ce qui se
-passe sous Bash 5 avec `command_not_found_handle`, et le trap, lui, compte dans le shell parent.
-Le cas A prouve qu'aucun cas existant ne sort en 127 (pas de faux positif).
-
-NON VÉRIFIÉ sous Bash 5 : il n'y en a pas sur ce poste (ni Homebrew, ni Docker). La première CI le
-prouvera. Pour cela, ajouter au job `battery` un pas qui lance une copie du self-test avec un appel
-mort et exige `1 failed`. C'est le méta-cas demandé par la 9e revue :
-
-```yaml
-- name: self-test counts a dead call (J-051)
-  run: |
-    sed '/^section() {/a\
-    undefined_helper_ci_probe' scripts/harness-selftest.sh > /tmp/st-dead.sh
-    bash /tmp/st-dead.sh | grep -q ' 1 failed'
-```
-
-Limite connue : un trap `ERR` ne se déclenche pas dans une condition (`if f; then`, `f || x`,
-`f && x`). Le self-test appelle ses helpers en instruction simple, suivie de `expect_exit … $?`.
 
 ### 3. Lecture des secrets : le sandbox de Claude Code, pas une liste noire de plus (J-051)
 
@@ -148,10 +97,3 @@ false }`. C'est la seule clé qui empêche l'agent de relancer une commande hors
 
 Ensuite, J-049 et J-051 passent RÉSOLU. D'ici là, J-049 repasse OUVERT : sa fermeture déclarée
 était fausse.
-
-### 4. Juge `audit` : un rapport `[]` donne une trace Python (J-051, mineur)
-
-`scripts/check-audit-verdict.py`, ligne `text = raw if report is None else json.dumps(report.get("error"))` →
-`text = raw if not isinstance(report, dict) else json.dumps(report.get("error"))`. L'exit était déjà
-1 (rouge), seul le message change. Cas : `printf '[]' | python3 scripts/check-audit-verdict.py
-"$AUDIT_DIR/ok.json"` → `expect_exit 1`.
