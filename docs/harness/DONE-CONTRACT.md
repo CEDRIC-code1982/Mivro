@@ -7,82 +7,97 @@
 
 ## Tâche
 
-**Titre** : Étape 1 — câblage natif Firebase (F4/F5) + correction des docs périmées
+**Titre** : Harness « en béton » — fermer les contournements trouvés par l'audit red-team
 
-**Demande d'origine, en une phrase** : « Vérifie l'étape 1, j'ai mis le GoogleService-Info.plist
-dans Xcode ; si tu as besoin de compléter l'installation pour iOS et Android, les fichiers sont
-dans mon dossier Téléchargements » puis « j'ai déplacé le plist dans `ios/Mivro/`, fais les
-commandes pour finir l'étape 1 et enchaîne sur l'étape 2 ».
+**Demande d'origine, en une phrase** : « Go pour les modifs, je veux à la fin un harness en béton ! »
+après l'audit comparatif Mivro / SmartBLE (lots 0 à 4).
 
-**Hors périmètre explicite** : `firebase login` et `firebase deploy --only database` (compte Google
-de Cédric, hors de ma portée) ; le rebuild natif et les vérifs device ; les étapes 3 à 6 du plan.
+**Hors périmètre explicite** :
+
+- Activer la protection de branche GitHub et pousser : actions externes, faites **sur demande
+  explicite** de Cédric une fois la CI verte (script prêt, pas lancé).
+- Tests des règles RTDB sur l'émulateur Firebase : c'est un test produit, pas un capteur du harness.
+  Tracé dans `TODO.md`.
+- `~/.claude/settings.json` (fichier de permissions personnel de Cédric) : je ne le modifie pas. Les
+  règles vont dans le `.claude/settings.json` du projet, où `deny` l'emporte sur son `allow`.
 
 ---
 
 ## Conditions de fin
 
-| #   | Condition                                                      | Comment on le vérifie                                                                              |
-| --- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| 1   | Le plist iOS est réellement embarqué dans le bundle            | `project.pbxproj` : `path` résout vers un fichier existant **et** présence dans la phase Resources |
-| 2   | La config Android est en place et cohérente avec iOS           | `google-services.json` dans le module app ; même `project_id` et `project_number` que le plist     |
-| 3   | L'URL RTDB est fournie à l'app                                 | `.env` existe et porte `FIREBASE_DATABASE_URL` en `europe-west1`                                   |
-| 4   | Aucun fichier de config Firebase ni `.env` n'est suivi par git | `git check-ignore` sur les 3 fichiers ; `git status` ne les montre pas                             |
-| 5   | Le projet Firebase est lié en CLI                              | `.firebaserc` présent avec l'alias `default` = `mivro-40125`                                       |
-| 6   | Plus aucune doc ne mentionne l'ancien bundle id comme actuel   | `grep cedricpineau.midpoint` : seules restent des mentions historiques ou barrées                  |
-| 7   | Le contrat précédent est formellement clos                     | ses 7 conditions revérifiées une par une, résultat consigné                                        |
-| 8   | Aucune régression                                              | `npm run check` exit 0 (1226 tests) et `npm run check:harness` 64/64                               |
+| #   | Condition                                                                                                                                                   | Comment on le vérifie                                                              |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| 1   | Chaque contournement **critique** ou **élevé** de l'audit est bloqué                                                                                        | un cas par contournement dans `check:harness`, qui rejoue l'attaque et exige BLOCK |
+| 2   | Un fichier non suivi est inspecté par `check-diff` même quand aucun fichier suivi n'a bougé (H1)                                                            | cas dédié dans `check:harness`                                                     |
+| 3   | Le hook d'édition vérifie le fichier réellement édité, y compris depuis un worktree (G1)                                                                    | cas dédié : `CLAUDE_PROJECT_DIR` pointé ailleurs, violation quand même détectée    |
+| 4   | Toute modification d'un fichier du harness est visible : refusée à l'édition, et rouge dans `check` et en CI tant que le verrou n'est pas refait par Cédric | `check:harness-lock` + cas dédié ; job CI `harness-guard`                          |
+| 5   | L'agent ne peut pas finir son tour avec un arbre rouge                                                                                                      | hook `Stop` testé par violation volontaire                                         |
+| 6   | Un commit fait depuis Claude Code exige un verdict `APPROVED` du reviewer portant sur exactement l'arbre commité                                            | `pre-commit` testé : sans verdict → refus ; verdict d'un autre arbre → refus       |
+| 7   | L'identité native (team Apple `W7N4H92U5V`, bundle/applicationId `com.cedricpineau.mivro`) ne peut plus dériver en silence (J-023)                          | capteur `check:native` + cas dédié                                                 |
+| 8   | Une seule table de capteurs, lue par `npm run check`, le pre-push et la CI ; une abstention est nommée et jamais comptée verte                              | `scripts/sensors.sh` ; `npm run check -- --list`                                   |
+| 9   | La CI rejoue la batterie complète côté serveur, plus secrets et `npm audit`                                                                                 | `.github/workflows/check.yml` ; verte sur la PR (après push autorisé)              |
+| 10  | J-022 à J-025 fermés ou requalifiés ; chaque trou de l'audit a son entrée de journal                                                                        | `check:doc-refs` vert ; relecture du journal                                       |
+| 11  | Aucune régression, budgets tenus                                                                                                                            | `npm run check` exit 0 ; `check:harness` tout vert ; PostToolUse ≈ 3 s mesuré      |
 
 ---
 
 ## Socle systématique
 
-- [x] `npm run check` vert (typecheck + lint + format + `check:arch` + `check:diff` + tests).
+- [ ] `npm run check` vert (typecheck + lint + format + `check:arch` + `check:diff` + tests).
 - [x] Les trois états rendus pour chaque écran touché — aucun écran modifié.
-- [x] Toute donnée externe validée par Zod — aucune nouvelle source de données.
+- [x] Toute donnée externe validée par Zod — renforcé : `JSON.parse` renvoie désormais `unknown`.
 - [x] Toute string affichée passe par `useTranslation()` — aucune string ajoutée.
-- [x] Docs de contexte mises à jour : `RUNBOOK.md` (procédure d'enregistrement Firebase),
-      `TODO.md` (bundle id, prérequis `.env`), `PROGRESS.md` (métriques + bundle id).
-- [ ] ADR : aucun — pas de décision d'architecture, uniquement du câblage et de la correction
-      documentaire.
+- [ ] Docs de contexte mises à jour : `INVENTAIRE.md`, `JOURNAL-ECHECS.md`, `CLAUDE.md`, `RUNBOOK.md`,
+      `TODO.md`, `PROGRESS.md`.
+- [ ] ADR : ADR-016 — le harness est une frontière de confiance (verrou, CI, protection de branche).
 - [ ] Verdict `APPROVED` du subagent `reviewer`.
 
 ---
 
 ## Ce qui reste à Cédric
 
-- [ ] `firebase login` puis `firebase deploy --only database` (compte Google requis).
-- [ ] Vérifier dans la console : Realtime Database → Règles affiche bien `database.rules.json`
-      (racine en `read: false` / `write: false`), pas les règles all-deny par défaut.
-- [ ] Rebuild natif : `react-native-config` lit `.env` au build, pas au reload Metro.
-- [ ] Vérifs device F4/F5 : deux appareils dans une même session, le marqueur de l'un doit bouger
-      chez l'autre en 1-2 s.
+- [ ] Autoriser le commit, le push de `harness/beton` et l'ouverture de la PR.
+- [ ] Une fois la CI verte : lancer `scripts/setup-branch-protection.sh`, ou me demander de le faire.
+- [ ] Relancer Claude Code pour que les nouveaux hooks et permissions du projet soient chargés.
 
 ---
 
 ## Hypothèses prises
 
-- Le plist déplacé à la main dans `ios/Mivro/` devait **rester** à cet emplacement : j'ai corrigé
-  la référence Xcode plutôt que de remettre le fichier à la racine de `ios/`.
-- `.firebaserc` est versionné (config projet, pas un secret), contrairement aux deux fichiers de
-  config Firebase et au `.env` qui restent gitignorés.
-- L'ajout de `google-services.json` et du plist à `.prettierignore` est le bon geste : ce sont des
-  fichiers générés par une console tierce, leur format ne nous appartient pas.
+- Solo : la protection de branche exige des **checks verts** et une PR, pas une approbation (on ne
+  peut pas approuver sa propre PR). Le verrou humain, c'est le merge et le relock du harness.
+- Le reviewer est identifié par le hook `SubagentStop` et son `matcher`, pas par un champ de
+  l'entrée du hook : l'identité de l'agent dans l'entrée n'est pas documentée.
 
 ---
 
-## Clôture du contrat précédent (palette indigo + DOC-004 + archi)
+## Clôture du contrat précédent (étape 1 Firebase)
 
-Le travail avait été commité (`b153b92`, `1d077a9`) **sans** que le verdict `reviewer` soit
-consigné. Ses 7 conditions ont été revérifiées mécaniquement le 2026-08-24 :
+Conditions 1 à 8 satisfaites et commitées (`c15b8e1`, `b346a53`). Les règles RTDB ont été déployées
+et vérifiées structurellement par Cédric le 2026-08-24. Restent à Cédric, hors contrat : le rebuild
+natif et les vérifications sur appareil F4/F5.
 
-| #   | Condition                                          | Résultat                                                            |
-| --- | -------------------------------------------------- | ------------------------------------------------------------------- |
-| 1   | Travail sur `develop`, `main` intacte              | ✅ `develop` ; `main` = `de6b15c`, inchangée                        |
-| 2   | Aucune paire du thème n'échoue WCAG AA             | ✅ `PENDING_DESIGN_DECISION` vide (0 paire en dette)                |
-| 3   | La marque reste l'indigo voulu                     | ✅ `palette.brand[500]` = `#6366F1`                                 |
-| 4   | `npm run docs` passe sans erreur                   | ✅ exit 0, Docusaurus compile                                       |
-| 5   | DOC-004 est un capteur, plus une règle de jugement | ✅ 0 occurrence dans `CLAUDE.md`, 4ᵉ garde du pre-push              |
-| 6   | Plus d'exemption de grandfathering en archi        | ✅ le seul `pathNot` restant est la logique « pas la même feature » |
-| 7   | Aucune régression                                  | ✅ `npm run check` exit 0 ; `check:harness` 64/64                   |
+---
 
-Contrat objectivement satisfait. Seule la trace formelle manquait — elle est ici.
+## État au 2026-10-05
+
+Six revues successives (J-036 à J-046) ont rouvert le contrat ; les capteurs de toutes sont
+appliqués. Le self-test compte 358 assertions, toutes vertes, verrou compris. La septième revue rouvre la
+condition 4 (J-047).
+
+| #   | Résultat                                                                                                                                               |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | ✅ Audit et revues J-026 à J-046 rejoués au self-test                                                                                                  |
+| 2   | ✅ cas au self-test                                                                                                                                    |
+| 3   | ✅ cas au self-test                                                                                                                                    |
+| 4   | ⚠️ verrou généré et vert, `harness-guard` en place ; le refus à l'édition tombe sur une variante de casse du chemin absolu (J-047, `EN-ATTENTE.md` §3) |
+| 5   | ✅ hook Stop actif, testé par violation                                                                                                                |
+| 6   | ✅ sceau lié à l'`agent_id`, arbre comparé au début et à la fin de la revue, ABA détecté par ctime                                                     |
+| 7   | ✅ `check:native` vert                                                                                                                                 |
+| 8   | ✅ table unique, ESLint et Prettier lancés avec la seule config racine                                                                                 |
+| 9   | ⚠️ workflows écrits, jamais exécutés ; `npm audit` rouge (J-040, branche dédiée)                                                                       |
+| 10  | ✅ J-022 requalifié, J-023 à J-046 à jour, `docrefs` vert                                                                                              |
+| 11  | ✅ stage `check` vert ; 1257 tests                                                                                                                     |
+
+Reste à Cédric : relock, `npm audit fix`, commit, push, PR, merges, protection (RUNBOOK >
+« Harness »).

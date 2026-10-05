@@ -1,12 +1,11 @@
 /**
  * @file usePOIQuery.test.ts
- * @description Tests unitaires du hook usePOIQuery.
- *              Unit tests for the usePOIQuery hook.
+ * @description Unit tests for the usePOIQuery hook.
  *
  * @module features/POI/hooks/usePOIQuery.test
  */
 
-// [ADDED] Tests unitaires usePOIQuery
+// [ADDED] usePOIQuery unit tests
 import { renderHook, waitFor } from '@testing-library/react-native';
 import type { PointOfInterest } from '@entities/PointOfInterest';
 import { usePOIQuery } from '@features/POI/hooks/usePOIQuery';
@@ -24,6 +23,9 @@ jest.mock('@services/serviceContainer', () => ({
 }));
 
 // ─── Test data ──────────────────────────────────────────────
+
+/** Per-test timeout for the render + query round-trip under CPU contention. */
+const LOADED_MACHINE_TIMEOUT_MS = 15_000;
 
 const FAKE_POIS: PointOfInterest[] = [
   {
@@ -197,24 +199,31 @@ describe('usePOIQuery', () => {
       expect(mockExecute).toHaveBeenCalledTimes(1);
     });
 
-    it('does not retry on parse_error', async () => {
-      mockExecute.mockRejectedValue(new POIError('Parse error', 'parse_error'));
+    it(
+      'does not retry on parse_error',
+      async () => {
+        mockExecute.mockRejectedValue(new POIError('Parse error', 'parse_error'));
 
-      const { result } = renderHook(
-        () =>
-          usePOIQuery({
-            center: CENTER,
-            radiusMeters: RADIUS,
-            categories: ['restaurant'],
-          }),
-        { wrapper: createQueryClientWrapper() },
-      );
+        const { result } = renderHook(
+          () =>
+            usePOIQuery({
+              center: CENTER,
+              radiusMeters: RADIUS,
+              categories: ['restaurant'],
+            }),
+          { wrapper: createQueryClientWrapper() },
+        );
 
-      await waitFor(() => {
-        expect(result.current.isError).toBe(true);
-      });
+        await waitFor(() => {
+          expect(result.current.isError).toBe(true);
+        });
 
-      expect(mockExecute).toHaveBeenCalledTimes(1);
-    });
+        expect(mockExecute).toHaveBeenCalledTimes(1);
+        // Explicit budget: this test timed out at Jest's default 5 s on a loaded
+        // machine while passing 9/9 at rest (JOURNAL J-025). Raised here only, so
+        // a real slowdown elsewhere still trips the global default.
+      },
+      LOADED_MACHINE_TIMEOUT_MS,
+    );
   });
 });

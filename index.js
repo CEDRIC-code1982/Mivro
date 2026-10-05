@@ -11,7 +11,7 @@ import 'react-native-get-random-values';
 
 import { AppRegistry } from 'react-native';
 // [MODIFIED] App at src/App.tsx (feature-first architecture)
-import App from './src/App';
 import { name as appName } from './app.json';
+import App from './src/App';
 
 AppRegistry.registerComponent(appName, () => App);

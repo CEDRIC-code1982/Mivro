@@ -9,6 +9,8 @@
 
 'use strict';
 
+const { isJustification } = require('./justification');
+
 module.exports = {
   meta: {
     type: 'problem',
@@ -23,6 +25,12 @@ module.exports = {
     },
   },
 
+  /**
+   * Build the visitor.
+   *
+   * @param {object} context - The ESLint rule context.
+   * @returns {object} The AST visitor.
+   */
   create(context) {
     const source = context.getSourceCode();
 
@@ -41,14 +49,22 @@ module.exports = {
       ) {
         current = current.parent;
       }
-      return current.parent || current;
+      const statement = current.parent || current;
+      // `export const x = y!`: the comment sits above `export`, which is the
+      // parent of the declaration.
+      if (statement.parent && /^Export/.test(statement.parent.type)) {
+        return statement.parent;
+      }
+      return statement;
     }
 
     return {
       TSNonNullExpression(node) {
         const sameLine = source
           .getAllComments()
-          .some((comment) => comment.loc.start.line === node.loc.start.line);
+          .some(
+            (comment) => comment.loc.start.line === node.loc.start.line && isJustification(comment),
+          );
         if (sameLine) {
           return;
         }
@@ -56,7 +72,10 @@ module.exports = {
         const statement = enclosingStatement(node);
         const above = source
           .getCommentsBefore(statement)
-          .some((comment) => comment.loc.end.line === statement.loc.start.line - 1);
+          .some(
+            (comment) =>
+              comment.loc.end.line === statement.loc.start.line - 1 && isJustification(comment),
+          );
         if (above) {
           return;
         }

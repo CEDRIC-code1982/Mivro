@@ -17,10 +17,10 @@
  *              La région DOIT correspondre à l'instance RTDB (europe-west1).
  */
 
-const { onSchedule } = require('firebase-functions/v2/scheduler');
-const { logger } = require('firebase-functions/v2');
 const { initializeApp } = require('firebase-admin/app');
 const { getDatabase } = require('firebase-admin/database');
+const { logger } = require('firebase-functions/v2');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
 
 const DATABASE_URL = 'https://mivro-40125-default-rtdb.europe-west1.firebasedatabase.app';
 

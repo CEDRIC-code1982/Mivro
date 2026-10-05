@@ -56,6 +56,12 @@ module.exports = {
     },
   },
 
+  /**
+   * Build the visitor.
+   *
+   * @param {object} context - The ESLint rule context.
+   * @returns {object} The AST visitor.
+   */
   create(context) {
     const options = context.options[0] || {};
     const allowedProperties = new Set(options.allowedProperties || DEFAULT_ALLOWED_PROPERTIES);

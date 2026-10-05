@@ -187,7 +187,7 @@ _Estimation : L. Dépendances : comptes stores._
 
 ## Dette technique connue
 
-- [ ] **Test sans marge de temps** (J-025) : `usePOIQuery > retry logic > does not retry on parse_error` depasse les 5 000 ms par defaut quand la machine est chargee (observe pendant un `pod install` concurrent). Passe 9/9 en isolation. Donner un timeout explicite a ce test precis plutot que relever le budget global, qui masquerait d'autres lenteurs. (P2)
+- [x] ~~**Test sans marge de temps** (J-025)~~ → **FAIT (2026-09-26)** : timeout explicite de 15 s sur ce seul test (`LOADED_MACHINE_TIMEOUT_MS`), budget global de Jest inchangé.
 
 - [ ] **POI rayon géant** (ex: Paris + Tokyo) : la requête Overpass `(around:RAYON_ÉNORME)` fait timeout/erreur → `POIListView` affiche « Erreur inattendue » au lieu d'un EmptyState. Découvert au QA (Pacifique). À traiter : borner le rayon POI ou mapper le timeout vers un message dédié. (P2)
 - [ ] **Re-vérif device** : confirmer sur iPhone que (a) le champ fantôme F1 a disparu, (b) le footer carte tient en Dynamic Type 200 %. Vérifier aussi qu'aucun autre écran ne casse en 200 %.
@@ -207,6 +207,26 @@ _Estimation : L. Dépendances : comptes stores._
 - [x] ~~**`test:ci` ne passe pas `--coverage`**~~ → **FAIT (2026-08-21, harness)** : `test:ci` = `jest --ci --coverage`, les `coverageThreshold` sont donc réellement bloquants dans `npm run check`. A nécessité de couvrir les 4 callbacks `tabBarIcon` de `BottomTabsNavigator` (seul seuil qui échouait : `src/navigations/` functions 42,85 % < 50 %).
 
 ---
+
+## Harness v2 (2026-09-26) — mise en service (Cédric)
+
+Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
+
+- [x] ~~Appliquer `EN-ATTENTE.md` en session déverrouillée~~ → **FAIT (2026-09-28)** : J-036 à
+      J-039 et J-041 à J-046 corrigés, déverrouillage vérifié en réel, self-test à 358 assertions.
+- [x] ~~`npm run harness:relock`~~ → **FAIT (2026-10-05)** : premier verrou généré.
+- [ ] Session `MIVRO_HARNESS_UNLOCK=1`, en mode par défaut : appliquer les points 2 et 3 de
+      `EN-ATTENTE.md` (faux positif `prettier --config`, casse du chemin absolu J-047), relock.
+- [ ] Commit, push de `harness/beton` et PR vers `develop`.
+- [ ] **J-040** : `npm audit fix` (sans `--force`) dans une branche dédiée, avec rebuild natif —
+      1 critique, 7 hautes, toutes corrigibles. Préalable à la protection de branche.
+- [ ] Merger dans `develop`, puis `develop` dans `main`, puis `bash scripts/setup-branch-protection.sh`.
+- [ ] Première revue réelle : vérifier que le verdict est scellé (`.git/mivro-review` présent après
+      un `APPROVED`).
+- [ ] Optionnel : token GitHub fine-grained sans « Administration » pour les sessions Claude.
+- [ ] **J-022** (ouvert) : capteur des affirmations factuelles des docs.
+- [ ] **Tests des règles RTDB** sur l'émulateur Firebase (`@firebase/rules-unit-testing`) :
+      `$other` absent au niveau `sessions/$sessionId`, écriture refusée hors des trois nœuds. (P2)
 
 ## Harness d'agent (2026-08-21) — points ouverts
 
