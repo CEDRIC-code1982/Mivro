@@ -215,12 +215,13 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
 - [x] ~~Appliquer `EN-ATTENTE.md` en session déverrouillée~~ → **FAIT (2026-09-28)** : J-036 à
       J-039 et J-041 à J-046 corrigés, déverrouillage vérifié en réel, self-test à 358 assertions.
 - [x] ~~`npm run harness:relock`~~ → **FAIT (2026-10-05)** : premier verrou généré.
-- [ ] Session `MIVRO_HARNESS_UNLOCK=1`, en mode par défaut : appliquer les points 2 et 3 de
-      `EN-ATTENTE.md` (faux positif `prettier --config`, casse du chemin absolu J-047), relock.
+- [ ] Session `MIVRO_HARNESS_UNLOCK=1`, en mode par défaut : appliquer `EN-ATTENTE.md` §5 (J-048,
+      appel mort du self-test), §6 (J-049, jeton `gh`), §7 et §8 (J-050, garde Prettier/ESLint et
+      juge `audit`), relock.
 - [ ] Commit, push de `harness/beton` et PR vers `develop`.
 - [ ] **J-040 lot 1** : commandes exactes dans `EN-ATTENTE.md` §1 (branche `fix/j-040-npm-audit`,
       lockfile seul, rebuild natif et test sur appareil). Préalable à la protection de branche.
-- [ ] **J-040 lot 3** : capteur `audit` à avis acceptés, `EN-ATTENTE.md` §4 (session déverrouillée).
+- [x] **J-040 lot 3** : capteur `audit` à avis acceptés, posé le 2026-10-05.
 - [ ] ⚠️ À SPÉCIFIER AVEC CÉDRIC : montée React Native 0.85 → 0.86+ (ferme les avis acceptés de
       J-040, expiration 2027-01-05) — ADR, rebuild natif, reanimated, worklets, maps, firebase.
 - [ ] Merger dans `develop`, puis `develop` dans `main`, puis `bash scripts/setup-branch-protection.sh`.

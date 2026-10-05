@@ -10,8 +10,9 @@
 **Historique.** Les constats de l'audit (J-026 à J-035) et des deux revues (J-036 à J-042) ont
 tous été appliqués : le 2026-09-28, puis le 2026-10-01 en session déverrouillée. Le détail est dans
 `JOURNAL-ECHECS.md`. Les capteurs de J-043 à J-046 sont appliqués aussi ; le self-test de J-046 et le formatage
-de `check-deps.js` ont été posés par Cédric le 2026-10-05, avec le premier verrou. Restent les
-points 1 à 4 ci-dessous.
+de `check-deps.js` ont été posés par Cédric le 2026-10-05, avec le premier verrou. Les points 2 à 4
+(garde `prettier --config`, J-047, capteur `audit` à avis acceptés) ont été appliqués le 2026-10-05
+en session déverrouillée. Restent le point 1 et les points 5 et 6, nés de cette session.
 
 ## Pour Cédric seul
 
@@ -40,303 +41,243 @@ car le lockfile fait partie du verrou.
 
 ## À appliquer en session déverrouillée
 
-Ce changement du harness est prêt mais pas appliqué. En session déverrouillée, le classifieur du
+Ces changements du harness sont prêts mais pas appliqués. En session déverrouillée, le classifieur du
 mode auto de Claude Code refuse à l'agent toute écriture dans ses propres contrôles. Passe en mode
-par défaut pour approuver l'édition toi-même, puis dis « applique EN-ATTENTE » : l'agent la pose,
-relance le self-test et retire l'entrée.
+par défaut pour approuver les éditions toi-même, puis dis « applique EN-ATTENTE §N » : l'agent les
+pose, relance le self-test et retire les entrées.
 
-### 2. Garde Bash : `prettier --config <fichier> --write` est refusé à tort
+### 5. Self-test : un appel à une commande inconnue est un échec (J-048)
 
-`npx prettier --config .prettierrc.js --write docs/x.md` est bloqué (« prettier rewriting a
-harness file ») : `positional(args)` compte la valeur de `--config` comme une cible, et
-`.prettierrc.js` est du harness. Prettier lit ce fichier, il ne l'écrit pas.
-
-Changement dans `scripts/hooks/pre-bash-guard.py`, branche `elif name in {"prettier", "eslint"}:`
-(ligne 619) : juger comme cibles les seuls mots qui ne sont pas la valeur d'une option.
-
-```python
-# Options whose value is read, never rewritten (--config, --ignore-path...).
-REWRITER_VALUE_OPTIONS = {"--config", "-c", "--ignore-path", "--rulesdir", "--plugin", "--ext",
-                          "--resolve-plugins-relative-to", "--cache-location", "--parser",
-                          "--loglevel", "--log-level"}
-
-
-def rewrite_targets(args: list[str]) -> list[str]:
-    targets, skip = [], False
-    for arg in args:
-        if skip:
-            skip = False
-        elif arg in REWRITER_VALUE_OPTIONS:
-            skip = True
-        elif not arg.startswith("-"):
-            targets.append(arg)
-    return targets
-```
-
-puis `any(self.protected(a) for a in rewrite_targets(args))` à la place de `positional(args)`.
-Aucune perte : un fichier du harness passé en position reste refusé. Cas à ajouter au self-test :
+Dans `scripts/harness-selftest.sh`, juste après la définition de `bad()` :
 
 ```bash
-guard ALLOW 'npx prettier --config .prettierrc.js --write docs/x.md'
-guard BLOCK 'npx prettier --config .prettierrc.js --write .eslintrc.js'
-guard BLOCK 'npx eslint -c .eslintrc.js --fix scripts/check-deps.js'
-```
-
-### 3. Casse du chemin absolu : racine du dépôt et `$HOME` (J-047)
-
-J-046 compare sans casse le chemin **relatif**, pas la base dont on le tire. Rejoué le 2026-10-05
-(exit 0 = écriture autorisée) :
-
-- Edit de `~/.Claude/settings.json` ou de `~/.GITCONFIG` : 0 (la forme exacte sort en 2) ;
-- Edit de `/Users/cpineau/Developer/Personnel/MIVRO/scripts/check.sh` : 0 ;
-- `echo x >> ~/.Claude/settings.json` dans la garde Bash : 0.
-
-Changement dans `scripts/hooks/harness_paths.py` : une seule fonction de « chemin relatif sous une
-base », sans casse, qui rend le chemin **dans sa casse d'origine**.
-
-```python
-def rel_under(absolute: str, base: str) -> str | None:
-    """`absolute` relative to `base`, compared without case (APFS), or None
-    when it lies outside. The returned path keeps the case it was given."""
-    a, b = absolute.casefold().rstrip("/"), base.casefold().rstrip("/")
-    if a == b:
-        return ""
-    if not a.startswith(b + "/"):
-        return None
-    return absolute[len(base.rstrip("/")) + 1:]
-```
-
-puis :
-
-- `home_secret` : `rel = rel_under(absolute, home)` ; `rel is not None and rel.casefold() in
-{p.casefold() for p in HOME_SECRETS}` ;
-- `home_protected` : même chose avec `HOME_PROTECTED`, et `rel.casefold()` pour
-  `HOME_TRANSCRIPTS_DIR` et le suffixe `.jsonl` ;
-- `to_rel` : `rel = rel_under(absolute, root)` à la place de `os.path.relpath`, `None` si hors dépôt ;
-- `_same_repo_worktree_rel` : `rel_under(absolute, os.path.realpath(top))`, et
-  `common.casefold() != mine.casefold()` pour comparer les deux répertoires git.
-
-Cas à ajouter au self-test (le premier pose `REPO_UPPER="$(printf '%s' "$REPO" | tr '[:lower:]'
-'[:upper:]')"`) :
-
-```bash
-edit_guard 2 "$REPO_UPPER/scripts/check.sh"
-edit_guard 2 "$HOME/.Claude/settings.json"
-edit_guard 2 "$HOME/.claude/Settings.json"
-edit_guard 2 "$HOME/.GITCONFIG"
-edit_guard 2 "$HOME/.Claude/projects/x/y.jsonl"
-guard BLOCK "echo x >> $HOME/.Claude/settings.json"
-guard BLOCK "echo x > $REPO_UPPER/scripts/check.sh"
-guard BLOCK "cat $HOME/.CONFIG/gh/hosts.yml"
-```
-
-En même temps : compléter la liste « Checked » de la docstring de `scripts/check-native.py` (gradle
-racine, `applicationIdSuffix`, `productFlavors`, `CFBundleIdentifier`).
-
-### 4. Capteur `audit` : avis acceptés par identifiant GHSA (J-040, lot 3)
-
-Les hautes restantes sur React Native 0.85 remontent de **4 avis**, dont aucun n'a de correctif sur
-cette ligne. `braces` n'a aucune version corrigée, `image-size` est épinglé par metro 0.84, et
-`@grpc/grpc-js` est épinglé par le SDK JS Firestore, que Mivro n'importe pas. Le capteur les
-accepte **nommément**. Il reste rouge pour tout autre avis, pour un avis dont l'acceptation a expiré
-(le 2027-01-05, à redécider) et pour une entrée sans justification. Tout a été vérifié sur des
-copies, en 7 cas : rouge sur l'arbre actuel, vert après le lot 1, rouge si la liste est périmée,
-incomplète ou mal justifiée, abstention hors ligne, rouge sur une réponse illisible.
-
-Les trois fichiers sont des fichiers du harness. Ils sont aussi sauvegardés dans
-`~/Developer/Personnel/Mivro-backups/EN-ATTENTE-J-040/scripts/`.
-
-**`scripts/check-audit.sh`** (remplace l'actuel) :
-
-```bash
-#!/usr/bin/env bash
-# ---------------------------------------------------------------------------
-# check-audit.sh — known vulnerabilities in the runtime dependencies.
-#
-# Same sensor for the pre-push and the CI job `security`, so a red audit shows
-# up at pre-push instead of on the first PR (JOURNAL J-040: the job was red
-# before it ever ran). Development-only dependencies are left out: they never
-# ship in the app.
-#
-# Some advisories have no fix reachable on the current React Native line
-# (JOURNAL J-040, remeasured 2026-10-05). They are accepted BY NAME in
-# scripts/audit-accepted.json: one GHSA id, the package, why it does not reach
-# the shipped app, and an expiry date. Anything else is red:
-#   - a high/critical advisory that is not on the list;
-#   - an accepted advisory past its expiry date (re-decide, do not extend blindly);
-#   - a malformed list entry.
-# An accepted advisory that npm no longer reports is printed as stale: remove
-# it at the next harness session.
-#
-# Exit 0 = nothing unaccepted, 1 = at least one finding, 3 = abstained (no
-# network or registry unreachable). CI does not accept the abstention.
-# MIVRO_AUDIT_ROOT lets the self-test point the sensor at a doctored manifest.
-# ---------------------------------------------------------------------------
-set -uo pipefail
-
-HARNESS="$(cd "$(dirname "$0")" && pwd)"
-ROOT="${MIVRO_AUDIT_ROOT:-$(git rev-parse --show-toplevel)}"
-cd "$ROOT" || exit 1
-
-OUT="$(npm audit --omit=dev --json 2>/dev/null)"
-printf '%s' "$OUT" | python3 "$HARNESS/check-audit-verdict.py" "$HARNESS/audit-accepted.json"
-```
-
-**`scripts/check-audit-verdict.py`** (nouveau) :
-
-```python
-#!/usr/bin/env python3
-"""check-audit-verdict.py — judge `npm audit --json` (stdin) against the accepted list.
-
-Called by scripts/check-audit.sh; see its header for the policy (JOURNAL J-040).
-Exit 0 = nothing unaccepted, 1 = finding, 3 = registry unreachable.
-"""
-
-from __future__ import annotations
-
-import datetime
-import json
-import re
-import sys
-
-NETWORK_MARKERS = ("ENOTFOUND", "ECONNREFUSED", "ETIMEDOUT", "EAI_AGAIN", "network request")
-GHSA_RE = re.compile(r"^GHSA(-[23456789cfghjmpqrvwx]{4}){3}$")
-MIN_REASON = 40
-
-raw = sys.stdin.read()
-try:
-    report = json.loads(raw)
-except ValueError:
-    report = None
-if not isinstance(report, dict) or "error" in report:
-    text = raw if report is None else json.dumps(report.get("error"))
-    if any(marker in text for marker in NETWORK_MARKERS):
-        print("npm registry unreachable")
-        sys.exit(3)
-    print("✖ npm audit gave no usable report:")
-    print(text[:2000])
-    sys.exit(1)
-
-findings: list[str] = []
-today = datetime.date.today()
-
-try:
-    with open(sys.argv[1], encoding="utf-8") as handle:
-        accepted = json.load(handle)
-except (OSError, ValueError) as error:
-    print(f"✖ scripts/audit-accepted.json unreadable: {error}")
-    sys.exit(1)
-if not isinstance(accepted, dict):
-    print("✖ scripts/audit-accepted.json must be an object keyed by GHSA id")
-    sys.exit(1)
-
-valid: dict[str, datetime.date] = {}
-for gid, entry in accepted.items():
-    if gid.startswith("_"):
-        continue  # "_comment" and similar keys
-    if not GHSA_RE.match(gid) or not isinstance(entry, dict):
-        findings.append(f"accepted list: {gid!r} is not a GHSA id with an object value")
-        continue
-    reason = entry.get("reason", "")
-    if not isinstance(entry.get("package"), str) or not isinstance(reason, str) or len(reason) < MIN_REASON:
-        findings.append(f"accepted list: {gid} needs a package and a reason of {MIN_REASON}+ characters")
-        continue
-    try:
-        expires = datetime.date.fromisoformat(entry.get("expires", ""))
-    except (TypeError, ValueError):
-        findings.append(f"accepted list: {gid} needs an ISO expiry date (YYYY-MM-DD)")
-        continue
-    valid[gid] = expires
-
-reported: dict[str, str] = {}
-for name, vuln in report.get("vulnerabilities", {}).items():
-    for via in vuln.get("via", []):
-        # String entries only point at another vulnerable package: the root
-        # advisory is listed (as a dict) under that package itself.
-        if not isinstance(via, dict) or via.get("severity") not in ("high", "critical"):
-            continue
-        gid = str(via.get("url", "")).rsplit("/", 1)[-1]
-        reported[gid] = f"{via.get('severity')} {via.get('name', name)}: {str(via.get('title', ''))[:90]}"
-
-accepted_now = []
-for gid, label in sorted(reported.items()):
-    if gid not in valid:
-        findings.append(f"{gid} {label}")
-    elif valid[gid] < today:
-        findings.append(f"{gid} accepted until {valid[gid]}, expired: decide again ({label})")
-    else:
-        accepted_now.append(f"{gid} until {valid[gid]}")
-
-for gid in sorted(set(valid) - set(reported)):
-    print(f"  stale: {gid} is accepted but no longer reported; remove it at the next harness session")
-if accepted_now:
-    print(f"  accepted ({len(accepted_now)}): " + ", ".join(accepted_now))
-
-if findings:
-    print("✖ Unaccepted runtime advisories (high and above):")
-    for finding in findings:
-        print(f"  - {finding}")
-    print()
-    print("Fix: `npm audit fix` (never --force) in a dedicated branch, then a native rebuild.")
-    print("No fix on this React Native line: Cedric decides whether to accept it by GHSA id in")
-    print("scripts/audit-accepted.json (reason + expiry), or to upgrade (JOURNAL J-040).")
-    sys.exit(1)
-sys.exit(0)
-```
-
-**`scripts/audit-accepted.json`** (nouveau) :
-
-```json
-{
-  "_comment": "Runtime advisories accepted by name (JOURNAL J-040). Cedric's decision; harness file. Each one: why it cannot reach the shipped app, and an expiry date after which it must be decided again.",
-  "GHSA-vfj7-8cjw-p6xm": {
-    "package": "braces",
-    "reason": "No fixed release exists (3.0.3 is the latest and is vulnerable). Pulled by metro and jest through micromatch: it expands glob patterns written in our own build and test configuration, never user input, and is not part of the app bundle.",
-    "expires": "2027-01-05"
-  },
-  "GHSA-5p2g-fcmc-qvqq": {
-    "package": "image-size",
-    "reason": "Pinned to 1.x by metro 0.84 (React Native 0.85); fixed only in 2.0.3+. Metro reads the dimensions of our own assets at bundle time on the developer machine; the parser never runs in the app.",
-    "expires": "2027-01-05"
-  },
-  "GHSA-w3rx-r6r6-pgpr": {
-    "package": "image-size",
-    "reason": "Same package and path as GHSA-5p2g-fcmc-qvqq: metro bundle-time parsing of our own assets, never in the app.",
-    "expires": "2027-01-05"
-  },
-  "GHSA-m9gg-hp2v-232j": {
-    "package": "@grpc/grpc-js",
-    "reason": "Pinned to 1.9.x by @firebase/firestore inside the firebase JS SDK that @react-native-firebase lists for non-native platforms. Node-only gRPC transport; Mivro uses the native SDKs and Realtime Database only, no Firestore import in src/ (checked 2026-10-05).",
-    "expires": "2027-01-05"
-  }
+# A case that calls an undefined helper must fail, not vanish (JOURNAL J-048).
+command_not_found_handle() {
+  bad "command not found in the self-test: $1"
+  return 127
 }
 ```
 
-**CI, `.github/workflows/check.yml`, job `security`** : le même capteur qu'au pre-push. Exit 3
-(abstention) fait échouer le step, comme le veut la CI.
+Preuve, à garder hors du self-test (sinon le cas serait lui-même un `bad`) : copier le self-test,
+appeler `edit_guard` avant sa définition, et vérifier que le total passe à `1 failed`.
 
-```yaml
-- name: npm audit (runtime dependencies, high and above, named exceptions)
-  run: bash scripts/check-audit.sh # npm audit reads the lockfile only, no install needed
-```
+### 6. Jeton GitHub : `home_secret` branchée, et sans casse (J-049)
 
-**`scripts/sensors.sh`**, libellé de la ligne `audit` : `npm audit, runtime deps, high and above,
-named exceptions`.
+- `scripts/hooks/pre-bash-guard.py`, ligne `if any("gh/hosts.yml" in w for w in args):` →
+  `if any("gh/hosts.yml" in w.casefold() or harness_paths.home_secret(harness_paths.resolve(w, cwd)) for w in args):`
+  (`cwd` étant celui du payload, comme ailleurs dans la classe).
+- `scripts/hooks/pre-edit-guard.py`, en tête de `main()` après la lecture de `path` : si
+  `payload.get("tool_name") == "Read"`, refuser si et seulement si
+  `harness_paths.home_secret(harness_paths.resolve(path, cwd))`, et sinon `return 0`. Le Read d'un
+  fichier du harness reste autorisé.
+- `.claude/settings.json` : ajouter `Read` au matcher `Write|Edit|MultiEdit|NotebookEdit` de
+  `pre-edit-guard.py`.
 
-**Self-test**, hors ligne : il nourrit le juge avec des rapports fabriqués.
+Cas à ajouter au self-test (le helper `edit_guard` envoie `Edit`, il faut une variante `Read`) :
 
 ```bash
-AUDIT_DIR="$(tmp_dir)"
-printf '{"GHSA-2222-3333-4444":{"package":"x","reason":"%s","expires":"2099-01-01"}}' \
-  "accepted in the self-test, never reaches the app bundle" >"$AUDIT_DIR/ok.json"
-sed 's/2099-01-01/2000-01-01/' "$AUDIT_DIR/ok.json" >"$AUDIT_DIR/expired.json"
-AUDIT_REPORT='{"vulnerabilities":{"x":{"via":[{"url":"https://github.com/advisories/GHSA-2222-3333-4444","severity":"high","name":"x","title":"t"}]}}}'
-printf '%s' "$AUDIT_REPORT" | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/ok.json" >/dev/null
-expect_exit 0 $? "an accepted, unexpired advisory passes (J-040)"
-printf '%s' "$AUDIT_REPORT" | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/expired.json" >/dev/null
-expect_exit 1 $? "an expired acceptance is red (J-040)"
-printf '%s' "${AUDIT_REPORT//2222/5555}" | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/ok.json" >/dev/null
-expect_exit 1 $? "an advisory not on the accepted list is red (J-040)"
-printf '{"error":{"code":"ENOTFOUND"}}' | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/ok.json" >/dev/null
-expect_exit 3 $? "an unreachable registry abstains (J-040)"
+guard BLOCK "cat $HOME/.config/GH/hosts.yml"
+read_guard 2 "$HOME/.config/gh/hosts.yml"
+read_guard 2 "$HOME/.CONFIG/gh/Hosts.yml"
+read_guard 0 "$REPO/scripts/check.sh"
+```
+
+Vu par la 8e revue : `cat ~/.ssh/id_rsa` est autorisé aussi, parce que `~/.ssh/` n'est pas dans
+`HOME_SECRETS`. Ajouter le répertoire `.ssh/` entier (préfixe, sans casse) aux secrets du `$HOME`,
+avec les cas `read_guard 2 "$HOME/.ssh/id_rsa"` et `guard BLOCK "cat $HOME/.SSH/id_ed25519"`.
+
+### 7. Garde Bash : options de Prettier et d'ESLint, par outil (J-050)
+
+Le correctif du §2 mettait `-c` dans une liste commune aux deux outils. Or, pour Prettier, `-c` est
+`--check`, un drapeau sans valeur : `npx prettier --write -c scripts/sensors.sh` n'était plus
+refusé, et Prettier écrit quand même avec `--check`. Autre trou, plus ancien : ESLint
+`-o`/`--output-file` et le `--cache-location` des deux outils **écrivent** dans le fichier donné,
+même sans `--write` ni `--fix`. Ces deux trous ont été rejoués : exit 0 sur 6 formes. Le correctif
+a été vérifié sur une copie de la garde, avec 16 cas : 10 BLOCK et 6 ALLOW, dont les commandes
+des capteurs eux-mêmes.
+
+`scripts/hooks/pre-bash-guard.py` :
+
+```diff
+@@ -312,22 +312,41 @@
+     return [a for a in args if not a.startswith("-")]
+
+
+-# Options whose value is read, never rewritten (--config, --ignore-path...).
+-REWRITER_VALUE_OPTIONS = {"--config", "-c", "--ignore-path", "--rulesdir", "--plugin", "--ext",
+-                          "--resolve-plugins-relative-to", "--cache-location", "--parser",
+-                          "--loglevel", "--log-level"}
++# Per tool, the options whose value is only READ (--config, --ignore-path...).
++# Prettier's `-c` is `--check`, a flag: skipping the word after it hid the
++# target of `prettier --write -c <file>` (JOURNAL J-050).
++REWRITER_READ_OPTIONS = {
++    "prettier": {"--config", "--ignore-path", "--plugin", "--parser", "--loglevel", "--log-level"},
++    "eslint": {"--config", "-c", "--ignore-path", "--rulesdir", "--plugin", "--ext",
++               "--resolve-plugins-relative-to", "--parser", "-f", "--format"},
++}
++# Options whose value is WRITTEN, with or without --write/--fix: the ESLint
++# report and either tool's cache file (JOURNAL J-050).
++REWRITER_WRITE_OPTIONS = {"-o", "--output-file", "--cache-location"}
+
+
+-def rewrite_targets(args: list[str]) -> list[str]:
+-    targets, skip = [], False
+-    for arg in args:
+-        if skip:
+-            skip = False
+-        elif arg in REWRITER_VALUE_OPTIONS:
+-            skip = True
++def rewrite_targets(args: list[str], name: str) -> tuple[list[str], list[str]]:
++    """(files rewritten under --write/--fix, files written whatever the flags)."""
++    read = REWRITER_READ_OPTIONS[name]
++    targets: list[str] = []
++    outputs: list[str] = []
++    i = 0
++    while i < len(args):
++        arg = args[i]
++        key, eq, value = arg.partition("=")
++        if key in REWRITER_WRITE_OPTIONS:
++            if eq:
++                outputs.append(value)
++            elif i + 1 < len(args):
++                outputs.append(args[i + 1])
++                i += 1
++        elif key in read:
++            if not eq:
++                i += 1
+         elif not arg.startswith("-"):
+             targets.append(arg)
+-    return targets
++        i += 1
++    return targets, outputs
+
+
+ def option_value(args: list[str], *names: str) -> str | None:
+@@ -636,8 +655,9 @@
+             deny("alias definition", "An alias hides the real command from this guard. Write it out.")
+         elif name in {"prettier", "eslint"}:
+             rewrites = {"--write", "--fix"} & long_flags(args) or ("w" in short_flags(args) and name == "prettier")
+-            if rewrites and any(self.protected(a) for a in rewrite_targets(args)):
+-                self.deny_tamper(f"{name} rewriting a harness file")
++            targets, outputs = rewrite_targets(args, name)
++            if any(self.protected(a) for a in outputs) or (rewrites and any(self.protected(a) for a in targets)):
++                self.deny_tamper(f"{name} writing a harness file")
+         elif name in {"script", "expect", "unbuffer"}:
+             if self.protect and any("harness-lock" in a or "harness:relock" in a for a in args):
+                 self._deny_relock()
+```
+
+Cas à ajouter au self-test, à côté de ceux du §2 :
+
+```bash
+guard BLOCK 'npx prettier --write -c scripts/sensors.sh'
+guard BLOCK 'npx prettier -w -c .eslintrc.js'
+guard BLOCK 'npx prettier --config=.prettierrc.js --write .eslintrc.js'
+guard BLOCK 'npx eslint src -o scripts/sensors.sh'
+guard BLOCK 'npx eslint src --output-file=scripts/sensors.sh'
+guard BLOCK 'npx eslint --cache --cache-location scripts/sensors.sh src'
+guard BLOCK 'npx prettier --cache --cache-location scripts/sensors.sh --check src'
+guard ALLOW 'npx prettier --write -c docs/x.md'
+guard ALLOW 'npx eslint src -o /tmp/eslint-report.txt'
+```
+
+Dans le même passage, le cas `guard BLOCK "cat $HOME/.CONFIG/gh/hosts.yml"` (ligne 367) passe sous
+le commentaire J-049 : il passait déjà avant J-047, grâce au test de sous-chaîne, et il ne prouve
+donc pas `rel_under`.
+
+### 8. Juge `audit` : un rapport qu'il ne reconnaît pas n'est jamais vert (J-050)
+
+`{}`, `{"message": "..."}` ou un paquet `high` dont la chaîne `via` ne mène à aucun avis donnaient
+exit 0. Le cas réaliste est un changement de format de npm, et le capteur passait alors au vert.
+Le correctif exige `auditReportVersion: 2` et un objet `vulnerabilities`, puis remonte la chaîne
+`via` de chaque paquet haut ou critique jusqu'à ses avis. Un paquet sévère sans avis traçable est
+rouge. Vérifié sur une copie, en 11 cas : le vrai rapport (rouge sur l'arbre actuel, vert après le
+lot 1), et des rapports fabriqués (vide, sans clé, non traçable, cycle, hors ligne, avis inconnu,
+raison trop courte).
+
+`scripts/check-audit-verdict.py` :
+
+```diff
+@@ -29,6 +29,11 @@
+     print("✖ npm audit gave no usable report:")
+     print(text[:2000])
+     sys.exit(1)
++# Any other shape (an empty object, npm 6's `advisories`, a future report
++# version) must never read as "no vulnerability" (JOURNAL J-050).
++if report.get("auditReportVersion") != 2 or not isinstance(report.get("vulnerabilities"), dict):
++    print("✖ unrecognised npm audit report (expected auditReportVersion 2 with a `vulnerabilities` object)")
++    sys.exit(1)
+
+ findings: list[str] = []
+ today = datetime.date.today()
+@@ -61,16 +66,45 @@
+         continue
+     valid[gid] = expires
+
+-reported: dict[str, str] = {}
+-for name, vuln in report.get("vulnerabilities", {}).items():
++SEVERE = ("high", "critical")
++vulnerabilities = report["vulnerabilities"]
++
++
++def root_advisories(name: str, seen: set[str]) -> dict[str, str]:
++    """High/critical advisories reached from `name` through its `via` chain.
++
++    A dict entry is an advisory; a string entry only points at another
++    vulnerable package, whose own advisories are listed under its name.
++    """
++    if name in seen:
++        return {}
++    seen.add(name)
++    found: dict[str, str] = {}
++    vuln = vulnerabilities.get(name)
++    if not isinstance(vuln, dict):
++        return found
+     for via in vuln.get("via", []):
+-        # String entries only point at another vulnerable package: the root
+-        # advisory is listed (as a dict) under that package itself.
+-        if not isinstance(via, dict) or via.get("severity") not in ("high", "critical"):
+-            continue
+-        gid = str(via.get("url", "")).rsplit("/", 1)[-1]
+-        reported[gid] = f"{via.get('severity')} {via.get('name', name)}: {str(via.get('title', ''))[:90]}"
++        if isinstance(via, dict):
++            if via.get("severity") in SEVERE:
++                gid = str(via.get("url", "")).rsplit("/", 1)[-1]
++                title = str(via.get("title", ""))[:90]
++                found[gid] = f"{via.get('severity')} {via.get('name', name)}: {title}"
++        elif isinstance(via, str):
++            found.update(root_advisories(via, seen))
++    return found
+
++
++reported: dict[str, str] = {}
++for name, vuln in vulnerabilities.items():
++    if not isinstance(vuln, dict) or vuln.get("severity") not in SEVERE:
++        continue
++    roots = root_advisories(name, set())
++    if not roots:
++        # A severe package whose chain reaches no severe advisory: the report
++        # does not explain itself, so it cannot be judged green (JOURNAL J-050).
++        findings.append(f"{name}: {vuln.get('severity')} with no traceable advisory in the report")
++    reported.update(roots)
++
+ accepted_now = []
+ for gid, label in sorted(reported.items()):
+     if gid not in valid:
+```
+
+Cas à ajouter au self-test, après les 4 cas `audit` existants. Les rapports fabriqués de ces
+cas-là doivent aussi porter `"auditReportVersion":2`, sinon ils deviennent rouges.
+
+```bash
+printf '{}' | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/ok.json" >/dev/null
+expect_exit 1 $? "an unrecognised audit report is red (J-050)"
+printf '' | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/ok.json" >/dev/null
+expect_exit 1 $? "an empty audit report is red (J-050)"
+printf '{"auditReportVersion":2,"vulnerabilities":{"x":{"severity":"high","via":["y"]}}}' |
+  python3 scripts/check-audit-verdict.py "$AUDIT_DIR/ok.json" >/dev/null
+expect_exit 1 $? "a severe package with no traceable advisory is red (J-050)"
+printf '{"GHSA-2222-3333-4444":{"package":"x","reason":"short","expires":"2099-01-01"}}' >"$AUDIT_DIR/short.json"
+printf '%s' "$AUDIT_REPORT" | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/short.json" >/dev/null
+expect_exit 1 $? "an accepted entry without a real reason is red (J-050)"
 ```

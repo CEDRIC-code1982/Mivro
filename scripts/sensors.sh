@@ -51,6 +51,6 @@ deps|fast|0|Dependency allowlist|node scripts/check-deps.js
 docrefs|fast|0|Failure-journal references|bash scripts/check-doc-refs.sh
 scripts|fast|1|Harness scripts (shellcheck + Python syntax)|bash scripts/check-scripts.sh
 tests|check|0|Jest + coverage thresholds|npx --no-install jest --ci --coverage --silent
-audit|push|1|npm audit, runtime deps, high and above|bash scripts/check-audit.sh
+audit|push|1|npm audit, runtime deps, high and above, named exceptions|bash scripts/check-audit.sh
 docs|push|1|Documentation build (TypeDoc + Docusaurus)|[ -d docs-site/node_modules ] || { echo "docs-site dependencies missing: npm --prefix docs-site ci"; exit 3; }; npx --no-install typedoc --options typedoc.config.mjs >/dev/null && (cd docs-site && npx --no-install docusaurus build >/dev/null)
 '

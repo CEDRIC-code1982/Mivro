@@ -35,7 +35,7 @@ corrigés :
 - le garde Bash est réécrit ;
 - `check-diff` refuse les configs imbriquées et échoue fermé.
 
-Le déverrouillage est vérifié en réel. `check:harness` compte 358 assertions après six revues (J-036 à J-046, closes le 2026-10-05 ;
+Le déverrouillage est vérifié en réel. `check:harness` compte 374 assertions après six revues (J-036 à J-046, closes le 2026-10-05 ;
 harness défini par zones produit, comparées sans casse). Le verrou est généré (2026-10-05) et le stage `check` est vert. La septième revue a trouvé J-047
 (casse du chemin absolu), en attente de session déverrouillée. Le stage `push` est vert sauf `audit` (J-040 : `npm audit
 fix` à faire en branche dédiée). Mise en service : RUNBOOK > « Harness ».

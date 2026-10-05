@@ -13,55 +13,58 @@
 >   capteur inférentiel (reviewer) la charge revient.
 > - On ne supprime pas une entrée. Une dette résolue est marquée `RÉSOLU` avec la date.
 
-| #     | Sujet                                                          | Statut  |
-| ----- | -------------------------------------------------------------- | ------- |
-| J-001 | Capteur d'archi aveugle : `includeOnly` masquait les npm       | RÉSOLU  |
-| J-002 | `grep -q` + `pipefail` : check-diff aveugle aux gros diffs     | RÉSOLU  |
-| J-003 | Même piège rejoué dans le self-test                            | RÉSOLU  |
-| J-004 | Substitution bash quadratique : check-diff bloqué >5 min       | RÉSOLU  |
-| J-005 | Fichiers non suivis invisibles à check-diff                    | RÉSOLU  |
-| J-006 | Règle LOG-001 : 9 faux positifs sur des logs corrects          | RÉSOLU  |
-| J-007 | Préfixe de log `[container]` après renommage                   | RÉSOLU  |
-| J-008 | `eslint-disable` mort, invisible jusqu'à la migration          | RÉSOLU  |
-| J-009 | Commentaire de justification posé au mauvais endroit           | RÉSOLU  |
-| J-010 | Scripts `test:unit` / `test:integration` morts                 | RÉSOLU  |
-| J-011 | DOC-004 inapplicable : pas de Docusaurus ni TypeDoc            | RÉSOLU  |
-| J-012 | Thème : 15 paires échouent WCAG AA                             | RÉSOLU  |
-| J-013 | 46 `accessibilityHint` manquants                               | OUVERT  |
-| J-014 | Couplage `components/` → `features/` préexistant               | RÉSOLU  |
-| J-015 | TS-002 : 127 casts idiomatiques en tests                       | ARBITRÉ |
-| J-016 | Imports de hooks entre features                                | ARBITRÉ |
-| J-017 | Véto natif : faux positif sur les heredocs                     | ACCEPTÉ |
-| J-018 | Véto destructif contournable par une commande multi-lignes     | RÉSOLU  |
-| J-019 | `npm run clear` de Docusaurus bloqué par homonymie             | ACCEPTÉ |
-| J-020 | Le cliquet de contraste a validé sa propre régression          | RÉSOLU  |
-| J-021 | Deux rôles hors modèle : tuile de carte et état désactivé      | RÉSOLU  |
-| J-022 | Le harness ne verifie aucune affirmation des docs              | OUVERT  |
-| J-023 | `check:diff` aveugle a tout le natif                           | RÉSOLU  |
-| J-024 | Veto natif : bloque un fichier source (`.gradle`)              | RÉSOLU  |
-| J-025 | Test sans marge de temps, vert seulement au repos              | RÉSOLU  |
-| J-026 | check-diff aveugle à un arbre fait de fichiers non suivis      | RÉSOLU  |
-| J-027 | Hook d'édition muet dans un worktree                           | RÉSOLU  |
-| J-028 | Garde Bash contournable (opérateurs collés, indirection)       | RÉSOLU  |
-| J-029 | Le harness pouvait se réécrire lui-même                        | RÉSOLU  |
-| J-030 | Aucun contrôle côté serveur, push pré-approuvé                 | PARTIEL |
-| J-031 | Échappatoires en un commentaire, justification vide            | RÉSOLU  |
-| J-032 | Warnings non bloquants, tests focalisés ou sautés              | RÉSOLU  |
-| J-033 | Pre-push sans tsc ni lint, sur la mauvaise plage               | RÉSOLU  |
-| J-034 | Aucun hook Stop, reviewer sur l'honneur                        | RÉSOLU  |
-| J-035 | Angles morts : secrets, `.js`, imports dynamiques, deps        | RÉSOLU  |
-| J-036 | `harness-guard` exécute le code de la PR qu'il juge            | RÉSOLU  |
-| J-037 | Un verdict APPROVED pré-déposé est scellé                      | RÉSOLU  |
-| J-038 | Garde Bash : contournements restants sans script `/tmp`        | RÉSOLU  |
-| J-039 | Config ESLint de sous-dossier : règles éteintes sans trace     | RÉSOLU  |
-| J-040 | Job `security` rouge avant le premier run (`npm audit`)        | OUVERT  |
-| J-041 | check-diff vert sur une base invalide                          | RÉSOLU  |
-| J-042 | 2e revue : même famille de trous, en une ligne                 | RÉSOLU  |
-| J-043 | 3e revue : package.json imbriqué, jest.setup, sceau            | RÉSOLU  |
-| J-044 | 4e revue : fichiers découverts seuls (`.babelrc`, `__mocks__`) | RÉSOLU  |
-| J-045 | 5e revue : le modèle est inversé (zones produit)               | RÉSOLU  |
-| J-046 | 6e revue : casse, fichiers ignorés, CLAUDE.md, Functions       | RÉSOLU  |
-| J-047 | 7e revue : casse du chemin absolu (dépôt, `$HOME`)             | OUVERT  |
+| #     | Sujet                                                               | Statut  |
+| ----- | ------------------------------------------------------------------- | ------- |
+| J-001 | Capteur d'archi aveugle : `includeOnly` masquait les npm            | RÉSOLU  |
+| J-002 | `grep -q` + `pipefail` : check-diff aveugle aux gros diffs          | RÉSOLU  |
+| J-003 | Même piège rejoué dans le self-test                                 | RÉSOLU  |
+| J-004 | Substitution bash quadratique : check-diff bloqué >5 min            | RÉSOLU  |
+| J-005 | Fichiers non suivis invisibles à check-diff                         | RÉSOLU  |
+| J-006 | Règle LOG-001 : 9 faux positifs sur des logs corrects               | RÉSOLU  |
+| J-007 | Préfixe de log `[container]` après renommage                        | RÉSOLU  |
+| J-008 | `eslint-disable` mort, invisible jusqu'à la migration               | RÉSOLU  |
+| J-009 | Commentaire de justification posé au mauvais endroit                | RÉSOLU  |
+| J-010 | Scripts `test:unit` / `test:integration` morts                      | RÉSOLU  |
+| J-011 | DOC-004 inapplicable : pas de Docusaurus ni TypeDoc                 | RÉSOLU  |
+| J-012 | Thème : 15 paires échouent WCAG AA                                  | RÉSOLU  |
+| J-013 | 46 `accessibilityHint` manquants                                    | OUVERT  |
+| J-014 | Couplage `components/` → `features/` préexistant                    | RÉSOLU  |
+| J-015 | TS-002 : 127 casts idiomatiques en tests                            | ARBITRÉ |
+| J-016 | Imports de hooks entre features                                     | ARBITRÉ |
+| J-017 | Véto natif : faux positif sur les heredocs                          | ACCEPTÉ |
+| J-018 | Véto destructif contournable par une commande multi-lignes          | RÉSOLU  |
+| J-019 | `npm run clear` de Docusaurus bloqué par homonymie                  | ACCEPTÉ |
+| J-020 | Le cliquet de contraste a validé sa propre régression               | RÉSOLU  |
+| J-021 | Deux rôles hors modèle : tuile de carte et état désactivé           | RÉSOLU  |
+| J-022 | Le harness ne verifie aucune affirmation des docs                   | OUVERT  |
+| J-023 | `check:diff` aveugle a tout le natif                                | RÉSOLU  |
+| J-024 | Veto natif : bloque un fichier source (`.gradle`)                   | RÉSOLU  |
+| J-025 | Test sans marge de temps, vert seulement au repos                   | RÉSOLU  |
+| J-026 | check-diff aveugle à un arbre fait de fichiers non suivis           | RÉSOLU  |
+| J-027 | Hook d'édition muet dans un worktree                                | RÉSOLU  |
+| J-028 | Garde Bash contournable (opérateurs collés, indirection)            | RÉSOLU  |
+| J-029 | Le harness pouvait se réécrire lui-même                             | RÉSOLU  |
+| J-030 | Aucun contrôle côté serveur, push pré-approuvé                      | PARTIEL |
+| J-031 | Échappatoires en un commentaire, justification vide                 | RÉSOLU  |
+| J-032 | Warnings non bloquants, tests focalisés ou sautés                   | RÉSOLU  |
+| J-033 | Pre-push sans tsc ni lint, sur la mauvaise plage                    | RÉSOLU  |
+| J-034 | Aucun hook Stop, reviewer sur l'honneur                             | RÉSOLU  |
+| J-035 | Angles morts : secrets, `.js`, imports dynamiques, deps             | RÉSOLU  |
+| J-036 | `harness-guard` exécute le code de la PR qu'il juge                 | RÉSOLU  |
+| J-037 | Un verdict APPROVED pré-déposé est scellé                           | RÉSOLU  |
+| J-038 | Garde Bash : contournements restants sans script `/tmp`             | RÉSOLU  |
+| J-039 | Config ESLint de sous-dossier : règles éteintes sans trace          | RÉSOLU  |
+| J-040 | Job `security` rouge avant le premier run (`npm audit`)             | OUVERT  |
+| J-041 | check-diff vert sur une base invalide                               | RÉSOLU  |
+| J-042 | 2e revue : même famille de trous, en une ligne                      | RÉSOLU  |
+| J-043 | 3e revue : package.json imbriqué, jest.setup, sceau                 | RÉSOLU  |
+| J-044 | 4e revue : fichiers découverts seuls (`.babelrc`, `__mocks__`)      | RÉSOLU  |
+| J-045 | 5e revue : le modèle est inversé (zones produit)                    | RÉSOLU  |
+| J-046 | 6e revue : casse, fichiers ignorés, CLAUDE.md, Functions            | RÉSOLU  |
+| J-047 | 7e revue : casse du chemin absolu (dépôt, `$HOME`)                  | RÉSOLU  |
+| J-048 | Cas du self-test appelé avant la définition de sa fonction          | OUVERT  |
+| J-049 | Jeton `gh` : `home_secret` jamais appelée, Read non gardé           | OUVERT  |
+| J-050 | 8e revue : `-c` de Prettier, sorties d'ESLint, rapport `audit` vide | OUVERT  |
 
 ---
 
@@ -1172,7 +1175,7 @@ self-test. Ou bien le capteur lance `eslint --no-eslintrc -c .eslintrc.js`.
 
 ## J-040 — Le job `security` est rouge avant même le premier run
 
-**Date** : 2026-09-26 · **Statut** : OUVERT — `npm audit fix` en branche dédiée (TODO) ; capteur `audit` ajouté au stage `push`
+**Date** : 2026-09-26 · **Statut** : OUVERT — lot 1 (`npm update`, Cédric) ; capteur `audit` à avis acceptés posé le 2026-10-05
 
 **Observé.** `npm audit --omit=dev --audit-level=high` donne exit 1 : 1 critique (`shell-quote`)
 et 7 hautes (`brace-expansion`, `browserslist`, `image-size`, `js-yaml`, `nanoid`, `undici`, `ws`).
@@ -1220,6 +1223,11 @@ avis acceptés. Les hautes restantes viennent de 4 avis :
 
 Ces avis sont acceptés jusqu'au 2027-01-05. Le capteur proposé et ses cas de test sont au point 4
 d'`EN-ATTENTE.md`, vérifiés sur des copies. Montée de React Native 0.86+ : ticket séparé, avec ADR.
+
+**Appliqué (2026-10-05, session déverrouillée).** `scripts/check-audit.sh` délègue le verdict à
+`scripts/check-audit-verdict.py`, qui lit `scripts/audit-accepted.json`. Le job CI `security` lance le
+même capteur. Quatre cas hors ligne au self-test §7. Sur l'arbre actuel, le capteur reste rouge
+uniquement sur des avis du lot 1 : J-040 reste OUVERT jusqu'au merge de `fix/j-040-npm-audit`.
 
 ## J-041 — check-diff vert sur une base invalide
 
@@ -1583,7 +1591,7 @@ posés par Cédric le 2026-10-05.
 
 ## J-047 — Septième revue : la casse de la base, pas seulement du chemin relatif
 
-**Date** : 2026-10-05 · **Statut** : OUVERT — correctif prêt dans `EN-ATTENTE.md` §3
+**Date** : 2026-10-05 · **Statut** : RÉSOLU le 2026-10-05 — `rel_under`, 8 cas au self-test §2
 
 **Observé.** J-046 compare sans casse le chemin **relatif** au dépôt. Mais ce chemin relatif est
 tiré d'un `os.path.relpath` sensible à la casse, et `realpath` ne rend pas la casse réelle sur APFS.
@@ -1606,3 +1614,69 @@ compare des chemins, base comprise. Le self-test ne testait que des variantes du
 
 **Commit.** L'arbre de `harness/beton` est commité avant ce correctif (sauvegarde demandée par
 Cédric). J-047 reste OUVERT jusqu'à la session déverrouillée.
+
+**Appliqué (2026-10-05, session déverrouillée).** Les quatre fonctions passent par `rel_under`.
+Les huit cas sont au self-test §2, et la forme `/USERS/.../MIVRO/scripts/check.sh` est refusée.
+
+---
+
+## J-048 — Un cas du self-test appelé avant que sa fonction existe
+
+**Date** : 2026-10-05 · **Statut** : OUVERT — règle proposée dans `EN-ATTENTE.md` §5
+
+**Observé.** Le cas J-046 `edit_guard 2 "$HOME/.claude/CLAUDE.md"` était écrit en section 1 de
+`scripts/harness-selftest.sh`, alors que `edit_guard` n'est définie qu'en section 2. Bash affichait
+« command not found » sur stderr et continuait : ni `ok`, ni `bad`, et le total restait vert. La
+protection de `~/.claude/CLAUDE.md` n'a donc jamais été prouvée par le self-test.
+
+**Cause.** Un appel à une commande inconnue n'est pas un échec pour le self-test, qui ne lance pas
+`set -e` (c'est voulu, chaque cas doit tourner) et ne compte que `ok` et `bad`.
+
+**Réponse.** Le cas est déplacé en section 2, après la définition (2026-10-05). Règle proposée qui
+l'aurait attrapé : `command_not_found_handle() { bad "command not found in the self-test: $1"; return 127; }`
+en tête du self-test. Tout appel mort devient alors un `bad`.
+
+---
+
+## J-049 — Le jeton GitHub : `home_secret` n'est appelée nulle part
+
+**Date** : 2026-10-05 · **Statut** : OUVERT — correctif proposé dans `EN-ATTENTE.md` §6
+
+**Observé.** `harness_paths.home_secret()` (liste `HOME_SECRETS`, `~/.config/gh/hosts.yml`) est
+définie mais n'est appelée par aucun hook. Le jeton n'est protégé que par
+`"gh/hosts.yml" in w` dans `pre-bash-guard.py`, une comparaison sensible à la casse.
+`cat ~/.config/GH/hosts.yml` est autorisé (exit 0, rejoué le 2026-10-05), alors qu'APFS sert le même
+fichier. L'outil Read n'est rattaché à aucun hook (`.claude/settings.json` : matchers `Bash` et
+`Write|Edit|...` seulement), donc `Read ~/.config/gh/hosts.yml` n'est pas gardé non plus.
+
+**Leçon.** C'est la même famille que J-046 et J-047. Une fonction de garde qui n'est appelée nulle
+part protège autant qu'une fonction absente, et le self-test ne prouve que ce qu'il appelle.
+
+## J-050 — Huitième revue : un correctif de la garde qui rouvre un trou, et un juge qui croit le vide
+
+**Date** : 2026-10-05 · **Statut** : OUVERT — correctifs prêts dans `EN-ATTENTE.md` §7 et §8
+
+**Observé.** La revue du delta appliqué en session déverrouillée confirme J-047 fermé sur toutes
+les variantes de casse rejouées. Elle trouve deux défauts, rejoués avant d'être consignés :
+
+- **La garde Prettier a reculé.** Le correctif d'EN-ATTENTE §2, écrit par l'agent, sautait la
+  valeur des options de config, avec `-c` dans une liste commune aux deux outils. Or, chez
+  Prettier, `-c` est `--check`, un drapeau. `npx prettier --write -c scripts/sensors.sh` devenait
+  autorisé, alors que l'ancienne garde le refusait. En vérifiant, l'agent a trouvé un trou plus
+  ancien : ESLint `-o`/`--output-file` et le `--cache-location` des deux outils écrivent dans le
+  fichier donné, sans `--write` ni `--fix`, et la garde ne les regardait pas.
+- **Le juge `audit` croyait le vide.** Tout objet JSON sans clé `error` passait pour un rapport
+  valide : `{}` donnait exit 0. Un changement de format de npm aurait rendu le capteur vert.
+
+**Leçon.**
+
+- Une option n'a pas le même sens d'un outil à l'autre. Une liste d'options partagée entre outils
+  est une hypothèse, pas un fait : chaque option se vérifie dans la CLI de chaque outil.
+- Un juge de rapport externe valide d'abord la forme du rapport (TS-004), puis son contenu. Une
+  absence de données n'est jamais un vert.
+- Chaque cas de régression doit être vu rouge sur l'arbre d'avant. La revue a trouvé un cas J-047
+  du self-test qui passait déjà avant le correctif (`.CONFIG/gh/hosts.yml`, J-049).
+
+**Réponse prévue.** Les options lues et écrites sont définies par outil, et les valeurs des options
+d'écriture sont jugées en toute circonstance. Le juge exige `auditReportVersion: 2` et remonte la
+chaîne `via`. Le détail, avec 16 + 11 cas vérifiés sur des copies, est dans `EN-ATTENTE.md` §7 et §8.

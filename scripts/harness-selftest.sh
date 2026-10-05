@@ -216,6 +216,10 @@ guard ALLOW "python3 -c 'import json; print(json.load(open(\".claude/settings.js
 guard ALLOW 'echo "$(date)" > /tmp/stamp.txt'
 guard ALLOW 'npx eslint -c .eslintrc.js src'
 guard ALLOW 'npx prettier --check scripts/check-deps.js'
+# A config file passed as an option value is read, not rewritten.
+guard ALLOW 'npx prettier --config .prettierrc.js --write docs/x.md'
+guard BLOCK 'npx prettier --config .prettierrc.js --write .eslintrc.js'
+guard BLOCK 'npx eslint -c .eslintrc.js --fix scripts/check-deps.js'
 guard ALLOW 'tar -czf /tmp/b.tgz src'
 guard ALLOW 'git apply --check p.diff'
 guard ALLOW "cat data.json | python3 -c 'import json,sys; print(json.load(sys.stdin))'"
@@ -270,7 +274,6 @@ guard ALLOW 'git push origin develop'
 guard BLOCK 'echo x > src/types/STDLIB-UNKNOWN.d.ts'
 guard BLOCK 'echo x > CLAUDE.md'
 guard BLOCK "printf '{}' > functions/package.json"
-edit_guard 2 "$HOME/.claude/CLAUDE.md"
 # J-045: fifth review - more files tools discover on their own.
 guard BLOCK "printf 'node-options=--require ./p.js' > .npmrc"
 guard BLOCK "echo '*.ts -diff' >> src/.gitattributes"
@@ -350,6 +353,18 @@ edit_guard 2 "$REPO/.babelrc"
 edit_guard 2 "$REPO/src/features/x/__mocks__/@theme.ts"
 edit_guard 2 "$REPO/docs-site/docusaurus.config.ts"
 edit_guard 2 "$REPO/typedoc.config.mjs"
+# J-046 (moved here from section 1, where it ran before edit_guard existed: J-048).
+edit_guard 2 "$HOME/.claude/CLAUDE.md"
+# J-047: the case of the BASE (repo root, $HOME) is not a way around the guards.
+REPO_UPPER="$(printf '%s' "$REPO" | tr '[:lower:]' '[:upper:]')"
+edit_guard 2 "$REPO_UPPER/scripts/check.sh"
+edit_guard 2 "$HOME/.Claude/settings.json"
+edit_guard 2 "$HOME/.claude/Settings.json"
+edit_guard 2 "$HOME/.GITCONFIG"
+edit_guard 2 "$HOME/.Claude/projects/x/y.jsonl"
+guard BLOCK "echo x >> $HOME/.Claude/settings.json"
+guard BLOCK "echo x > $REPO_UPPER/scripts/check.sh"
+guard BLOCK "cat $HOME/.CONFIG/gh/hosts.yml"
 # J-042: package.json stays editable, except its harness keys.
 pkg_edit() { # pkg_edit <expect> <old> <new> <label>
   local code
@@ -743,6 +758,21 @@ mkdir -p "$DEPS_COPY/functions"
 printf '{"dependencies":{"left-pad":"1"}}\n' >"$DEPS_COPY/functions/package.json"
 MIVRO_DEPS_ROOT="$DEPS_COPY" node scripts/check-deps.js >/dev/null 2>&1
 expect_exit 1 $? "an unapproved dependency in functions/ is refused"
+
+# J-040: the audit judge, offline - it is fed fabricated reports.
+AUDIT_DIR="$(tmp_dir)"
+printf '{"GHSA-2222-3333-4444":{"package":"x","reason":"%s","expires":"2099-01-01"}}' \
+  "accepted in the self-test, never reaches the app bundle" >"$AUDIT_DIR/ok.json"
+sed 's/2099-01-01/2000-01-01/' "$AUDIT_DIR/ok.json" >"$AUDIT_DIR/expired.json"
+AUDIT_REPORT='{"vulnerabilities":{"x":{"via":[{"url":"https://github.com/advisories/GHSA-2222-3333-4444","severity":"high","name":"x","title":"t"}]}}}'
+printf '%s' "$AUDIT_REPORT" | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/ok.json" >/dev/null
+expect_exit 0 $? "an accepted, unexpired advisory passes (J-040)"
+printf '%s' "$AUDIT_REPORT" | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/expired.json" >/dev/null
+expect_exit 1 $? "an expired acceptance is red (J-040)"
+printf '%s' "${AUDIT_REPORT//2222/5555}" | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/ok.json" >/dev/null
+expect_exit 1 $? "an advisory not on the accepted list is red (J-040)"
+printf '{"error":{"code":"ENOTFOUND"}}' | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/ok.json" >/dev/null
+expect_exit 3 $? "an unreachable registry abstains (J-040)"
 
 if bash scripts/check-doc-refs.sh >/dev/null 2>&1; then
   REF_PROBE="docs/__selftest_ref_probe.md"

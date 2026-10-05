@@ -180,19 +180,34 @@ def nested_config(rel: str) -> bool:
     return "/" in rel and rel not in NESTED_CONFIG_EXCEPTIONS and bool(NESTED_CONFIG_RE.match(os.path.basename(rel)))
 
 
+def rel_under(absolute: str, base: str) -> str | None:
+    """`absolute` relative to `base`, compared without case (APFS), or None
+    when it lies outside. The returned path keeps the case it was given."""
+    a, b = absolute.casefold().rstrip("/"), base.casefold().rstrip("/")
+    if a == b:
+        return ""
+    if not a.startswith(b + "/"):
+        return None
+    return absolute[len(base.rstrip("/")) + 1:]
+
+
 def home_secret(absolute: str) -> bool:
     home = os.path.realpath(os.path.expanduser("~"))
-    return os.path.relpath(absolute, home) in HOME_SECRETS
+    rel = rel_under(absolute, home)
+    return rel is not None and rel.casefold() in {p.casefold() for p in HOME_SECRETS}
 HOME_PROTECTED_SUFFIXES = (".jsonl",)  # session and subagent transcripts
 HOME_TRANSCRIPTS_DIR = ".claude/projects/"
 
 
 def home_protected(absolute: str) -> bool:
+    # The base is compared without case too: ~/.Claude/settings.json IS
+    # ~/.claude/settings.json on APFS (JOURNAL J-047).
     home = os.path.realpath(os.path.expanduser("~"))
-    rel = os.path.relpath(absolute, home)
-    if rel.startswith(".."):
+    rel = rel_under(absolute, home)
+    if rel is None:
         return False
-    if rel in HOME_PROTECTED:
+    rel = rel.casefold()
+    if rel in {p.casefold() for p in HOME_PROTECTED}:
         return True
     return rel.startswith(HOME_TRANSCRIPTS_DIR) and rel.endswith(HOME_PROTECTED_SUFFIXES)
 
@@ -266,10 +281,8 @@ def to_rel(path: str, root: str, cwd: str) -> str | None:
     if not path:
         return None
     absolute = resolve(path, cwd)
-    rel = os.path.relpath(absolute, root)
-    if rel == ".." or rel.startswith("../"):
-        return None
-    return "" if rel == "." else rel
+    # Without case: /Users/.../MIVRO/scripts/check.sh is a harness file (J-047).
+    return rel_under(absolute, root)
 
 
 def _same_repo_worktree_rel(absolute: str, root: str) -> str | None:
@@ -297,10 +310,9 @@ def _same_repo_worktree_rel(absolute: str, root: str) -> str | None:
     top, common = out[0].strip(), out[1].strip()
     common = os.path.realpath(os.path.join(top, common)) if not os.path.isabs(common) else os.path.realpath(common)
     mine = os.path.realpath(os.path.join(root, mine)) if not os.path.isabs(mine) else os.path.realpath(mine)
-    if common != mine:
+    if common.casefold() != mine.casefold():
         return None
-    rel = os.path.relpath(absolute, os.path.realpath(top))
-    return None if rel.startswith("..") else rel
+    return rel_under(absolute, os.path.realpath(top))
 
 
 def is_protected(path: str, root: str, cwd: str, patterns: list[str]) -> bool:

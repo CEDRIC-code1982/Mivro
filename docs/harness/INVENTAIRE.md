@@ -380,7 +380,7 @@ après un clone.
 | `docrefs`   | fast  | numérotation du journal, citations `J-NNN` résolues                                |
 | `scripts`   | fast  | shellcheck + syntaxe Python du harness (peut s'abstenir sans shellcheck)           |
 | `tests`     | check | Jest + seuils de couverture                                                        |
-| `audit`     | push  | `npm audit --omit=dev --audit-level=high` (peut s'abstenir hors ligne)             |
+| `audit`     | push  | `npm audit --omit=dev`, hautes et critiques, avis acceptés par GHSA (s'abstient)   |
 | `docs`      | push  | TypeDoc + Docusaurus (peut s'abstenir sans `docs-site/node_modules`)               |
 
 Une abstention (exit 3) est nommée et n'est jamais comptée verte ; en CI (`MIVRO_NO_ABSTAIN=1`)
@@ -394,7 +394,7 @@ elle échoue.
 | Garde Bash (un appel)                           | ≈ 50 ms                       |
 | Stage `fast` (hook `Stop`), capteurs parallèles | ≈ 4 – 5 s                     |
 | `npm run check` (stage `check`)                 | ≈ 20 s                        |
-| `npm run check:harness` (358 assertions)        | ≈ 5 min (build de doc inclus) |
+| `npm run check:harness` (374 assertions)        | ≈ 5 min (build de doc inclus) |
 
 ### Protection du harness
 
@@ -424,11 +424,11 @@ et protection de branche. SmartBLE n'a aucun de ces derniers.
 ### Reste ouvert
 
 - **J-022** — aucun capteur ne vérifie les affirmations factuelles des docs.
-- **J-047** — variante de casse du chemin absolu (dépôt, `$HOME`) : `EN-ATTENTE.md` §3.
-- **EN-ATTENTE 2** — faux positif `prettier --config` de la garde Bash, à poser en session
-  déverrouillée.
+- **J-048** — un appel mort dans le self-test ne compte pas comme échec : `EN-ATTENTE.md` §5.
+- **J-049** — jeton `gh` : `home_secret` jamais appelée, Read non gardé : `EN-ATTENTE.md` §6.
 - **Mémoire de l'agent** — inscriptible par conception, risque accepté (J-046).
-- **J-040** — `npm audit` rouge : `npm audit fix` dans une branche dédiée, avec rebuild natif.
+- **J-040** — `npm audit` rouge jusqu'au lot 1 (`EN-ATTENTE.md` §1) ; les 4 avis du lot 3 sont
+  acceptés dans `scripts/audit-accepted.json` jusqu'au 2027-01-05.
 - **Validations en réel.** L'héritage de l'environnement par les hooks, qui permet le
   déverrouillage, est **constaté** le 2026-09-28. Le scellement du verdict par
   `SubagentStart`/`SubagentStop` se vérifie à la première revue réelle : `.git/mivro-review`
