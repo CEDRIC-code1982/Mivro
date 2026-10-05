@@ -218,8 +218,11 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
 - [ ] Session `MIVRO_HARNESS_UNLOCK=1`, en mode par défaut : appliquer les points 2 et 3 de
       `EN-ATTENTE.md` (faux positif `prettier --config`, casse du chemin absolu J-047), relock.
 - [ ] Commit, push de `harness/beton` et PR vers `develop`.
-- [ ] **J-040** : `npm audit fix` (sans `--force`) dans une branche dédiée, avec rebuild natif —
-      1 critique, 7 hautes, toutes corrigibles. Préalable à la protection de branche.
+- [ ] **J-040 lot 1** : commandes exactes dans `EN-ATTENTE.md` §1 (branche `fix/j-040-npm-audit`,
+      lockfile seul, rebuild natif et test sur appareil). Préalable à la protection de branche.
+- [ ] **J-040 lot 3** : capteur `audit` à avis acceptés, `EN-ATTENTE.md` §4 (session déverrouillée).
+- [ ] ⚠️ À SPÉCIFIER AVEC CÉDRIC : montée React Native 0.85 → 0.86+ (ferme les avis acceptés de
+      J-040, expiration 2027-01-05) — ADR, rebuild natif, reanimated, worklets, maps, firebase.
 - [ ] Merger dans `develop`, puis `develop` dans `main`, puis `bash scripts/setup-branch-protection.sh`.
 - [ ] Première revue réelle : vérifier que le verdict est scellé (`.git/mivro-review` présent après
       un `APPROVED`).

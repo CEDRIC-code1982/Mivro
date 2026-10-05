@@ -1186,6 +1186,41 @@ protection de branche.
 - Un capteur `audit` au stage `push`, avec abstention possible hors ligne, pour que le rouge se voie
   avant la CI.
 
+**Remesuré le 2026-10-05 : la prémisse ne tient plus.** On est à 56 vulnérabilités (1 critique, 43
+hautes, 11 modérées, 1 basse), et `npm audit fix` sans `--force` échoue en ERESOLVE : il veut
+`react-native-reanimated@4.7.1`, qui exige React Native 0.86 au minimum. La mesure a été faite sur
+une copie du manifeste et du lockfile, sans rien écrire dans le dépôt. Elle se découpe en trois
+lots :
+
+- **Lot 1, lockfile seul, dans les plages déjà déclarées** (`npm update` de 17 paquets
+  transitifs, `package.json` inchangé). Il corrige le critique `shell-quote` (1.8.3 → 1.12.0), `ws`,
+  `undici`, `js-yaml`, `nanoid`, `brace-expansion`, `joi`, `qs`, `body-parser`, `browserslist`,
+  `protobufjs`, `launch-editor` et `@babel/core`. Il reste alors 44 vulnérabilités : 0 critique,
+  38 hautes, 6 modérées.
+- **Lot 2, `@react-native-community/cli` 20.1.0 → 20.2.0** (mineure, version épinglée dans
+  `package.json`). Il corrige `fast-glob`, `fast-xml-parser` et les dix paquets `cli-*`.
+- **Lot 3, sans correctif dans React Native 0.85.** `metro`, `micromatch`, `braces`, la chaîne
+  `jest`, et le SDK JS `firebase` tiré par `@react-native-firebase` (`@grpc/grpc-js`). Les
+  « correctifs » que propose npm sont des rétrogradations absurdes : `react-native@0.72.17`,
+  `@react-native-firebase/app@20.1.0` (on est en 25), `reanimated@4.2.2`. Ce lot ne se ferme qu'en
+  montant React Native en 0.86 ou plus, ou en acceptant nommément ces avis.
+
+**Conséquence.** Le capteur `audit` (`--omit=dev --audit-level=high`) ne peut pas passer au vert
+sur React Native 0.85, même après les lots 1 et 2. `overrides` est refusé par `check:deps` depuis
+J-046, et c'est voulu. La décision revient à Cédric : monter React Native, ou faire porter au
+capteur une liste d'avis acceptés, par identifiant GHSA, avec justification et date d'expiration.
+
+**Décision de Cédric (2026-10-05).** Le lot 1 est appliqué tout de suite, dans la branche dédiée
+`fix/j-040-npm-audit`. Le lot 2 est abandonné : il ne retire que des avis modérés. Le lot 3 passe en
+avis acceptés. Les hautes restantes viennent de 4 avis :
+
+- `braces`, GHSA-vfj7-8cjw-p6xm : aucune version corrigée n'existe ;
+- `image-size`, GHSA-5p2g-fcmc-qvqq et GHSA-w3rx-r6r6-pgpr : épinglé par metro 0.84 ;
+- `@grpc/grpc-js`, GHSA-m9gg-hp2v-232j : vient du SDK JS Firestore, que Mivro n'importe pas.
+
+Ces avis sont acceptés jusqu'au 2027-01-05. Le capteur proposé et ses cas de test sont au point 4
+d'`EN-ATTENTE.md`, vérifiés sur des copies. Montée de React Native 0.86+ : ticket séparé, avec ADR.
+
 ## J-041 — check-diff vert sur une base invalide
 
 **Date** : 2026-09-26 · **Statut** : RÉSOLU le 2026-09-28 — exit 2, cas au self-test §3
