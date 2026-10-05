@@ -48,6 +48,15 @@ def main() -> int:
         if not path:
             return 0
         cwd = payload.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
+        if payload.get("tool_name") == "Read":
+            # Read only guards the credentials of $HOME (GitHub token, SSH keys),
+            # locked or not; reading a harness file stays allowed (JOURNAL J-049).
+            if harness_paths.home_secret(harness_paths.resolve(path, cwd)):
+                return refuse(
+                    f"✖ Blocked by the Mivro harness: {path} is a credential file.\n\n"
+                    "Reading it would let a raw HTTP call bypass the guards (JOURNAL J-049). Ask Cedric."
+                )
+            return 0
         root = harness_paths.repo_root(cwd)
         rel = harness_paths.to_rel(path, root, cwd)
         if rel is None:

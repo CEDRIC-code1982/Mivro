@@ -64,7 +64,8 @@
 | J-047 | 7e revue : casse du chemin absolu (dépôt, `$HOME`)                  | RÉSOLU  |
 | J-048 | Cas du self-test appelé avant la définition de sa fonction          | OUVERT  |
 | J-049 | Jeton `gh` : `home_secret` jamais appelée, Read non gardé           | OUVERT  |
-| J-050 | 8e revue : `-c` de Prettier, sorties d'ESLint, rapport `audit` vide | OUVERT  |
+| J-050 | 8e revue : `-c` de Prettier, sorties d'ESLint, rapport `audit` vide | RÉSOLU  |
+| J-051 | 9e revue : J-048 inopérant sous Bash 5, lecture des secrets         | OUVERT  |
 
 ---
 
@@ -1622,7 +1623,7 @@ Les huit cas sont au self-test §2, et la forme `/USERS/.../MIVRO/scripts/check.
 
 ## J-048 — Un cas du self-test appelé avant que sa fonction existe
 
-**Date** : 2026-10-05 · **Statut** : OUVERT — règle proposée dans `EN-ATTENTE.md` §5
+**Date** : 2026-10-05 · **Statut** : ROUVERT par J-051 — le handler ne compte rien sous Bash 4+ (CI) ; correctif : `EN-ATTENTE.md` §2
 
 **Observé.** Le cas J-046 `edit_guard 2 "$HOME/.claude/CLAUDE.md"` était écrit en section 1 de
 `scripts/harness-selftest.sh`, alors que `edit_guard` n'est définie qu'en section 2. Bash affichait
@@ -1636,11 +1637,21 @@ protection de `~/.claude/CLAUDE.md` n'a donc jamais été prouvée par le self-t
 l'aurait attrapé : `command_not_found_handle() { bad "command not found in the self-test: $1"; return 127; }`
 en tête du self-test. Tout appel mort devient alors un `bad`.
 
+**Appliqué** (2026-10-05, session déverrouillée). La preuve hors self-test a montré que la règle
+proposée était inerte en local : `command_not_found_handle` n'existe qu'à partir de Bash 4, et
+`/bin/bash` de macOS est en 3.2. Seule la CI (ubuntu, Bash 5) l'aurait vue. Le self-test pose donc
+aussi, sous Bash 3.2, un `trap` `ERR` qui compte un `bad` sur tout code 127. Preuve rejouée sur une
+copie avec `edit_guard` appelée avant sa définition : un `bad` de plus, et aucun faux positif sur
+l'arbre propre.
+
+**Leçon.** Une règle de shell se prouve sur le shell qui la lance : le Bash du poste n'est pas
+celui de la CI.
+
 ---
 
 ## J-049 — Le jeton GitHub : `home_secret` n'est appelée nulle part
 
-**Date** : 2026-10-05 · **Statut** : OUVERT — correctif proposé dans `EN-ATTENTE.md` §6
+**Date** : 2026-10-05 · **Statut** : ROUVERT par J-051 — contournable (redirection, glob, variable, Grep) ; fermeture par le sandbox : `EN-ATTENTE.md` §3
 
 **Observé.** `harness_paths.home_secret()` (liste `HOME_SECRETS`, `~/.config/gh/hosts.yml`) est
 définie mais n'est appelée par aucun hook. Le jeton n'est protégé que par
@@ -1652,9 +1663,15 @@ fichier. L'outil Read n'est rattaché à aucun hook (`.claude/settings.json` : m
 **Leçon.** C'est la même famille que J-046 et J-047. Une fonction de garde qui n'est appelée nulle
 part protège autant qu'une fonction absente, et le self-test ne prouve que ce qu'il appelle.
 
+**Réponse** (2026-10-05, session déverrouillée). `pre-bash-guard.py` compare `gh/hosts.yml` sans
+casse et appelle `home_secret` sur chaque mot, après résolution. `pre-edit-guard.py` garde aussi
+Read (matcher de `.claude/settings.json`) : il ne refuse que les secrets du `$HOME`, et la lecture
+d'un fichier du harness reste permise. La 8e revue avait vu `cat ~/.ssh/id_rsa` autorisé :
+`HOME_SECRET_DIRS` ajoute le répertoire `.ssh/` entier, en préfixe et sans casse.
+
 ## J-050 — Huitième revue : un correctif de la garde qui rouvre un trou, et un juge qui croit le vide
 
-**Date** : 2026-10-05 · **Statut** : OUVERT — correctifs prêts dans `EN-ATTENTE.md` §7 et §8
+**Date** : 2026-10-05 · **Statut** : RÉSOLU le 2026-10-05 — 9 cas au self-test §1, 4 cas `audit` au self-test §7
 
 **Observé.** La revue du delta appliqué en session déverrouillée confirme J-047 fermé sur toutes
 les variantes de casse rejouées. Elle trouve deux défauts, rejoués avant d'être consignés :
@@ -1677,6 +1694,45 @@ les variantes de casse rejouées. Elle trouve deux défauts, rejoués avant d'ê
 - Chaque cas de régression doit être vu rouge sur l'arbre d'avant. La revue a trouvé un cas J-047
   du self-test qui passait déjà avant le correctif (`.CONFIG/gh/hosts.yml`, J-049).
 
-**Réponse prévue.** Les options lues et écrites sont définies par outil, et les valeurs des options
+**Réponse** (2026-10-05, session déverrouillée). Les options lues et écrites sont définies par outil, et les valeurs des options
 d'écriture sont jugées en toute circonstance. Le juge exige `auditReportVersion: 2` et remonte la
-chaîne `via`. Le détail, avec 16 + 11 cas vérifiés sur des copies, est dans `EN-ATTENTE.md` §7 et §8.
+chaîne `via`. Les cas vérifiés sur des copies (16 + 11) sont entrés au self-test, et le cas
+`.CONFIG/gh/hosts.yml` est rangé sous J-049. Le juge reste rouge sur l'arbre actuel, jusqu'au lot 1
+(J-040).
+
+## J-051 — Neuvième revue : deux fermetures déclarées qui ne tenaient pas
+
+**Date** : 2026-10-05 · **Statut** : OUVERT — correctifs dans `EN-ATTENTE.md` §2 à §4 ; le §3
+demande une décision de Cédric (sandbox)
+
+**Observé.** La revue du delta §5 à §8 confirme J-050 fermé : garde Prettier/ESLint par outil,
+sans régression sur les 13 commandes des capteurs, et juge `audit` rouge sur tout rapport vide ou
+mal formé. Elle rouvre deux entrées déclarées RÉSOLU le même jour :
+
+- **J-048 ne compte rien sur la CI.** À partir de Bash 4, `command_not_found_handle` tourne dans un
+  environnement séparé (manuel Bash, §3.7.2) : le `FAIL` incrémenté y est perdu. Le repli
+  `trap ERR` n'était posé que sous Bash 3.2. Sur la CI (Bash 5), un appel mort affichait un X mais
+  le bilan restait « 0 failed ».
+- **J-049 se contourne.** Cinq formes rejouées passent la garde : redirection d'entrée, glob,
+  variable, `grep -r`, et l'outil Grep, rattaché à aucun hook. L'agent en a trouvé deux de plus,
+  vers le jeton lui-même : `gh auth status --show-token` et `security find-generic-password -w`.
+  Sur ce poste, le jeton est dans le trousseau macOS, pas dans `hosts.yml`. Les clés SSH, elles,
+  sont sur le disque.
+
+**Leçon.**
+
+- Un correctif se prouve sur l'environnement où il doit tenir. J-048 visait la CI, mais n'a été
+  prouvé que sous le Bash 3.2 du Mac, où le mécanisme qu'il utilisait n'existe même pas.
+- Pour la **lecture**, une garde qui lit le texte d'une commande est une liste noire. Elle ne sera
+  jamais complète (`python3 -c`, `node -e`, `find -exec`, concaténation) : c'est la leçon de J-042
+  et J-045, appliquée aux secrets. La fermeture doit venir de l'OS, avec le sandbox Bash de Claude
+  Code (Seatbelt), vérifié dans la doc Anthropic.
+- « RÉSOLU » ne s'écrit qu'après une revue qui a cherché à contourner le correctif.
+
+**Réponse prévue.**
+
+- Un trap `ERR` sans condition de version, avec `set -E`, prouvé sur des copies (`EN-ATTENTE.md`
+  §2).
+- Le sandbox, avec `denyRead` sur `~/.ssh` et `~/.config/gh`, plus `allowUnsandboxedCommands:
+false` dans les settings utilisateur (§3, décision de Cédric).
+- La garde Bash refuse en plus les deux commandes qui affichent le jeton.

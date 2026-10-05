@@ -213,12 +213,15 @@ _Estimation : L. Dépendances : comptes stores._
 Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
 
 - [x] ~~Appliquer `EN-ATTENTE.md` en session déverrouillée~~ → **FAIT (2026-09-28)** : J-036 à
-      J-039 et J-041 à J-046 corrigés, déverrouillage vérifié en réel, self-test à 358 assertions.
+      J-039 et J-041 à J-046 corrigés, déverrouillage vérifié en réel ; self-test à 393 assertions au 2026-10-05.
 - [x] ~~`npm run harness:relock`~~ → **FAIT (2026-10-05)** : premier verrou généré.
-- [ ] Session `MIVRO_HARNESS_UNLOCK=1`, en mode par défaut : appliquer `EN-ATTENTE.md` §5 (J-048,
-      appel mort du self-test), §6 (J-049, jeton `gh`), §7 et §8 (J-050, garde Prettier/ESLint et
-      juge `audit`), relock.
-- [ ] Commit, push de `harness/beton` et PR vers `develop`.
+- [x] ~~EN-ATTENTE §5 à §8 (J-048 à J-050)~~ → appliqués le 2026-10-05 ; la 9e revue rouvre
+      J-048 et J-049 (J-051).
+- [ ] ⚠️ Décision de Cédric : activer le sandbox Bash de Claude Code (`EN-ATTENTE.md` §3, J-051),
+      seule fermeture imposée par l'OS pour la lecture de `~/.ssh` et `~/.config/gh`.
+- [ ] Session `MIVRO_HARNESS_UNLOCK=1`, en mode par défaut : appliquer `EN-ATTENTE.md` §2 à §4
+      (J-051), relock.
+- [ ] Commit de `harness/en-attente-5-8`, push et PR vers `develop`.
 - [ ] **J-040 lot 1** : commandes exactes dans `EN-ATTENTE.md` §1 (branche `fix/j-040-npm-audit`,
       lockfile seul, rebuild natif et test sur appareil). Préalable à la protection de branche.
 - [x] **J-040 lot 3** : capteur `audit` à avis acceptés, posé le 2026-10-05.

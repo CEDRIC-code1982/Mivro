@@ -87,6 +87,8 @@ HOME_PROTECTED = (
 )
 # Credentials: reading them would let a raw HTTP call bypass the gh checks.
 HOME_SECRETS = (".config/gh/hosts.yml",)
+# Whole directories of credentials, matched as a prefix: every SSH key (JOURNAL J-049).
+HOME_SECRET_DIRS = (".ssh/",)
 
 # A tool configuration below the root is merged over the root one (J-039). The
 # two separate projects of the repository keep theirs.
@@ -194,7 +196,12 @@ def rel_under(absolute: str, base: str) -> str | None:
 def home_secret(absolute: str) -> bool:
     home = os.path.realpath(os.path.expanduser("~"))
     rel = rel_under(absolute, home)
-    return rel is not None and rel.casefold() in {p.casefold() for p in HOME_SECRETS}
+    if rel is None:
+        return False
+    rel = rel.casefold()
+    return rel in {p.casefold() for p in HOME_SECRETS} or any(
+        rel == d.casefold().rstrip("/") or rel.startswith(d.casefold()) for d in HOME_SECRET_DIRS
+    )
 HOME_PROTECTED_SUFFIXES = (".jsonl",)  # session and subagent transcripts
 HOME_TRANSCRIPTS_DIR = ".claude/projects/"
 

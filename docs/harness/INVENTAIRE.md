@@ -394,7 +394,7 @@ elle échoue.
 | Garde Bash (un appel)                           | ≈ 50 ms                       |
 | Stage `fast` (hook `Stop`), capteurs parallèles | ≈ 4 – 5 s                     |
 | `npm run check` (stage `check`)                 | ≈ 20 s                        |
-| `npm run check:harness` (374 assertions)        | ≈ 5 min (build de doc inclus) |
+| `npm run check:harness` (393 assertions)        | ≈ 5 min (build de doc inclus) |
 
 ### Protection du harness
 
@@ -424,8 +424,9 @@ et protection de branche. SmartBLE n'a aucun de ces derniers.
 ### Reste ouvert
 
 - **J-022** — aucun capteur ne vérifie les affirmations factuelles des docs.
-- **J-048** — un appel mort dans le self-test ne compte pas comme échec : `EN-ATTENTE.md` §5.
-- **J-049** — jeton `gh` : `home_secret` jamais appelée, Read non gardé : `EN-ATTENTE.md` §6.
+- **J-051** — le comptage des appels morts du self-test est inopérant sous Bash 5 (J-048), et la
+  lecture des secrets du `$HOME` reste contournable par la garde Bash (J-049). Correctifs :
+  `EN-ATTENTE.md` §2 à §4. Le §3 (sandbox) attend la décision de Cédric.
 - **Mémoire de l'agent** — inscriptible par conception, risque accepté (J-046).
 - **J-040** — `npm audit` rouge jusqu'au lot 1 (`EN-ATTENTE.md` §1) ; les 4 avis du lot 3 sont
   acceptés dans `scripts/audit-accepted.json` jusqu'au 2027-01-05.

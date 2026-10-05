@@ -29,6 +29,11 @@ if not isinstance(report, dict) or "error" in report:
     print("✖ npm audit gave no usable report:")
     print(text[:2000])
     sys.exit(1)
+# Any other shape (an empty object, npm 6's `advisories`, a future report
+# version) must never read as "no vulnerability" (JOURNAL J-050).
+if report.get("auditReportVersion") != 2 or not isinstance(report.get("vulnerabilities"), dict):
+    print("✖ unrecognised npm audit report (expected auditReportVersion 2 with a `vulnerabilities` object)")
+    sys.exit(1)
 
 findings: list[str] = []
 today = datetime.date.today()
@@ -61,15 +66,44 @@ for gid, entry in accepted.items():
         continue
     valid[gid] = expires
 
-reported: dict[str, str] = {}
-for name, vuln in report.get("vulnerabilities", {}).items():
+SEVERE = ("high", "critical")
+vulnerabilities = report["vulnerabilities"]
+
+
+def root_advisories(name: str, seen: set[str]) -> dict[str, str]:
+    """High/critical advisories reached from `name` through its `via` chain.
+
+    A dict entry is an advisory; a string entry only points at another
+    vulnerable package, whose own advisories are listed under its name.
+    """
+    if name in seen:
+        return {}
+    seen.add(name)
+    found: dict[str, str] = {}
+    vuln = vulnerabilities.get(name)
+    if not isinstance(vuln, dict):
+        return found
     for via in vuln.get("via", []):
-        # String entries only point at another vulnerable package: the root
-        # advisory is listed (as a dict) under that package itself.
-        if not isinstance(via, dict) or via.get("severity") not in ("high", "critical"):
-            continue
-        gid = str(via.get("url", "")).rsplit("/", 1)[-1]
-        reported[gid] = f"{via.get('severity')} {via.get('name', name)}: {str(via.get('title', ''))[:90]}"
+        if isinstance(via, dict):
+            if via.get("severity") in SEVERE:
+                gid = str(via.get("url", "")).rsplit("/", 1)[-1]
+                title = str(via.get("title", ""))[:90]
+                found[gid] = f"{via.get('severity')} {via.get('name', name)}: {title}"
+        elif isinstance(via, str):
+            found.update(root_advisories(via, seen))
+    return found
+
+
+reported: dict[str, str] = {}
+for name, vuln in vulnerabilities.items():
+    if not isinstance(vuln, dict) or vuln.get("severity") not in SEVERE:
+        continue
+    roots = root_advisories(name, set())
+    if not roots:
+        # A severe package whose chain reaches no severe advisory: the report
+        # does not explain itself, so it cannot be judged green (JOURNAL J-050).
+        findings.append(f"{name}: {vuln.get('severity')} with no traceable advisory in the report")
+    reported.update(roots)
 
 accepted_now = []
 for gid, label in sorted(reported.items()):

@@ -312,22 +312,41 @@ def positional(args: list[str]) -> list[str]:
     return [a for a in args if not a.startswith("-")]
 
 
-# Options whose value is read, never rewritten (--config, --ignore-path...).
-REWRITER_VALUE_OPTIONS = {"--config", "-c", "--ignore-path", "--rulesdir", "--plugin", "--ext",
-                          "--resolve-plugins-relative-to", "--cache-location", "--parser",
-                          "--loglevel", "--log-level"}
+# Per tool, the options whose value is only READ (--config, --ignore-path...).
+# Prettier's `-c` is `--check`, a flag: skipping the word after it hid the
+# target of `prettier --write -c <file>` (JOURNAL J-050).
+REWRITER_READ_OPTIONS = {
+    "prettier": {"--config", "--ignore-path", "--plugin", "--parser", "--loglevel", "--log-level"},
+    "eslint": {"--config", "-c", "--ignore-path", "--rulesdir", "--plugin", "--ext",
+               "--resolve-plugins-relative-to", "--parser", "-f", "--format"},
+}
+# Options whose value is WRITTEN, with or without --write/--fix: the ESLint
+# report and either tool's cache file (JOURNAL J-050).
+REWRITER_WRITE_OPTIONS = {"-o", "--output-file", "--cache-location"}
 
 
-def rewrite_targets(args: list[str]) -> list[str]:
-    targets, skip = [], False
-    for arg in args:
-        if skip:
-            skip = False
-        elif arg in REWRITER_VALUE_OPTIONS:
-            skip = True
+def rewrite_targets(args: list[str], name: str) -> tuple[list[str], list[str]]:
+    """(files rewritten under --write/--fix, files written whatever the flags)."""
+    read = REWRITER_READ_OPTIONS[name]
+    targets: list[str] = []
+    outputs: list[str] = []
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        key, eq, value = arg.partition("=")
+        if key in REWRITER_WRITE_OPTIONS:
+            if eq:
+                outputs.append(value)
+            elif i + 1 < len(args):
+                outputs.append(args[i + 1])
+                i += 1
+        elif key in read:
+            if not eq:
+                i += 1
         elif not arg.startswith("-"):
             targets.append(arg)
-    return targets
+        i += 1
+    return targets, outputs
 
 
 def option_value(args: list[str], *names: str) -> str | None:
@@ -391,6 +410,13 @@ class Guard:
             if candidate and harness_paths.to_rel(candidate, self.root, cwd) == "package.json":
                 return True
         return False
+
+    def _home_secret(self, word: str) -> bool:
+        """True when `word` names a credential file of $HOME, whatever the lock."""
+        value = self._expand(word)
+        if not value or (self.cwd is None and not os.path.isabs(value)):
+            return False
+        return harness_paths.home_secret(harness_paths.resolve(value, self.cwd or self.root))
 
     def _existing(self, words: list[str]) -> list[str]:
         """Only the words that ARE files or directories on disk.
@@ -563,8 +589,9 @@ class Guard:
         if name == "git" and "commit" in args:
             judged = [a for i, a in enumerate(args) if not (i > 0 and args[i - 1] in {"-m", "--message"})]
         self._check_native([name, *judged])
-        if any("gh/hosts.yml" in w for w in args):
-            deny("reading the GitHub token file", "It would let a raw HTTP call bypass this guard.")
+        # Without case (APFS), and through home_secret: the SSH keys too (JOURNAL J-049).
+        if any("gh/hosts.yml" in w.casefold() or self._home_secret(w) for w in args):
+            deny("reading a credential file (GitHub token, SSH key)", "It would let a raw HTTP call bypass this guard.")
         if name.startswith("$") or SUBST in name:
             deny(
                 "command name taken from a variable",
@@ -636,8 +663,9 @@ class Guard:
             deny("alias definition", "An alias hides the real command from this guard. Write it out.")
         elif name in {"prettier", "eslint"}:
             rewrites = {"--write", "--fix"} & long_flags(args) or ("w" in short_flags(args) and name == "prettier")
-            if rewrites and any(self.protected(a) for a in rewrite_targets(args)):
-                self.deny_tamper(f"{name} rewriting a harness file")
+            targets, outputs = rewrite_targets(args, name)
+            if any(self.protected(a) for a in outputs) or (rewrites and any(self.protected(a) for a in targets)):
+                self.deny_tamper(f"{name} writing a harness file")
         elif name in {"script", "expect", "unbuffer"}:
             if self.protect and any("harness-lock" in a or "harness:relock" in a for a in args):
                 self._deny_relock()

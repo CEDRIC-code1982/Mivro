@@ -35,10 +35,11 @@ corrigés :
 - le garde Bash est réécrit ;
 - `check-diff` refuse les configs imbriquées et échoue fermé.
 
-Le déverrouillage est vérifié en réel. `check:harness` compte 374 assertions après six revues (J-036 à J-046, closes le 2026-10-05 ;
-harness défini par zones produit, comparées sans casse). Le verrou est généré (2026-10-05) et le stage `check` est vert. La septième revue a trouvé J-047
-(casse du chemin absolu), en attente de session déverrouillée. Le stage `push` est vert sauf `audit` (J-040 : `npm audit
-fix` à faire en branche dédiée). Mise en service : RUNBOOK > « Harness ».
+Le déverrouillage est vérifié en réel. `check:harness` compte 393 assertions après huit revues (J-036 à J-050, closes le 2026-10-05 ;
+harness défini par zones produit, comparées sans casse). Le verrou est généré (2026-10-05) et le stage `check` est vert. Les septième et huitième revues
+(J-047 à J-050 : casse des chemins absolus, Read des secrets, options Prettier/ESLint, juge
+`audit`) sont appliquées. Le stage `push` est vert sauf `audit` : le lot 1 de J-040 (lockfile seul)
+reste à faire en branche dédiée, et le reste est accepté nommément jusqu'au 2027-01-05. Mise en service : RUNBOOK > « Harness ».
 
 ## ADR rattrapage — série ADR-001→014 complète (2026-07-14)
 

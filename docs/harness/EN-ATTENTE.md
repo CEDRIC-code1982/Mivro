@@ -12,7 +12,8 @@ tous été appliqués : le 2026-09-28, puis le 2026-10-01 en session déverrouil
 `JOURNAL-ECHECS.md`. Les capteurs de J-043 à J-046 sont appliqués aussi ; le self-test de J-046 et le formatage
 de `check-deps.js` ont été posés par Cédric le 2026-10-05, avec le premier verrou. Les points 2 à 4
 (garde `prettier --config`, J-047, capteur `audit` à avis acceptés) ont été appliqués le 2026-10-05
-en session déverrouillée. Restent le point 1 et les points 5 et 6, nés de cette session.
+en session déverrouillée. Les points 5 à 8 (J-048 à J-050) l'ont été le 2026-10-05 aussi, en
+session déverrouillée. Reste le point 1.
 
 ## Pour Cédric seul
 
@@ -46,238 +47,111 @@ mode auto de Claude Code refuse à l'agent toute écriture dans ses propres cont
 par défaut pour approuver les éditions toi-même, puis dis « applique EN-ATTENTE §N » : l'agent les
 pose, relance le self-test et retire les entrées.
 
-### 5. Self-test : un appel à une commande inconnue est un échec (J-048)
+### 2. Self-test : compter un appel mort avec un trap `ERR`, sur toute version de Bash (J-051)
 
-Dans `scripts/harness-selftest.sh`, juste après la définition de `bad()` :
+Le correctif J-048 comptait l'échec dans `command_not_found_handle`. Or, à partir de Bash 4, ce
+handler tourne dans un environnement d'exécution séparé (manuel Bash, §3.7.2) : le
+`FAIL=$((FAIL + 1))` y est perdu. Sur la CI (Bash 5), un appel mort affichait donc un X rouge,
+mais le bilan restait « 0 failed ». Le repli `trap ERR` n'était posé que sous Bash 3.2.
+
+Dans `scripts/harness-selftest.sh`, remplacer le bloc `command_not_found_handle` + `if
+((BASH_VERSINFO[0] < 4))` par :
 
 ```bash
 # A case that calls an undefined helper must fail, not vanish (JOURNAL J-048).
-command_not_found_handle() {
-  bad "command not found in the self-test: $1"
-  return 127
-}
+# An ERR trap, not command_not_found_handle: from Bash 4 on, that handler runs
+# in a separate execution environment, so a FAIL counted there is lost (J-051).
+# The trap runs in the shell that saw the 127, on every Bash version; -E
+# (errtrace) makes functions inherit it, so a dead call inside a helper counts.
+set -E
+trap 'SELFTEST_RC=$? SELFTEST_LINE=$LINENO; ((SELFTEST_RC == 127)) && bad "exit 127 at line ${SELFTEST_LINE}: command not found?"' ERR
 ```
 
-Preuve, à garder hors du self-test (sinon le cas serait lui-même un `bad`) : copier le self-test,
-appeler `edit_guard` avant sa définition, et vérifier que le total passe à `1 failed`.
+`$LINENO` et non `$BASH_COMMAND` : sous Bash 3.2, `$BASH_COMMAND` dans le trap affiche la commande
+du trap lui-même.
 
-### 6. Jeton GitHub : `home_secret` branchée, et sans casse (J-049)
+Preuve, sur des copies du self-test, avec `/bin/bash` 3.2.57 :
 
-- `scripts/hooks/pre-bash-guard.py`, ligne `if any("gh/hosts.yml" in w for w in args):` →
-  `if any("gh/hosts.yml" in w.casefold() or harness_paths.home_secret(harness_paths.resolve(w, cwd)) for w in args):`
-  (`cwd` étant celui du payload, comme ailleurs dans la classe).
-- `scripts/hooks/pre-edit-guard.py`, en tête de `main()` après la lecture de `path` : si
-  `payload.get("tool_name") == "Read"`, refuser si et seulement si
-  `harness_paths.home_secret(harness_paths.resolve(path, cwd))`, et sinon `return 0`. Le Read d'un
-  fichier du harness reste autorisé.
-- `.claude/settings.json` : ajouter `Read` au matcher `Write|Edit|MultiEdit|NotebookEdit` de
-  `pre-edit-guard.py`.
+| Cas                                                           | Résultat               |
+| ------------------------------------------------------------- | ---------------------- |
+| A. copie corrigée, cas inchangés                              | 393 passed, 0 failed   |
+| B. appel mort au niveau supérieur                             | 393 passed, 1 failed   |
+| C. appel mort dans une fonction (couvert grâce à `set -E`)    | 393 passed, 1 failed   |
+| D. échec compté dans un sous-shell (perdu, comme sous Bash 5) | 393 passed, 1 failed ¹ |
+| E. self-test actuel, appel mort, Bash 3.2 (pour comparaison)  | 393 passed, 1 failed   |
 
-Cas à ajouter au self-test (le helper `edit_guard` envoie `Edit`, il faut une variante `Read`) :
+¹ L'échec du sous-shell est perdu, et seul celui du shell parent est compté. C'est ce qui se
+passe sous Bash 5 avec `command_not_found_handle`, et le trap, lui, compte dans le shell parent.
+Le cas A prouve qu'aucun cas existant ne sort en 127 (pas de faux positif).
 
-```bash
-guard BLOCK "cat $HOME/.config/GH/hosts.yml"
-read_guard 2 "$HOME/.config/gh/hosts.yml"
-read_guard 2 "$HOME/.CONFIG/gh/Hosts.yml"
-read_guard 0 "$REPO/scripts/check.sh"
+NON VÉRIFIÉ sous Bash 5 : il n'y en a pas sur ce poste (ni Homebrew, ni Docker). La première CI le
+prouvera. Pour cela, ajouter au job `battery` un pas qui lance une copie du self-test avec un appel
+mort et exige `1 failed`. C'est le méta-cas demandé par la 9e revue :
+
+```yaml
+- name: self-test counts a dead call (J-051)
+  run: |
+    sed '/^section() {/a\
+    undefined_helper_ci_probe' scripts/harness-selftest.sh > /tmp/st-dead.sh
+    bash /tmp/st-dead.sh | grep -q ' 1 failed'
 ```
 
-Vu par la 8e revue : `cat ~/.ssh/id_rsa` est autorisé aussi, parce que `~/.ssh/` n'est pas dans
-`HOME_SECRETS`. Ajouter le répertoire `.ssh/` entier (préfixe, sans casse) aux secrets du `$HOME`,
-avec les cas `read_guard 2 "$HOME/.ssh/id_rsa"` et `guard BLOCK "cat $HOME/.SSH/id_ed25519"`.
+Limite connue : un trap `ERR` ne se déclenche pas dans une condition (`if f; then`, `f || x`,
+`f && x`). Le self-test appelle ses helpers en instruction simple, suivie de `expect_exit … $?`.
 
-### 7. Garde Bash : options de Prettier et d'ESLint, par outil (J-050)
+### 3. Lecture des secrets : le sandbox de Claude Code, pas une liste noire de plus (J-051)
 
-Le correctif du §2 mettait `-c` dans une liste commune aux deux outils. Or, pour Prettier, `-c` est
-`--check`, un drapeau sans valeur : `npx prettier --write -c scripts/sensors.sh` n'était plus
-refusé, et Prettier écrit quand même avec `--check`. Autre trou, plus ancien : ESLint
-`-o`/`--output-file` et le `--cache-location` des deux outils **écrivent** dans le fichier donné,
-même sans `--write` ni `--fix`. Ces deux trous ont été rejoués : exit 0 sur 6 formes. Le correctif
-a été vérifié sur une copie de la garde, avec 16 cas : 10 BLOCK et 6 ALLOW, dont les commandes
-des capteurs eux-mêmes.
+La 9e revue a rejoué cinq contournements de la garde de lecture de J-049 (exit 0) :
+`cat < ~/.config/gh/hosts.yml`, `cat ~/.config/gh/*`, `cat ~/.ss*/id_rsa`,
+`H=~/.ssh; cat $H/id_rsa`, `grep -r token ~/.config/gh`. L'outil Grep n'est rattaché à aucun hook.
+L'agent en a trouvé deux autres, vers le jeton lui-même : `gh auth status --show-token` et
+`security find-generic-password -s gh:github.com -w` (exit 0). Sur ce poste, le jeton `gh` est dans
+le trousseau macOS (`gh auth status` : `keyring`), donc `hosts.yml` ne le contient pas. Les clés de
+`~/.ssh/`, elles, sont bien sur le disque.
 
-`scripts/hooks/pre-bash-guard.py` :
+Une garde qui lit le texte d'une commande ne fermera jamais la lecture : `python3 -c`, `node -e`,
+`find -exec`, une concaténation de chaînes y échappent (J-042, J-045). La fermeture documentée par
+Anthropic est le **sandbox Bash** de Claude Code. Il est imposé par l'OS (Seatbelt sur macOS) à
+tout sous-processus, et les règles `Read` s'appliquent aussi aux outils Read, Grep et Glob.
 
-```diff
-@@ -312,22 +312,41 @@
-     return [a for a in args if not a.startswith("-")]
+Sources : https://code.claude.com/docs/en/sandboxing.md, https://code.claude.com/docs/en/permissions.md.
 
+**Décision de Cédric, à prendre avant d'appliquer** : le sandbox change l'environnement de toutes
+les commandes Bash de l'agent. Le réseau est limité aux domaines autorisés, et `git` en SSH ne
+passe pas dans le sandbox : il faut l'exclure ou passer en HTTPS. Ce qu'il faut tester, c'est
+`npm audit` (registre npm), `npx jest`, `npx tsc`, la doc et le self-test.
 
--# Options whose value is read, never rewritten (--config, --ignore-path...).
--REWRITER_VALUE_OPTIONS = {"--config", "-c", "--ignore-path", "--rulesdir", "--plugin", "--ext",
--                          "--resolve-plugins-relative-to", "--cache-location", "--parser",
--                          "--loglevel", "--log-level"}
-+# Per tool, the options whose value is only READ (--config, --ignore-path...).
-+# Prettier's `-c` is `--check`, a flag: skipping the word after it hid the
-+# target of `prettier --write -c <file>` (JOURNAL J-050).
-+REWRITER_READ_OPTIONS = {
-+    "prettier": {"--config", "--ignore-path", "--plugin", "--parser", "--loglevel", "--log-level"},
-+    "eslint": {"--config", "-c", "--ignore-path", "--rulesdir", "--plugin", "--ext",
-+               "--resolve-plugins-relative-to", "--parser", "-f", "--format"},
-+}
-+# Options whose value is WRITTEN, with or without --write/--fix: the ESLint
-+# report and either tool's cache file (JOURNAL J-050).
-+REWRITER_WRITE_OPTIONS = {"-o", "--output-file", "--cache-location"}
+1. `.claude/settings.json` (projet) :
 
+   ```json
+   "sandbox": {
+     "enabled": true,
+     "failIfUnavailable": true,
+     "filesystem": { "denyRead": ["~/.ssh", "~/.config/gh"] },
+     "network": { "allowedDomains": ["registry.npmjs.org"] }
+   },
+   ```
 
--def rewrite_targets(args: list[str]) -> list[str]:
--    targets, skip = [], False
--    for arg in args:
--        if skip:
--            skip = False
--        elif arg in REWRITER_VALUE_OPTIONS:
--            skip = True
-+def rewrite_targets(args: list[str], name: str) -> tuple[list[str], list[str]]:
-+    """(files rewritten under --write/--fix, files written whatever the flags)."""
-+    read = REWRITER_READ_OPTIONS[name]
-+    targets: list[str] = []
-+    outputs: list[str] = []
-+    i = 0
-+    while i < len(args):
-+        arg = args[i]
-+        key, eq, value = arg.partition("=")
-+        if key in REWRITER_WRITE_OPTIONS:
-+            if eq:
-+                outputs.append(value)
-+            elif i + 1 < len(args):
-+                outputs.append(args[i + 1])
-+                i += 1
-+        elif key in read:
-+            if not eq:
-+                i += 1
-         elif not arg.startswith("-"):
-             targets.append(arg)
--    return targets
-+        i += 1
-+    return targets, outputs
+   et, dans `permissions.deny` : `"Read(~/.ssh/**)"`, `"Read(~/.config/gh/**)"`.
 
+2. `~/.claude/settings.json` (utilisateur, toi seul) : `"sandbox": { "allowUnsandboxedCommands":
+false }`. C'est la seule clé qui empêche l'agent de relancer une commande hors sandbox
+   (`dangerouslyDisableSandbox`). La doc précise qu'un projet ne peut pas la poser, et qu'un `false`
+   côté utilisateur l'emporte sur le projet.
 
- def option_value(args: list[str], *names: str) -> str | None:
-@@ -636,8 +655,9 @@
-             deny("alias definition", "An alias hides the real command from this guard. Write it out.")
-         elif name in {"prettier", "eslint"}:
-             rewrites = {"--write", "--fix"} & long_flags(args) or ("w" in short_flags(args) and name == "prettier")
--            if rewrites and any(self.protected(a) for a in rewrite_targets(args)):
--                self.deny_tamper(f"{name} rewriting a harness file")
-+            targets, outputs = rewrite_targets(args, name)
-+            if any(self.protected(a) for a in outputs) or (rewrites and any(self.protected(a) for a in targets)):
-+                self.deny_tamper(f"{name} writing a harness file")
-         elif name in {"script", "expect", "unbuffer"}:
-             if self.protect and any("harness-lock" in a or "harness:relock" in a for a in args):
-                 self._deny_relock()
-```
+3. Garde Bash, en complément (le trousseau n'est pas un fichier, donc le sandbox ne couvre
+   peut-être pas `security`, point NON VÉRIFIÉ) : refuser `gh auth status` avec `--show-token`/`-t`,
+   et `security find-generic-password` / `find-internet-password` avec `-w`/`-g`.
 
-Cas à ajouter au self-test, à côté de ceux du §2 :
+4. Self-test, à écrire une fois le sandbox actif : un `cat` d'un fichier témoin placé sous un
+   répertoire refusé doit échouer. C'est un test réel de l'OS, pas une payload envoyée à la garde.
 
-```bash
-guard BLOCK 'npx prettier --write -c scripts/sensors.sh'
-guard BLOCK 'npx prettier -w -c .eslintrc.js'
-guard BLOCK 'npx prettier --config=.prettierrc.js --write .eslintrc.js'
-guard BLOCK 'npx eslint src -o scripts/sensors.sh'
-guard BLOCK 'npx eslint src --output-file=scripts/sensors.sh'
-guard BLOCK 'npx eslint --cache --cache-location scripts/sensors.sh src'
-guard BLOCK 'npx prettier --cache --cache-location scripts/sensors.sh --check src'
-guard ALLOW 'npx prettier --write -c docs/x.md'
-guard ALLOW 'npx eslint src -o /tmp/eslint-report.txt'
-```
+Ensuite, J-049 et J-051 passent RÉSOLU. D'ici là, J-049 repasse OUVERT : sa fermeture déclarée
+était fausse.
 
-Dans le même passage, le cas `guard BLOCK "cat $HOME/.CONFIG/gh/hosts.yml"` (ligne 367) passe sous
-le commentaire J-049 : il passait déjà avant J-047, grâce au test de sous-chaîne, et il ne prouve
-donc pas `rel_under`.
+### 4. Juge `audit` : un rapport `[]` donne une trace Python (J-051, mineur)
 
-### 8. Juge `audit` : un rapport qu'il ne reconnaît pas n'est jamais vert (J-050)
-
-`{}`, `{"message": "..."}` ou un paquet `high` dont la chaîne `via` ne mène à aucun avis donnaient
-exit 0. Le cas réaliste est un changement de format de npm, et le capteur passait alors au vert.
-Le correctif exige `auditReportVersion: 2` et un objet `vulnerabilities`, puis remonte la chaîne
-`via` de chaque paquet haut ou critique jusqu'à ses avis. Un paquet sévère sans avis traçable est
-rouge. Vérifié sur une copie, en 11 cas : le vrai rapport (rouge sur l'arbre actuel, vert après le
-lot 1), et des rapports fabriqués (vide, sans clé, non traçable, cycle, hors ligne, avis inconnu,
-raison trop courte).
-
-`scripts/check-audit-verdict.py` :
-
-```diff
-@@ -29,6 +29,11 @@
-     print("✖ npm audit gave no usable report:")
-     print(text[:2000])
-     sys.exit(1)
-+# Any other shape (an empty object, npm 6's `advisories`, a future report
-+# version) must never read as "no vulnerability" (JOURNAL J-050).
-+if report.get("auditReportVersion") != 2 or not isinstance(report.get("vulnerabilities"), dict):
-+    print("✖ unrecognised npm audit report (expected auditReportVersion 2 with a `vulnerabilities` object)")
-+    sys.exit(1)
-
- findings: list[str] = []
- today = datetime.date.today()
-@@ -61,16 +66,45 @@
-         continue
-     valid[gid] = expires
-
--reported: dict[str, str] = {}
--for name, vuln in report.get("vulnerabilities", {}).items():
-+SEVERE = ("high", "critical")
-+vulnerabilities = report["vulnerabilities"]
-+
-+
-+def root_advisories(name: str, seen: set[str]) -> dict[str, str]:
-+    """High/critical advisories reached from `name` through its `via` chain.
-+
-+    A dict entry is an advisory; a string entry only points at another
-+    vulnerable package, whose own advisories are listed under its name.
-+    """
-+    if name in seen:
-+        return {}
-+    seen.add(name)
-+    found: dict[str, str] = {}
-+    vuln = vulnerabilities.get(name)
-+    if not isinstance(vuln, dict):
-+        return found
-     for via in vuln.get("via", []):
--        # String entries only point at another vulnerable package: the root
--        # advisory is listed (as a dict) under that package itself.
--        if not isinstance(via, dict) or via.get("severity") not in ("high", "critical"):
--            continue
--        gid = str(via.get("url", "")).rsplit("/", 1)[-1]
--        reported[gid] = f"{via.get('severity')} {via.get('name', name)}: {str(via.get('title', ''))[:90]}"
-+        if isinstance(via, dict):
-+            if via.get("severity") in SEVERE:
-+                gid = str(via.get("url", "")).rsplit("/", 1)[-1]
-+                title = str(via.get("title", ""))[:90]
-+                found[gid] = f"{via.get('severity')} {via.get('name', name)}: {title}"
-+        elif isinstance(via, str):
-+            found.update(root_advisories(via, seen))
-+    return found
-
-+
-+reported: dict[str, str] = {}
-+for name, vuln in vulnerabilities.items():
-+    if not isinstance(vuln, dict) or vuln.get("severity") not in SEVERE:
-+        continue
-+    roots = root_advisories(name, set())
-+    if not roots:
-+        # A severe package whose chain reaches no severe advisory: the report
-+        # does not explain itself, so it cannot be judged green (JOURNAL J-050).
-+        findings.append(f"{name}: {vuln.get('severity')} with no traceable advisory in the report")
-+    reported.update(roots)
-+
- accepted_now = []
- for gid, label in sorted(reported.items()):
-     if gid not in valid:
-```
-
-Cas à ajouter au self-test, après les 4 cas `audit` existants. Les rapports fabriqués de ces
-cas-là doivent aussi porter `"auditReportVersion":2`, sinon ils deviennent rouges.
-
-```bash
-printf '{}' | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/ok.json" >/dev/null
-expect_exit 1 $? "an unrecognised audit report is red (J-050)"
-printf '' | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/ok.json" >/dev/null
-expect_exit 1 $? "an empty audit report is red (J-050)"
-printf '{"auditReportVersion":2,"vulnerabilities":{"x":{"severity":"high","via":["y"]}}}' |
-  python3 scripts/check-audit-verdict.py "$AUDIT_DIR/ok.json" >/dev/null
-expect_exit 1 $? "a severe package with no traceable advisory is red (J-050)"
-printf '{"GHSA-2222-3333-4444":{"package":"x","reason":"short","expires":"2099-01-01"}}' >"$AUDIT_DIR/short.json"
-printf '%s' "$AUDIT_REPORT" | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/short.json" >/dev/null
-expect_exit 1 $? "an accepted entry without a real reason is red (J-050)"
-```
+`scripts/check-audit-verdict.py`, ligne `text = raw if report is None else json.dumps(report.get("error"))` →
+`text = raw if not isinstance(report, dict) else json.dumps(report.get("error"))`. L'exit était déjà
+1 (rouge), seul le message change. Cas : `printf '[]' | python3 scripts/check-audit-verdict.py
+"$AUDIT_DIR/ok.json"` → `expect_exit 1`.

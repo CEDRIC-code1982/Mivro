@@ -42,6 +42,15 @@ trap cleanup EXIT INT TERM
 
 ok() { PASS=$((PASS + 1)); printf '  \033[32m/\033[0m %s\n' "$1"; }
 bad() { FAIL=$((FAIL + 1)); printf '  \033[31mX\033[0m %s\n' "$1"; }
+# A case that calls an undefined helper must fail, not vanish (JOURNAL J-048).
+command_not_found_handle() {
+  bad "command not found in the self-test: $1"
+  return 127
+}
+# Bash 3.2 (macOS) has no command_not_found_handle: catch the 127 instead.
+if ((BASH_VERSINFO[0] < 4)); then
+  trap '(($? == 127)) && bad "command not found in the self-test (exit 127)"' ERR
+fi
 section() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 expect_exit() { # expect_exit <wanted> <got> <label>
   if [ "$2" -eq "$1" ]; then ok "$3"; else bad "$3 (exit $2, wanted $1)"; fi
@@ -220,6 +229,16 @@ guard ALLOW 'npx prettier --check scripts/check-deps.js'
 guard ALLOW 'npx prettier --config .prettierrc.js --write docs/x.md'
 guard BLOCK 'npx prettier --config .prettierrc.js --write .eslintrc.js'
 guard BLOCK 'npx eslint -c .eslintrc.js --fix scripts/check-deps.js'
+# J-050: options read per tool (Prettier's -c is --check), and options that write.
+guard BLOCK 'npx prettier --write -c scripts/sensors.sh'
+guard BLOCK 'npx prettier -w -c .eslintrc.js'
+guard BLOCK 'npx prettier --config=.prettierrc.js --write .eslintrc.js'
+guard BLOCK 'npx eslint src -o scripts/sensors.sh'
+guard BLOCK 'npx eslint src --output-file=scripts/sensors.sh'
+guard BLOCK 'npx eslint --cache --cache-location scripts/sensors.sh src'
+guard BLOCK 'npx prettier --cache --cache-location scripts/sensors.sh --check src'
+guard ALLOW 'npx prettier --write -c docs/x.md'
+guard ALLOW 'npx eslint src -o /tmp/eslint-report.txt'
 guard ALLOW 'tar -czf /tmp/b.tgz src'
 guard ALLOW 'git apply --check p.diff'
 guard ALLOW "cat data.json | python3 -c 'import json,sys; print(json.load(sys.stdin))'"
@@ -364,7 +383,22 @@ edit_guard 2 "$HOME/.GITCONFIG"
 edit_guard 2 "$HOME/.Claude/projects/x/y.jsonl"
 guard BLOCK "echo x >> $HOME/.Claude/settings.json"
 guard BLOCK "echo x > $REPO_UPPER/scripts/check.sh"
+# J-049: the credentials of $HOME, without case, for Bash and for Read. This
+# first case already passed before J-047 (substring test): it does not prove rel_under.
 guard BLOCK "cat $HOME/.CONFIG/gh/hosts.yml"
+read_guard() { # read_guard <expect exit> <path>
+  local code
+  python3 -c 'import json,sys; json.dump({"tool_name":"Read","tool_input":{"file_path":sys.argv[1]},"cwd":sys.argv[2]}, sys.stdout)' "$2" "$REPO" |
+    CLAUDE_PROJECT_DIR="$REPO" python3 scripts/hooks/pre-edit-guard.py >/dev/null 2>&1
+  code=$?
+  expect_exit "$1" "$code" "read guard: $2"
+}
+guard BLOCK "cat $HOME/.config/GH/hosts.yml"
+read_guard 2 "$HOME/.config/gh/hosts.yml"
+read_guard 2 "$HOME/.CONFIG/gh/Hosts.yml"
+read_guard 0 "$REPO/scripts/check.sh"
+read_guard 2 "$HOME/.ssh/id_rsa"
+guard BLOCK "cat $HOME/.SSH/id_ed25519"
 # J-042: package.json stays editable, except its harness keys.
 pkg_edit() { # pkg_edit <expect> <old> <new> <label>
   local code
@@ -764,7 +798,7 @@ AUDIT_DIR="$(tmp_dir)"
 printf '{"GHSA-2222-3333-4444":{"package":"x","reason":"%s","expires":"2099-01-01"}}' \
   "accepted in the self-test, never reaches the app bundle" >"$AUDIT_DIR/ok.json"
 sed 's/2099-01-01/2000-01-01/' "$AUDIT_DIR/ok.json" >"$AUDIT_DIR/expired.json"
-AUDIT_REPORT='{"vulnerabilities":{"x":{"via":[{"url":"https://github.com/advisories/GHSA-2222-3333-4444","severity":"high","name":"x","title":"t"}]}}}'
+AUDIT_REPORT='{"auditReportVersion":2,"vulnerabilities":{"x":{"severity":"high","via":[{"url":"https://github.com/advisories/GHSA-2222-3333-4444","severity":"high","name":"x","title":"t"}]}}}'
 printf '%s' "$AUDIT_REPORT" | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/ok.json" >/dev/null
 expect_exit 0 $? "an accepted, unexpired advisory passes (J-040)"
 printf '%s' "$AUDIT_REPORT" | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/expired.json" >/dev/null
@@ -773,6 +807,16 @@ printf '%s' "${AUDIT_REPORT//2222/5555}" | python3 scripts/check-audit-verdict.p
 expect_exit 1 $? "an advisory not on the accepted list is red (J-040)"
 printf '{"error":{"code":"ENOTFOUND"}}' | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/ok.json" >/dev/null
 expect_exit 3 $? "an unreachable registry abstains (J-040)"
+printf '{}' | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/ok.json" >/dev/null
+expect_exit 1 $? "an unrecognised audit report is red (J-050)"
+printf '' | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/ok.json" >/dev/null
+expect_exit 1 $? "an empty audit report is red (J-050)"
+printf '{"auditReportVersion":2,"vulnerabilities":{"x":{"severity":"high","via":["y"]}}}' |
+  python3 scripts/check-audit-verdict.py "$AUDIT_DIR/ok.json" >/dev/null
+expect_exit 1 $? "a severe package with no traceable advisory is red (J-050)"
+printf '{"GHSA-2222-3333-4444":{"package":"x","reason":"short","expires":"2099-01-01"}}' >"$AUDIT_DIR/short.json"
+printf '%s' "$AUDIT_REPORT" | python3 scripts/check-audit-verdict.py "$AUDIT_DIR/short.json" >/dev/null
+expect_exit 1 $? "an accepted entry without a real reason is red (J-050)"
 
 if bash scripts/check-doc-refs.sh >/dev/null 2>&1; then
   REF_PROBE="docs/__selftest_ref_probe.md"
