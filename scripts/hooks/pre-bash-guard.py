@@ -312,6 +312,24 @@ def positional(args: list[str]) -> list[str]:
     return [a for a in args if not a.startswith("-")]
 
 
+# Options whose value is read, never rewritten (--config, --ignore-path...).
+REWRITER_VALUE_OPTIONS = {"--config", "-c", "--ignore-path", "--rulesdir", "--plugin", "--ext",
+                          "--resolve-plugins-relative-to", "--cache-location", "--parser",
+                          "--loglevel", "--log-level"}
+
+
+def rewrite_targets(args: list[str]) -> list[str]:
+    targets, skip = [], False
+    for arg in args:
+        if skip:
+            skip = False
+        elif arg in REWRITER_VALUE_OPTIONS:
+            skip = True
+        elif not arg.startswith("-"):
+            targets.append(arg)
+    return targets
+
+
 def option_value(args: list[str], *names: str) -> str | None:
     """Value of `-o X`, `-oX`, `--output X` or `--output=X`."""
     for i, arg in enumerate(args):
@@ -618,7 +636,7 @@ class Guard:
             deny("alias definition", "An alias hides the real command from this guard. Write it out.")
         elif name in {"prettier", "eslint"}:
             rewrites = {"--write", "--fix"} & long_flags(args) or ("w" in short_flags(args) and name == "prettier")
-            if rewrites and any(self.protected(a) for a in positional(args)):
+            if rewrites and any(self.protected(a) for a in rewrite_targets(args)):
                 self.deny_tamper(f"{name} rewriting a harness file")
         elif name in {"script", "expect", "unbuffer"}:
             if self.protect and any("harness-lock" in a or "harness:relock" in a for a in args):

@@ -10,8 +10,11 @@ lock protects.
 Checked:
   iOS      DEVELOPMENT_TEAM, PRODUCT_BUNDLE_IDENTIFIER, deployment target,
            the GoogleService-Info.plist reference (path + Resources phase),
-           the Run action of the shared scheme builds Debug (c15b8e1)
-  Android  applicationId and namespace
+           the Run action of the shared scheme builds Debug (c15b8e1),
+           CFBundleIdentifier in Info.plist stays $(PRODUCT_BUNDLE_IDENTIFIER) (J-046)
+  Android  applicationId and namespace; no applicationIdSuffix nor
+           productFlavors in the app module; the root gradle file sets
+           neither applicationId nor namespace (J-045)
 
 Exit 0 = identity intact, 1 = drift (each finding listed).
 """

@@ -2,33 +2,30 @@
 # ---------------------------------------------------------------------------
 # check-audit.sh — known vulnerabilities in the runtime dependencies.
 #
-# Same command as the CI job `security`, so a red audit shows up at pre-push
-# instead of on the first PR (JOURNAL J-040: the job was red before it ever ran).
-# Development-only dependencies are left out: they never ship in the app.
+# Same sensor for the pre-push and the CI job `security`, so a red audit shows
+# up at pre-push instead of on the first PR (JOURNAL J-040: the job was red
+# before it ever ran). Development-only dependencies are left out: they never
+# ship in the app.
 #
-# Exit 0 = no high/critical advisory, 1 = at least one, 3 = abstained (no
+# Some advisories have no fix reachable on the current React Native line
+# (JOURNAL J-040, remeasured 2026-10-05). They are accepted BY NAME in
+# scripts/audit-accepted.json: one GHSA id, the package, why it does not reach
+# the shipped app, and an expiry date. Anything else is red:
+#   - a high/critical advisory that is not on the list;
+#   - an accepted advisory past its expiry date (re-decide, do not extend blindly);
+#   - a malformed list entry.
+# An accepted advisory that npm no longer reports is printed as stale: remove
+# it at the next harness session.
+#
+# Exit 0 = nothing unaccepted, 1 = at least one finding, 3 = abstained (no
 # network or registry unreachable). CI does not accept the abstention.
+# MIVRO_AUDIT_ROOT lets the self-test point the sensor at a doctored manifest.
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
-cd "$(git rev-parse --show-toplevel)" || exit 1
+HARNESS="$(cd "$(dirname "$0")" && pwd)"
+ROOT="${MIVRO_AUDIT_ROOT:-$(git rev-parse --show-toplevel)}"
+cd "$ROOT" || exit 1
 
-OUT="$(npm audit --omit=dev --audit-level=high 2>&1)"
-CODE=$?
-if [ "$CODE" -eq 0 ]; then
-  exit 0
-fi
-case "$OUT" in
-  *ENOTFOUND* | *ECONNREFUSED* | *ETIMEDOUT* | *EAI_AGAIN* | *"network"*"request"*)
-    echo "npm registry unreachable"
-    exit 3
-    ;;
-esac
-printf '%s\n' "$OUT" | tail -40
-cat <<'MSG'
-
-Fix: `npm audit fix` (never --force) in a dedicated branch, then a native
-rebuild — the app's lockfile moves. A package that must be added or bumped
-across a major is Cedric's call (scripts/allowed-dependencies.json).
-MSG
-exit 1
+OUT="$(npm audit --omit=dev --json 2>/dev/null)"
+printf '%s' "$OUT" | python3 "$HARNESS/check-audit-verdict.py" "$HARNESS/audit-accepted.json"

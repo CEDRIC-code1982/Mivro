@@ -1,0 +1,23 @@
+{
+  "_comment": "Runtime advisories accepted by name (JOURNAL J-040). Cedric's decision; harness file. Each one: why it cannot reach the shipped app, and an expiry date after which it must be decided again.",
+  "GHSA-vfj7-8cjw-p6xm": {
+    "package": "braces",
+    "reason": "No fixed release exists (3.0.3 is the latest and is vulnerable). Pulled by metro and jest through micromatch: it expands glob patterns written in our own build and test configuration, never user input, and is not part of the app bundle.",
+    "expires": "2027-01-05"
+  },
+  "GHSA-5p2g-fcmc-qvqq": {
+    "package": "image-size",
+    "reason": "Pinned to 1.x by metro 0.84 (React Native 0.85); fixed only in 2.0.3+. Metro reads the dimensions of our own assets at bundle time on the developer machine; the parser never runs in the app.",
+    "expires": "2027-01-05"
+  },
+  "GHSA-w3rx-r6r6-pgpr": {
+    "package": "image-size",
+    "reason": "Same package and path as GHSA-5p2g-fcmc-qvqq: metro bundle-time parsing of our own assets, never in the app.",
+    "expires": "2027-01-05"
+  },
+  "GHSA-m9gg-hp2v-232j": {
+    "package": "@grpc/grpc-js",
+    "reason": "Pinned to 1.9.x by @firebase/firestore inside the firebase JS SDK that @react-native-firebase lists for non-native platforms. Node-only gRPC transport; Mivro uses the native SDKs and Realtime Database only, no Firestore import in src/ (checked 2026-10-05).",
+    "expires": "2027-01-05"
+  }
+}
