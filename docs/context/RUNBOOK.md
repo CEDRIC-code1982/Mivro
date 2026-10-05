@@ -7,6 +7,60 @@
 > - **Projet Firebase** : `mivro-40125` — RTDB région **`europe-west1`**
 > - **Deep link** : `mivro://` (id `com.mivro.deeplink`), format `mivro://session/{id}`
 > - **RN** 0.85.2 (New Architecture), `@react-native-firebase` v25 (API modulaire)
+> - **Team Apple** : `W7N4H92U5V` — figée par `scripts/check-native.py` (Xcode la réécrit en silence)
+
+---
+
+## Harness — ce que toi seul peux faire (ADR-016)
+
+L'agent ne peut plus modifier le harness par les voies connues : hooks, capteurs, configs
+lint/test/archi, CI et hooks git (liste : `scripts/harness-protected.txt`). Le garde Bash est une
+liste noire, il aura toujours des angles morts (J-042). Ce qui passerait quand même et touche un
+fichier de la liste rend le verrou rouge, en local comme en CI, et `harness-guard` exige ton label. Toute évolution passe par toi.
+
+### Mise en service (une fois)
+
+L'étape 1 est faite depuis le 2026-09-28 : `EN-ATTENTE.md` est appliqué, et il est vérifié que les
+hooks voient bien `MIVRO_HARNESS_UNLOCK`. Pour lancer une session déverrouillée sans installer le
+CLI, utilise le binaire de l'extension :
+`MIVRO_HARNESS_UNLOCK=1 ~/.vscode/extensions/anthropic.claude-code-<version>-darwin-arm64/resources/native-binary/claude --continue`.
+
+1. **Générer le verrou**, dans ton terminal, hors Claude Code : `npm run harness:relock`, puis
+   tape `RELOCK`.
+2. **Commit, push de `harness/beton`, PR vers `develop`.** Les jobs `battery` et `security`
+   tournent sur la PR. `harness-guard`, lui, ne tourne **pas** encore : un workflow
+   `pull_request_target` s'exécute depuis la branche **de base**, et `harness-guard.yml` n'existe
+   pas encore sur `develop`. `security` sera rouge à cause de J-040.
+3. **`npm audit fix` dans une branche dédiée** issue de `develop` (J-040), avec rebuild natif iOS
+   et Android, puis PR et merge. Rebase ensuite `harness/beton` si besoin.
+4. **Merger `harness/beton` dans `develop`**, puis **`develop` dans `main`** par PR. Les deux
+   branches portent alors `harness-guard.yml`.
+5. **Activer la protection** : `bash scripts/setup-branch-protection.sh`. Le script refuse
+   d'exiger `harness-guard` sur une branche qui ne porte pas encore le workflow, ce qui évite de
+   bloquer toutes les PR. Il crée aussi le label `harness-change`. Vérification :
+   `bash scripts/setup-branch-protection.sh --show`.
+
+À partir de là, toute PR qui touche le harness exige que tu poses le label `harness-change`.
+
+### Au quotidien
+
+- **Un capteur est faux, ou une règle manque** : l'agent le décrit (fichier, changement exact). Tu
+  lances une session `MIVRO_HARNESS_UNLOCK=1 claude` pour qu'il l'applique, puis
+  `npm run harness:relock`, puis commit, PR et label `harness-change`.
+- **Dépendance npm, ajout ou simple mise à jour de version** : c'est ta décision. `package.json` et
+  les lockfiles sont du harness depuis J-045. Si l'agent lance `npm install`, le verrou rougit et le
+  hook Stop le lui signale ; il te décrit le besoin. Pour un nouveau paquet, ajoute-le dans
+  `scripts/allowed-dependencies.json`, puis relock.
+- **Nouvelle identité native** (team, bundle id) : modifie les constantes de
+  `scripts/check-native.py`, puis relock.
+- **Fin de tour avec ⚠️ capteurs rouges** : le hook Stop a laissé passer l'agent après 3 tentatives
+  infructueuses. Lis ce qu'il a écrit avant de faire confiance à l'état du dépôt.
+
+### Durcissement optionnel, recommandé
+
+Un token GitHub **fine-grained** sans la permission _Administration_ pour les sessions Claude :
+`gh auth login` avec ce token dans le shell qui lance `claude`. C'est la seule barrière contre un
+script qui lèverait la protection de branche en passant sous les gardes locaux.
 
 ---
 

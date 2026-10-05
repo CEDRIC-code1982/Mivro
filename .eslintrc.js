@@ -8,8 +8,43 @@
 // See docs/harness/INVENTAIRE.md for the mechanisable/non-mechanisable split
 // and docs/harness/JOURNAL-ECHECS.md for why each exemption exists.
 
+// A dynamic import or require with a computed specifier is invisible to
+// dependency-cruiser: `import(ADAPTER)` crossed a layer boundary with check:arch
+// green (JOURNAL J-035).
+const DYNAMIC_MODULE_SELECTORS = [
+  {
+    selector: "ImportExpression[source.type!='Literal']",
+    message:
+      'Dynamic import with a computed specifier: check:arch cannot see it. Use a static import, or a literal path.',
+  },
+  {
+    selector: "CallExpression[callee.name='require'][arguments.0.type!='Literal']",
+    message:
+      'require() with a computed specifier: check:arch cannot see it. Use a static import, or a literal path.',
+  },
+];
+
 module.exports = {
   root: true,
+
+  // Inline configuration comments (a rule set to off in a block comment, or a
+  // disable directive) are ignored: a single one at the top of a file switched every rule off for
+  // that file, with lint and check-diff green (JOURNAL J-031). An exemption now
+  // lives in this file, where it is reviewed and locked.
+  noInlineConfig: true,
+
+  ignorePatterns: [
+    'node_modules/',
+    'coverage/',
+    'docs-site/build/',
+    'docs-site/.docusaurus/',
+    'docs-site/node_modules/',
+    'ios/',
+    'android/',
+    'vendor/',
+    '.claude/worktrees/',
+  ],
+
   extends: [
     '@react-native',
     'plugin:import/typescript',
@@ -21,8 +56,32 @@ module.exports = {
     // ── TS-001 — `any` forbidden ────────────────────────────────────────────
     '@typescript-eslint/no-explicit-any': 'error',
 
+    // Every TypeScript suppression comment is banned, the expect-error form included:
+    // it silenced a real type error with tsc, lint and check-diff green
+    // (JOURNAL J-031).
+    '@typescript-eslint/ban-ts-comment': [
+      'error',
+      { 'ts-expect-error': true, 'ts-ignore': true, 'ts-nocheck': true, 'ts-check': false },
+    ],
+    // `Function` and `Object` are `any` in disguise.
+    '@typescript-eslint/no-unsafe-function-type': 'error',
+    '@typescript-eslint/no-wrapper-object-types': 'error',
+
     // ── TS-002 — a type assertion needs a justifying comment ────────────────
+    // The comment must say something: eslint-rules/justification.js.
     'local-rules/no-unjustified-type-assertion': 'error',
+
+    // `x as unknown as T` defeats the type checker entirely; in production
+    // code, validate with Zod or write a type guard instead (TS-004).
+    'no-restricted-syntax': [
+      'error',
+      ...DYNAMIC_MODULE_SELECTORS,
+      {
+        selector: "TSAsExpression > TSAsExpression[typeAnnotation.type='TSUnknownKeyword']",
+        message:
+          'Double assertion (as unknown as T) is banned in production code. Parse with a Zod schema or narrow with a type guard (TS-004).',
+      },
+    ],
 
     // ── TS-003 — a non-null assertion needs a justifying comment ────────────
     // Replaces @typescript-eslint/no-non-null-assertion, which cannot express
@@ -118,14 +177,46 @@ module.exports = {
       //
       // TSDoc is not required on test bodies either, and LOG-001 targets
       // application logs: a test file would be asked for a [Name.test] prefix.
+      //
+      // Test hygiene is enforced as errors, not warnings: a focused or skipped
+      // test passed `jest --ci` silently (JOURNAL J-032).
       files: ['**/*.test.ts', '**/*.test.tsx', 'src/test-utils/**'],
       rules: {
+        'jest/no-focused-tests': 'error',
+        'jest/no-disabled-tests': 'error',
+        'jest/no-commented-out-tests': 'error',
+        'jest/no-identical-title': 'error',
+        'jest/valid-expect': 'error',
+        'jest/expect-expect': [
+          'error',
+          { assertFunctionNames: ['expect', 'expect*', 'assert*', '*.expect*'] },
+        ],
+        // Mocks legitimately use `as unknown as jest.Mocked<T>`; dynamic
+        // specifiers stay banned.
+        'no-restricted-syntax': ['error', ...DYNAMIC_MODULE_SELECTORS],
         'local-rules/no-unjustified-type-assertion': 'off',
         'local-rules/log-format': 'off',
         'jsdoc/require-jsdoc': 'off',
         'jsdoc/require-param': 'off',
         'jsdoc/require-returns': 'off',
         'jsdoc/check-param-names': 'off',
+      },
+    },
+    {
+      // Node-side JavaScript: config files, the Jest setup, custom ESLint
+      // rules, Cloud Functions. Linted since J-035 (functions/index.js had
+      // errors nobody saw). No TSDoc requirement on config objects.
+      files: ['*.js', 'eslint-rules/**/*.js', 'functions/**/*.js', 'scripts/**/*.js'],
+      env: { node: true },
+      rules: {
+        'local-rules/log-format': 'off',
+      },
+    },
+    {
+      files: ['jest.setup.js'],
+      env: { jest: true },
+      rules: {
+        'jsdoc/require-jsdoc': 'off',
       },
     },
     {

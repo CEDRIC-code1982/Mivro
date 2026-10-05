@@ -1,0 +1,90 @@
+# ---------------------------------------------------------------------------
+# harness-guard — a PR that changes the harness needs Cedric's label.
+#
+# Runs under `pull_request_target`, i.e. with the workflow and scripts of the
+# BASE branch, and never checks out the PR's code. Under plain `pull_request`
+# it ran the PR's own copy of this job and of harness_paths.py: a PR could
+# replace the check with `exit 0` and approve itself (JOURNAL J-036).
+#
+# What counts as the harness: harness_paths.is_harness AS ON THE BASE BRANCH —
+# every file outside the product zones (package.json and lockfiles included)
+# plus the listed ones — and, whatever it says, every workflow and the lock.
+#
+# The PR's files are only ever read as data (the file list, through the API);
+# nothing from the PR is executed.
+# ---------------------------------------------------------------------------
+name: harness-guard
+
+on:
+  pull_request_target:
+    # `edited`: a base change is judged again (J-042).
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  harness-guard:
+    name: harness-guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout the base branch only (never the PR's code)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Harness changes need the harness-change label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          ACTION: ${{ github.event.action }}
+          EVENT_LABEL: ${{ github.event.label.name }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$REPO/pulls/$PR/files" --paginate \
+            --jq '.[] | .filename, (.previous_filename // empty)' | sort -u >changed.txt
+          # The files endpoint stops at 3000 entries: a longer list may hide a
+          # harness file, so it cannot be judged (J-043).
+          if [ "$(gh api "repos/$REPO/pulls/$PR" --jq '.changed_files')" -ge 3000 ]; then
+            echo "::error::3000 files or more changed: the file list is truncated, the harness cannot be judged. Split the PR."
+            exit 1
+          fi
+
+          python3 - <<'PY' >harness.txt
+          import sys
+          sys.path.insert(0, "scripts/hooks")
+          import harness_paths  # base branch copy: trusted
+
+          patterns = harness_paths.load_patterns("scripts/harness-protected.txt")
+          always = (".github/", "scripts/harness.lock", "scripts/harness-protected.txt")
+          # The zone model (J-045): anything outside the product zones is harness,
+          # package.json and lockfiles included. Older base copies fall back to the list.
+          is_harness = getattr(harness_paths, "is_harness", None)
+
+          for path in open("changed.txt").read().splitlines():
+              if path.startswith(always) or harness_paths.matches(path, patterns):
+                  print(path)
+              elif is_harness is not None and is_harness(path, patterns):
+                  print(path)
+          PY
+
+          if [ ! -s harness.txt ]; then
+            echo "No harness file changed."
+            exit 0
+          fi
+          echo "Harness files changed in this PR:"
+          sed 's/^/  /' harness.txt
+          # Only the act of labelling approves, and it approves the head it was
+          # applied to. A label left on from an earlier push does not cover the
+          # commits pushed since (J-042): those runs fail until Cedric removes the
+          # label and adds it again.
+          if [ "$ACTION" = "labeled" ] && [ "$EVENT_LABEL" = "harness-change" ]; then
+            echo "harness-change just applied to this head: approved by Cedric."
+            exit 0
+          fi
+          echo "::error::This PR changes the harness. Cedric reviews the current head, then (re)applies the 'harness-change' label — remove and add it again if it is already there."
+          exit 1

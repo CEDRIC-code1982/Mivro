@@ -1,26 +1,25 @@
 # CLAUDE.md — Mivro
 
-<!-- v9.0 (2026-08-21, harness) : les règles vérifiables par un outil ont quitté ce fichier ;
-     le reste est dans docs/context/POLICIES.md. Ne pas rallonger sans ADR. -->
+<!-- v10 (2026-09-26) : vérifiable → harness (ADR-016), le reste → POLICIES.md. Ne pas rallonger sans ADR. -->
 
 Mivro (ex-MidPoint, cf. ADR-011) — React Native 0.85 + TypeScript strict, New Architecture ON.
 Phase 1 : MVP iOS + Android. Archi **feature-first + `services/`** (ports/adapters).
 
-**Jamais de dev sur `main`** (protégée) : le travail va sur `develop` ou une branche issue de
-`develop`. Repo `CEDRIC-code1982/Mivro`. ADR-001→014 complets dans `docs-site/docs/adr/`.
+**Jamais de dev sur `main`** : branche issue de `develop`, merge par PR (checks CI requis). Repo
+`CEDRIC-code1982/Mivro`. ADR-001→016 dans `docs-site/docs/adr/`.
 
-**À lire en début de session** : `docs/context/ARCHITECTURE.md` (le code réel) ·
-`PROGRESS.md` (historique) · `TODO.md` (reste à faire) · `RUNBOOK.md` (actions Cédric) ·
-`POLICIES.md` (storage, state, observabilité, temps réel, RGPD, ADR, roadmap macro).
+**À lire en début de session** : `docs/context/ARCHITECTURE.md` (le code réel) · `PROGRESS.md` ·
+`TODO.md` · `RUNBOOK.md` (actions Cédric) · `POLICIES.md` (storage, state, RGPD, ADR, roadmap).
 
 ## Ce que le harness vérifie déjà — ne le redécris pas ici
 
-`npm run check` = typecheck + lint + format + `check:arch` + `check:diff` + tests. Bloquent seuls :
-`any`, cast ou `!` sans justification, string hardcodée, format de log, magic number ou couleur
-littérale, style inline, TSDoc publique, props a11y, frontières de couches, Atomic Design, coverage,
-contraste WCAG, build de la doc (`npm run docs`, joué au pre-push). Un hook rejoue typecheck +
-archi + lint à chaque édition, un autre bloque les commandes destructrices.
-Détail : `docs/harness/INVENTAIRE.md` · self-test : `npm run check:harness`.
+Une table (`scripts/sensors.sh`) pour `npm run check`, le Stop, le pre-push et la CI. Bloquent seuls :
+`any` partout, cast ou `!` sans vraie justification, directives de suppression, tests focalisés ou
+sautés, secrets, string hardcodée, logs, magic numbers, couleurs, styles inline, TSDoc, a11y,
+couches, Atomic Design, coverage, WCAG, identité native, dépendance hors liste, doc (au push).
+Pas de fin de tour sur un arbre rouge (hook Stop), pas de commit sans verdict `reviewer` scellé.
+**Le harness est hors de ta portée** (ADR-016) : un capteur faux se signale à Cédric, il ne se
+contourne pas. Détail : `docs/harness/INVENTAIRE.md` · self-test : `npm run check:harness`.
 
 ## Règles qu'aucun outil ne vérifie — c'est toi qui juges
 
@@ -41,9 +40,8 @@ Détail : `docs/harness/INVENTAIRE.md` · self-test : `npm run check:harness`.
 
 - Feature de bout en bout sans demander : entité → port → usecase → adapter → hook → UI → i18n → DI → tests → docs.
 - **Avant de commencer** : remplir `docs/harness/DONE-CONTRACT.md`. Pas de condition de fin écrite = tâche pas commencée.
-- **Après dev + tests** : lancer le subagent `reviewer`. Il bloque, tu corriges, tu relances.
 - Échec de build/test : 2 tentatives de fix auto, puis tu signales.
-- Défaut passé à travers le harness → entrée dans `docs/harness/JOURNAL-ECHECS.md` **et** la règle qui l'aurait attrapé.
+- Défaut passé à travers le harness → entrée dans `docs/harness/JOURNAL-ECHECS.md` **et** la règle qui l'aurait attrapé, que Cédric applique.
 - Spec manquante → TODO « ⚠️ À SPÉCIFIER AVEC CÉDRIC », jamais d'invention. Spec incohérente → tu la signales.
 
 **PAUSE** uniquement si : décision produit/archi ambiguë · secret, compte ou fichier externe hors de
@@ -51,11 +49,11 @@ ta portée (Firebase, Apple/Google dev, clé prod) · doute sur une convention C
 
 ## Commandes
 
-`npm start` · `run ios`/`android` · **`run check` avant tout commit** · `lint:fix` · `format` ·
-`test`/`test:ci`/`test:coverage`/`test:unit`/`test:integration` · `check:arch`/`check:diff`/`check:harness`.
-⚠️ `pods`, `ios-clean`, `android-clean`, `clear` sont bloqués par le hook : c'est Cédric qui les lance.
+`npm start` · `run ios`/`android` · **`run check` avant tout commit** · `check:fast` · `lint:fix` ·
+`format` · `test`/`test:ci`/`test:coverage` · `check -- --only <id>` · `check:harness`.
+⚠️ `pods`, `ios-clean`, `android-clean`, `clear`, `harness:relock` : c'est Cédric qui les lance.
 
 ## Fin de feature
 
-`npm run check` vert → reviewer APPROVED → mise à jour de `PROGRESS.md`, `TODO.md`, `ARCHITECTURE.md`
-(+ ADR si décision) → commit. Ces mises à jour font partie du commit de la feature.
+`npm run check` vert → docs à jour (`PROGRESS`, `TODO`, `ARCHITECTURE`, ADR si décision) → reviewer
+APPROVED sur l'arbre final → commit de **tout** l'arbre relu (`git add -A`), sur demande de Cédric.

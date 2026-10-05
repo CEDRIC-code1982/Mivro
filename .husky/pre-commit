@@ -1,1 +1,10 @@
-npx lint-staged
+# ---------------------------------------------------------------------------
+# pre-commit — two gates.
+#
+# 1. scripts/review-gate.sh: an agent commit needs the reviewer's sealed
+#    APPROVED verdict for this exact tree (no-op outside Claude Code).
+# 2. lint-staged: eslint --fix (zero warning) + prettier on the staged files.
+# ---------------------------------------------------------------------------
+
+bash scripts/review-gate.sh || exit 1
+npx --no-install lint-staged

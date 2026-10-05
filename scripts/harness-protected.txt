@@ -1,0 +1,70 @@
+# Files that make up the harness. Single source of truth, read by:
+#   - scripts/hooks/pre-bash-guard.py  (refuses shell writes to them)
+#   - scripts/hooks/pre-edit-guard.py  (refuses Write/Edit on them)
+#   - scripts/harness-lock.sh          (hashes the tracked ones into scripts/harness.lock)
+#
+# One repo-relative path per line. A trailing `/**` covers the whole directory.
+# Changing this list is itself a harness change: the lock catches it.
+#
+# Since J-045 the harness is ALSO everything outside the product zones
+# (scripts/hooks/harness_paths.py PRODUCT_DIRS / PRODUCT_ROOT_FILES): dotfiles,
+# tool configs, package.json, lockfiles... are harness without being listed.
+# This list matters most for files INSIDE the product zones (sensor tests, the
+# stdlib override) and as the fallback of older harness-guard copies.
+#
+# Why each group is here: a sensor that the agent can rewrite is a suggestion,
+# not a sensor (JOURNAL-ECHECS J-029).
+
+# Claude Code configuration: hooks and permission rules.
+.claude/settings.json
+.claude/settings.local.json
+.claude/agents/**
+
+# Server-side and git-side gates.
+.github/**
+.husky/**
+
+# Sensors, hooks, self-test, the lock itself.
+scripts/**
+
+# Static analysis configuration and custom rules.
+eslint-rules/**
+eslint-local-rules.js
+.eslintrc.js
+.eslintignore
+.prettierrc.js
+.prettierignore
+.dependency-cruiser.js
+tsconfig.json
+babel.config.js
+# Babel also merges a ROOT .babelrc / package.json#babel over babel.config.js:
+# a plugin there rewrote expect() calls with the tests green (JOURNAL J-044).
+.babelrc
+.babelrc.js
+.babelrc.cjs
+.babelrc.mjs
+.babelrc.json
+babel.config.json
+babel.config.cjs
+babel.config.mjs
+babel.config.cts
+# Configuration of the `docs` sensor (onBrokenLinks: 'throw' is the sensor).
+docs-site/docusaurus.config.ts
+typedoc.config.mjs
+src/types/stdlib-unknown.d.ts
+
+# Test runner configuration: thresholds, coverage scope, and the setup file it
+# loads before EVERY test — a global jest.mock there neutralised the sensor tests
+# (JOURNAL J-043).
+jest.config.js
+jest.setup.js
+
+# Tests that are sensors, not product tests: deleting or weakening one
+# switches a rule off (WCAG contrast, FR/EN catalogue parity).
+src/theme/contrast.test.ts
+src/i18n/locales.parity.test.ts
+
+# Git internals: hooks, config, refs and objects written by hand make commits
+# without the hooks, and the review seal lives here (JOURNAL J-042). git itself
+# writes .git/ freely; only the agent's own writes are refused.
+.git/**
