@@ -20,19 +20,15 @@ fichier de la liste rend le verrou rouge, en local comme en CI, et `harness-guar
 
 ### Mise en service (une fois)
 
-L'étape 1 est faite depuis le 2026-09-28 : `EN-ATTENTE.md` est appliqué, et il est vérifié que les
-hooks voient bien `MIVRO_HARNESS_UNLOCK`. Pour lancer une session déverrouillée sans installer le
-CLI, utilise le binaire de l'extension :
-`MIVRO_HARNESS_UNLOCK=1 ~/.vscode/extensions/anthropic.claude-code-<version>-darwin-arm64/resources/native-binary/claude --continue`.
-
-1. **Générer le verrou**, dans ton terminal, hors Claude Code : `npm run harness:relock`, puis
-   tape `RELOCK`.
-2. **Commit, push de `harness/beton`, PR vers `develop`.** Les jobs `battery` et `security`
+1. ~~**Générer le verrou**~~ : fait le 2026-10-05.
+2. **Commit, push de `harness/beton`, PR vers `develop`.** Commit et push faits le 2026-10-05
+   (`ae53e9e`, push en `--no-verify` à cause de J-040) ; reste la PR. Les jobs `battery` et `security`
    tournent sur la PR. `harness-guard`, lui, ne tourne **pas** encore : un workflow
    `pull_request_target` s'exécute depuis la branche **de base**, et `harness-guard.yml` n'existe
    pas encore sur `develop`. `security` sera rouge à cause de J-040.
-3. **`npm audit fix` dans une branche dédiée** issue de `develop` (J-040), avec rebuild natif iOS
-   et Android, puis PR et merge. Rebase ensuite `harness/beton` si besoin.
+3. **J-040** : lot 1 dans une branche dédiée issue de `develop` (commandes : `EN-ATTENTE.md` §1),
+   avec rebuild natif iOS et Android, puis PR et merge. Rebase ensuite `harness/beton` et relock.
+   Le capteur à avis acceptés (§4) se pose en session déverrouillée.
 4. **Merger `harness/beton` dans `develop`**, puis **`develop` dans `main`** par PR. Les deux
    branches portent alors `harness-guard.yml`.
 5. **Activer la protection** : `bash scripts/setup-branch-protection.sh`. Le script refuse
@@ -41,6 +37,38 @@ CLI, utilise le binaire de l'extension :
    `bash scripts/setup-branch-protection.sh --show`.
 
 À partir de là, toute PR qui touche le harness exige que tu poses le label `harness-change`.
+
+### Déverrouiller une session (procédure complète)
+
+La variable doit être posée **au lancement** de Claude Code : les hooks héritent de
+l'environnement du processus, pas d'un `export` lancé depuis une commande Bash de l'agent. Une
+variable posée dans le bloc `env` des settings est ignorée exprès.
+
+1. **Dans un terminal**, hors VS Code :
+
+   ```bash
+   cd ~/Developer/Personnel/Mivro
+   MIVRO_HARNESS_UNLOCK=1 "$(ls -d ~/.vscode/extensions/anthropic.claude-code-*/resources/native-binary/claude | sort -V | tail -1)" --permission-mode default
+   ```
+
+   Le `ls | sort -V | tail -1` prend la dernière version de l'extension : son chemin change à
+   chaque mise à jour. `--permission-mode default` est nécessaire : en mode auto, le classifieur de
+   Claude Code refuse à l'agent toute écriture dans ses propres contrôles, même déverrouillé.
+   Optionnel, dans `~/.zshrc`, pour ne plus taper la ligne :
+
+   ```bash
+   mivro-unlock() {
+     cd ~/Developer/Personnel/Mivro || return
+     MIVRO_HARNESS_UNLOCK=1 "$(ls -d ~/.vscode/extensions/anthropic.claude-code-*/resources/native-binary/claude | sort -V | tail -1)" --permission-mode default "$@"
+   }
+   ```
+
+2. **Session neuve plutôt que `--continue`** : `EN-ATTENTE.md` contient le changement exact, une
+   session neuve ne recharge pas tout l'historique et coûte bien moins cher.
+3. **Demande** : « applique EN-ATTENTE §N ». Approuve chaque édition d'un fichier du harness.
+4. **Quitte la session**, puis, dans le terminal : `npm run harness:relock` et tape `RELOCK`.
+5. **Retour en session normale** (VS Code) : l'agent relance la revue, et le commit suit sur ta
+   demande.
 
 ### Au quotidien
 
