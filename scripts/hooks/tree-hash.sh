@@ -10,7 +10,10 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
-TMP_INDEX="$(mktemp)"
+# An empty GIT_INDEX_FILE is the REAL index: without this exit, a failed mktemp
+# (the Bash sandbox, JOURNAL J-051) made `git add -A` stage the whole tree.
+TMP_INDEX="$(mktemp "${TMPDIR:-/tmp}/mivro.XXXXXX")" || exit 1
+[ -n "$TMP_INDEX" ] || exit 1
 trap 'rm -f "$TMP_INDEX"' EXIT
 rm -f "$TMP_INDEX"
 GIT_INDEX_FILE="$TMP_INDEX" git read-tree HEAD 2>/dev/null || true

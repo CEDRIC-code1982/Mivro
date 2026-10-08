@@ -126,7 +126,7 @@ CODE_WRITE_RE = re.compile(
 CANONICAL_LONG = (
     "--no-verify", "--hard", "--force", "--force-with-lease", "--delete", "--mirror",
     "--prune", "--recursive", "--ignore-environment", "--in-place", "--output", "--write",
-    "--fix", "--staged", "--worktree", "--admin",
+    "--fix", "--staged", "--worktree", "--admin", "--show-token",
 )
 
 # ios/Pods, android/build, android/app/build, android/app/.cxx ... but NOT
@@ -635,6 +635,8 @@ class Guard:
                 self._deny_hook_bypass("husky uninstall")
         elif name == "gh":
             self._check_gh(args)
+        elif name == "security":
+            self._check_security(args)
         elif name in {"curl", "wget"}:
             self._check_download(name, args)
         elif name in {"tar", "unzip", "bsdtar", "ditto"} and self.protect:
@@ -1139,6 +1141,18 @@ class Guard:
             deny(f"gh repo {action}", "Repository settings are Cedric's to change.")
         elif group == "auth" and action == "token":
             deny("gh auth token", "Exporting the token would let a raw HTTP call bypass this guard.")
+        elif group == "auth" and action == "status" and ("--show-token" in longs or "t" in short_flags(args)):
+            deny("gh auth status --show-token", "Printing the token would let a raw HTTP call bypass this guard.")
+
+    def _check_security(self, args: list[str]) -> None:
+        # The gh token lives in the macOS keychain, which is not a file: the Bash
+        # sandbox's denyRead does not cover it (verified in-session, JOURNAL J-051).
+        action = positional(args)[:1]
+        shorts = short_flags(args)
+        if action in (["find-generic-password"], ["find-internet-password"]) and {"w", "g"} & shorts:
+            deny(f"security {action[0]} -w/-g", "Printing a keychain secret would let a raw HTTP call bypass this guard.")
+        elif action == ["dump-keychain"] and "d" in shorts:
+            deny("security dump-keychain -d", "Dumping the keychain prints every stored secret.")
 
     def _check_download(self, name: str, args: list[str]) -> None:
         joined = " ".join(args)

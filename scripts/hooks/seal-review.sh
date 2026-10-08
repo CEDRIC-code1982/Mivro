@@ -25,6 +25,10 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
+# Never read or write Python bytecode: a .pyc planted in the cache would
+# replace the source of a guard or of the stdlib (JOURNAL J-052).
+export PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=/dev/null/mivro-nopyc
+
 HOOKS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PAYLOAD="$(cat)"
 FIELDS="$(printf '%s' "$PAYLOAD" | python3 -c '

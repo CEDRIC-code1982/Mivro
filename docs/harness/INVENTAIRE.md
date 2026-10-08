@@ -394,7 +394,7 @@ elle échoue.
 | Garde Bash (un appel)                           | ≈ 50 ms                       |
 | Stage `fast` (hook `Stop`), capteurs parallèles | ≈ 4 – 5 s                     |
 | `npm run check` (stage `check`)                 | ≈ 20 s                        |
-| `npm run check:harness` (395 assertions)        | ≈ 5 min (build de doc inclus) |
+| `check:harness` (418 sous sandbox, 416 en CI)   | ≈ 5 min (build de doc inclus) |
 
 ### Protection du harness
 
@@ -424,8 +424,8 @@ et protection de branche. SmartBLE n'a aucun de ces derniers.
 ### Reste ouvert
 
 - **J-022** — aucun capteur ne vérifie les affirmations factuelles des docs.
-- **J-051** — la lecture des secrets du `$HOME` reste contournable par la garde Bash (J-049) : le
-  §3 d'`EN-ATTENTE.md` (sandbox) attend la décision de Cédric. Le comptage des appels morts (J-048)
+- **J-051** — la lecture des secrets du `$HOME` est fermée par le sandbox Bash de Claude Code
+  (2026-10-08) ; reste à Cédric la clé utilisateur `allowUnsandboxedCommands: false`. Le comptage des appels morts (J-048)
   est corrigé par un trap `ERR` (§2, 2026-10-05) ; sa preuve sous Bash 5 est un pas du job
   `battery`, à voir vert sur la première CI.
 - **Mémoire de l'agent** — inscriptible par conception, risque accepté (J-046).

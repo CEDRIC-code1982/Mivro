@@ -69,6 +69,13 @@ variable posée dans le bloc `env` des settings est ignorée exprès.
 
 ### Au quotidien
 
+- **Le shell de l'agent tourne sous sandbox** (`.claude/settings.json`, J-051) : il ne lit ni
+  `~/.ssh` ni `~/.config/gh`, donc `gh` (sans sa config) et un `git push` en SSH n'y passent pas.
+  Le push et le merge restent les tiens. Le proxy refuse les domaines inconnus, mais
+  `api.github.com` et `github.com` répondent (constaté le 2026-10-08) : voir `EN-ATTENTE.md` §7.
+  Une commande refusée à tort se règle avec `/sandbox`. Depuis le 2026-10-08,
+  `"sandbox": { "allowUnsandboxedCommands": false }` est posé dans `~/.claude/settings.json` :
+  l'agent ne peut plus relancer une commande hors sandbox.
 - **Un capteur est faux, ou une règle manque** : l'agent le décrit (fichier, changement exact). Tu
   lances une session `MIVRO_HARNESS_UNLOCK=1 claude` pour qu'il l'applique, puis
   `npm run harness:relock`, puis commit, PR et label `harness-change`.

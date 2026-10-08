@@ -217,8 +217,19 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
 - [x] ~~`npm run harness:relock`~~ → **FAIT (2026-10-05)** : premier verrou généré.
 - [x] ~~EN-ATTENTE §5 à §8 (J-048 à J-050)~~ → appliqués le 2026-10-05 ; la 9e revue rouvre
       J-048 et J-049 (J-051).
-- [ ] ⚠️ Décision de Cédric : activer le sandbox Bash de Claude Code (`EN-ATTENTE.md` §3, J-051),
-      seule fermeture imposée par l'OS pour la lecture de `~/.ssh` et `~/.config/gh`.
+- [x] ~~EN-ATTENTE §3, §4 et §5 (J-051 sandbox, J-052)~~ → appliqués le 2026-10-08 en session
+      déverrouillée ; self-test à 418 assertions, stage `push` vert sous sandbox, `lock` compris (relock du 2026-10-08).
+- [x] ~~Relock après §3 à §5~~ → fait le 2026-10-08.
+- [ ] **Bloque la PR #3** : revue, commit, push ; `battery` vert sur la CI ferme J-052.
+- [x] ~~Cédric : `"sandbox": { "allowUnsandboxedCommands": false }` dans `~/.claude/settings.json`~~
+      → posé le 2026-10-08, constaté (`dangerouslyDisableSandbox` désactivé en session).
+- [ ] Session déverrouillée : `EN-ATTENTE.md` §6 (J-053, le self-test ne doit jamais écrire dans
+      l'historique), relock.
+- [ ] ⚠️ Décision de Cédric, `EN-ATTENTE.md` §7 (J-054) : le jeton GitHub se lit encore par le
+      trousseau (`security -i`, `gh auth git-credential`, `git credential fill`), et `api.github.com`
+      répond depuis le sandbox. Il faut refuser GitHub au réseau du sandbox, et/ou passer à un jeton à
+      privilèges réduits. Depuis l'agent, `gh` (sans sa config) et `git` en SSH ne passent plus :
+      suivre la CI et merger restent à Cédric.
 - [x] ~~EN-ATTENTE §2 et §4 (J-051)~~ → appliqués le 2026-10-05 ; self-test à 395 assertions.
 - [x] ~~`npm run harness:relock` après §2 et §4~~ → **FAIT (2026-10-05)**.
 - [ ] Première CI : vérifier vert le pas `self-test counts a dead call (J-051)` (preuve Bash 5 de

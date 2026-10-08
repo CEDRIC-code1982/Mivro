@@ -18,6 +18,10 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
+# Never read or write Python bytecode: a .pyc planted in the cache would
+# replace the source of a guard or of the stdlib (JOURNAL J-052).
+export PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=/dev/null/mivro-nopyc
+
 cd "$(git rev-parse --show-toplevel)" || exit 1
 
 LOCK="scripts/harness.lock"
@@ -73,13 +77,18 @@ if [ "$EXPECTED" = "$ACTUAL" ]; then
 fi
 
 echo "✖ The harness differs from the approved lock ($LOCK):"
-diff <(printf '%s\n' "$EXPECTED") <(printf '%s\n' "$ACTUAL") | awk '
+# No process substitution here: the Bash sandbox of Claude Code denies /dev/fd
+# (JOURNAL J-051), and this sensor runs in the agent's shell.
+{
+  printf '%s\n' "$EXPECTED" | sed 's/^/< /'
+  printf '%s\n' "$ACTUAL" | sed 's/^/> /'
+} | awk '
   /^< / { old[$3] = $2 }
   /^> / { new[$3] = $2 }
   END {
     for (f in old) if (!(f in new)) print "  removed   " f
     for (f in new) if (!(f in old)) print "  added     " f
-    for (f in new) if (f in old) print "  modified  " f
+    for (f in new) if ((f in old) && old[f] != new[f]) print "  modified  " f
   }' | sort -k2
 cat <<'MSG'
 

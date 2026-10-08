@@ -35,7 +35,7 @@ corrigés :
 - le garde Bash est réécrit ;
 - `check-diff` refuse les configs imbriquées et échoue fermé.
 
-Le déverrouillage est vérifié en réel. `check:harness` compte 395 assertions après neuf revues (J-036 à J-051, §2 et §4 de J-051 appliqués le 2026-10-05 ;
+Le déverrouillage est vérifié en réel. `check:harness` compte 418 assertions sous sandbox (416 en terminal ou en CI) après neuf revues et la première CI (J-036 à J-052 ; sandbox Bash de Claude Code actif depuis le 2026-10-08 ; §2 et §4 de J-051 appliqués le 2026-10-05 ;
 harness défini par zones produit, comparées sans casse). Le verrou est généré (2026-10-05) et le stage `check` est vert. Les septième et huitième revues
 (J-047 à J-050 : casse des chemins absolus, Read des secrets, options Prettier/ESLint, juge
 `audit`) sont appliquées. Le stage `push` est entièrement vert depuis le 2026-10-08 (J-040 : lots 1 et 1 bis

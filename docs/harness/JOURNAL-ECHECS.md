@@ -63,9 +63,12 @@
 | J-046 | 6e revue : casse, fichiers ignorés, CLAUDE.md, Functions            | RÉSOLU  |
 | J-047 | 7e revue : casse du chemin absolu (dépôt, `$HOME`)                  | RÉSOLU  |
 | J-048 | Cas du self-test appelé avant la définition de sa fonction          | OUVERT  |
-| J-049 | Jeton `gh` : `home_secret` jamais appelée, Read non gardé           | OUVERT  |
+| J-049 | Jeton `gh` : `home_secret` jamais appelée, Read non gardé           | RÉSOLU  |
 | J-050 | 8e revue : `-c` de Prettier, sorties d'ESLint, rapport `audit` vide | RÉSOLU  |
 | J-051 | 9e revue : J-048 inopérant sous Bash 5, lecture des secrets         | OUVERT  |
+| J-052 | 1re CI : identité git, `__pycache__`, cache de bytecode forgeable   | OUVERT  |
+| J-053 | Le self-test a commité dans le vrai dépôt (`scratch_repo`)          | OUVERT  |
+| J-054 | 13e revue : quatre routes vers le jeton par le trousseau            | OUVERT  |
 
 ---
 
@@ -1693,7 +1696,7 @@ CI.
 
 ## J-049 — Le jeton GitHub : `home_secret` n'est appelée nulle part
 
-**Date** : 2026-10-05 · **Statut** : ROUVERT par J-051 — contournable (redirection, glob, variable, Grep) ; fermeture par le sandbox : `EN-ATTENTE.md` §3
+**Date** : 2026-10-05 · **Statut** : RÉSOLU le 2026-10-08 — sandbox Bash de Claude Code (`denyRead`) et règles `Read`, voir J-051
 
 **Observé.** `harness_paths.home_secret()` (liste `HOME_SECRETS`, `~/.config/gh/hosts.yml`) est
 définie mais n'est appelée par aucun hook. Le jeton n'est protégé que par
@@ -1745,7 +1748,7 @@ chaîne `via`. Les cas vérifiés sur des copies (16 + 11) sont entrés au self-
 ## J-051 — Neuvième revue : deux fermetures déclarées qui ne tenaient pas
 
 **Date** : 2026-10-05 · **Statut** : OUVERT — §2 et §4 appliqués le 2026-10-05 (Bash 5 à prouver
-par la CI) ; le §3 demande une décision de Cédric (sandbox)
+par la CI) ; sandbox appliqué le 2026-10-08
 
 **Observé.** La revue du delta §5 à §8 confirme J-050 fermé : garde Prettier/ESLint par outil,
 sans régression sur les 13 commandes des capteurs, et juge `audit` rouge sur tout rapport vide ou
@@ -1786,8 +1789,41 @@ false` dans les settings utilisateur (`EN-ATTENTE.md` §3, décision de Cédric)
 - l'ancien §4 : `check-audit-verdict.py` rend exit 1 avec un message, sans trace Python, sur un
   rapport JSON qui n'est pas un objet (`[]` par exemple). Deux cas sont au self-test.
 
-Reste le §3 (sandbox), en attente de la décision de Cédric. J-051 reste OUVERT jusque-là, et
-jusqu'à la preuve de J-048 sur la CI.
+**Sandbox appliqué le 2026-10-08** (ancien §3 d'EN-ATTENTE). `.claude/settings.json` active le
+sandbox Bash (`failIfUnavailable`, `denyRead` sur `~/.ssh` et `~/.config/gh`, réseau limité à
+`registry.npmjs.org`) et refuse `Read(~/.ssh/**)` et `Read(~/.config/gh/**)`. Les contournements de la
+9e revue, rejoués en session (glob `~/.ss*`, chemin concaténé dans `python3 -c`), échouent en
+`PermissionError` alors que `~/.config` reste lisible : c'est l'OS qui ferme, pas le texte de la
+commande. Le trousseau n'est **pas** couvert, vérifié : `security find-generic-password` rend 0 sous
+sandbox. La garde Bash refuse donc `gh auth status --show-token`/`-t`, `security
+find-generic-password`/`find-internet-password` avec `-w`/`-g`, et `security dump-keychain -d`. Le
+self-test lit les deux répertoires refusés quand il tourne sous sandbox (`SANDBOX_RUNTIME=1`). Il est
+rouge sous Claude Code hors sandbox, et il saute ce cas ailleurs.
+
+Le sandbox a révélé trois défauts du harness, corrigés dans la même passe :
+
+- **`mktemp` sans gabarit ignore `$TMPDIR` sur macOS** et écrit dans `/var/folders/…`, que le sandbox
+  refuse. `check.sh`, le self-test, `tree-hash.sh` et `post-edit-check.sh` passent donc un gabarit
+  sous `${TMPDIR:-/tmp}`. Sans cela, `npm run check` cassait dans le shell de l'agent.
+- **Deux échecs ouverts sur un `mktemp` raté.** `tree-hash.sh` lançait alors
+  `GIT_INDEX_FILE="" git add -A`, et un `GIT_INDEX_FILE` vide est le vrai index : tout l'arbre
+  s'est retrouvé indexé pendant le premier essai (désindexé aussitôt). `tmp_dir` du self-test
+  rendait une chaîne vide, et les cas travaillaient sur `/`, jusqu'à un `git -C "" init` qui a tenté
+  de réécrire `.git/config`, ce que le sandbox a refusé. `tree-hash.sh` sort désormais en erreur, et
+  le self-test s'arrête d'entrée si `mktemp` échoue.
+- **Le sandbox refuse `/dev/fd`**, donc les substitutions de processus `<(…)`. Le capteur `lock` en
+  utilisait une : il aurait été rouge pour toujours dans le shell de l'agent. Il compare maintenant
+  les empreintes dans `awk`, et n'affiche que les fichiers réellement modifiés.
+
+Sous sandbox, le stage `push` est vert (hors `lock`, avant relock) : `audit` joint le registre npm,
+`docs` se construit. Reste à Cédric la clé utilisateur `allowUnsandboxedCommands: false`, la seule
+qui empêche l'agent de relancer une commande hors sandbox ; un projet ne peut pas la poser.
+
+**Leçon.** Un échec ouvert ne se voit que quand l'environnement change : les deux `mktemp` sans
+contrôle dormaient depuis l'origine. Toute valeur produite par une commande qui peut échouer, et
+qui sert ensuite de chemin ou de variable d'environnement, se contrôle avant usage.
+
+J-051 reste OUVERT jusqu'à la preuve de J-048 sur la CI.
 
 **Vu par la 10e revue, à consigner comme règle** : le paramètre fictif `PROOF` laissé dans J-048,
 et un renvoi vers une section supprimée d'EN-ATTENTE, auraient pu être attrapés par `docrefs`.
@@ -1797,3 +1833,106 @@ RÉSOLU…). La 11e revue (2026-10-08) ajoute (c) : un hash de commit cité dans
 doit être accessible depuis HEAD (`git merge-base --is-ancestor`), car un rebase rend périmé un hash
 cité. La règle (a) doit tolérer une forme historique (« l'ancien §N »). C'est un changement du
 harness, à décrire dans EN-ATTENTE à la prochaine passe, en lien avec J-022.
+
+## J-052 — Première CI : ce que le Mac cachait
+
+**Date** : 2026-10-08 · **Statut** : OUVERT — correctifs appliqués le 2026-10-08 ; preuve : la CI de la PR #3 après relock
+
+**Observé.** La PR #3 est la première à faire tourner la CI. `security` est vert, mais `battery`
+est rouge sur deux assertions du self-test (392 passed, 2 failed), alors qu'on a 395/0 en local et
+dans un clone neuf sur le Mac :
+
+- **Le commit synthétique n'a pas d'auteur.** Le runner n'a pas d'identité git, donc
+  `git commit-tree` échoue (« Author identity unknown »). Le cas « range mode … large diff » échoue
+  fermé, mais pour une mauvaise raison. Le Mac, lui, déduit une identité du compte système.
+- **Le verrou rougit pendant le self-test.** Il est vert à l'étape « Sensors » et rouge à la
+  section 7. Sous Linux, `import harness_paths` écrit `scripts/hooks/__pycache__/*.pyc` dans le
+  dépôt, et le verrou voit un fichier du harness non suivi. Le Python de Xcode écrit ailleurs :
+  `PYTHONPYCACHEPREFIX=~/Library/Caches/com.apple.python`, posé par son lanceur.
+
+En cherchant la seconde cause, l'agent a trouvé un trou de sécurité. Ce cache hors du dépôt n'est
+protégé par rien, et Python y charge le `.pyc` de chaque module, stdlib comprise, dès que l'en-tête
+correspond à la date et à la taille du source. Un `.pyc` forgé y **remplace le source**, ce qui a
+été vérifié sur un module jetable du scratchpad. Sont exposés `harness_paths` (les deux gardes), et
+aussi `json`, `os` ou `subprocess`, qu'utilisent le sceau du reviewer, la liste du verrou,
+check-native et le juge `audit`. Ni le verrou ni la CI ne voient ce cache.
+
+**Leçon.**
+
+- Un poste de développement n'est pas la CI. Identité git, OS, interpréteur : la première CI est un
+  capteur à part entière, et elle a trouvé en un run ce que neuf revues sur le Mac n'avaient pas vu.
+- Le harness ne protège que ce qu'il **lit**. Le bytecode est du code exécuté que personne ne lit :
+  il fait partie de la surface, au même titre que les fichiers de config découverts par les outils
+  (J-044, J-045).
+- Un message d'échec doit dire pourquoi. « harness lock is red » sans la liste des fichiers a coûté
+  une enquête.
+
+**Réponse prévue** (`EN-ATTENTE.md` §4 et §5) :
+
+- une identité explicite pour le commit synthétique, et un échec nommé s'il ne se crée pas ;
+- le verrou rouge du self-test affiche sa liste ;
+- les hooks Python lancés en `python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc` ;
+- chaque script du harness qui lance `python3` exporte `PYTHONDONTWRITEBYTECODE=1` et
+  `PYTHONPYCACHEPREFIX=/dev/null/mivro-nopyc` ;
+- des cas au self-test, dont un `.pyc` forgé qui ne doit pas être chargé.
+
+La PR #3 attend ces correctifs. On ne merge pas sur une CI rouge.
+
+**Appliqué le 2026-10-08** (anciens §4 et §5 d'EN-ATTENTE), en session déverrouillée. Le self-test
+passe de 395 à 418 assertions sous sandbox (416 en terminal ou en CI, où les deux cas « sandbox denies … » sont sautés). La sonde du `.pyc` forgé a un contrôle : sans les options des hooks,
+le `.pyc` doit être chargé, sinon le cas ne prouverait rien. Ce contrôle a d'ailleurs attrapé une
+première sonde fausse, qui restaurait la date du source d'avant la falsification. La section 12
+compare les fichiers non suivis d'avant et d'après le run, pour qu'un fichier neuf du développeur ne
+la fasse pas rougir. J-052 passe RÉSOLU quand `battery` est vert sur la PR #3.
+
+## J-053 — Le self-test a commité dans le vrai dépôt
+
+**Date** : 2026-10-08 · **Statut** : OUVERT — correctif dans `EN-ATTENTE.md` §6
+
+**Observé.** Après la session déverrouillée du 2026-10-08, `harness/en-attente-5-8` portait deux
+commits vides « init », d'auteur `selftest <selftest@mivro>`, créés à 14:05 et 14:06, un par
+lancement du self-test. L'agent les a vus avant de commiter. Ils n'avaient pas été poussés, et il les
+a retirés par `git reset --soft c850f23`.
+
+La cause est dans `scratch_repo`, qui fait `git -C "$dir" commit`. Si `$dir` est vide, `git -C ""`
+vise le répertoire courant, donc le vrai dépôt. Si `git init` a échoué, git remonte l'arborescence
+jusqu'à un dépôt parent. Les deux cas ont été reproduits sur un faux dépôt du scratchpad. La cause
+exacte de l'échec dans cette session n'est pas établie : `tmp_dir` venait de passer à
+`mktemp -d "$TMPDIR/…"` pour le sandbox. Dans la session suivante, le même self-test passe
+(418/0) sans toucher `HEAD`.
+
+**Leçon.** Un outil qui doit écrire dans un bac à sable doit **prouver** qu'il y est avant d'écrire.
+Avec git, cela veut dire `--git-dir` explicite, ou une vérification du `rev-parse --show-toplevel`,
+jamais `-C` sur un chemin non vérifié. Et un harness qui interdit à l'agent d'écrire l'historique ne
+doit pas l'écrire lui-même. L'invariant « `HEAD` et les branches inchangés » doit être vérifié à la
+sortie du self-test.
+
+**Réponse prévue** (`EN-ATTENTE.md` §6) : `scratch_repo` échoue fermé, les appelants s'arrêtent sur
+son échec, et la sortie du self-test vérifie `HEAD` et les références des branches.
+
+## J-054 — Treizième revue : le trousseau ne se ferme pas par le texte des commandes
+
+**Date** : 2026-10-08 · **Statut** : OUVERT — `EN-ATTENTE.md` §7, décision de Cédric
+
+**Observé.** La garde du trousseau posée au §3 de J-051 refuse `gh auth token`,
+`gh auth status --show-token` et `security find-*-password -w/-g`. Quatre autres routes rendent le
+même jeton, et elles ont été rejouées sur le hook (exit 0) : `security -i` sur l'entrée standard,
+`gh auth git-credential get`, `git credential fill`, et `git credential-osxkeychain get`.
+
+Le réseau ne compense pas. Depuis le sandbox, `api.github.com` et `github.com` répondent 200 alors
+que `example.com` est refusé, sans que `.claude/settings.json` les autorise. L'agent avait écrit
+dans la TODO et le RUNBOOK que le réseau était limité au registre npm. C'était faux : il avait pris
+l'échec de `gh` (sa config est illisible sous sandbox) pour un refus réseau. La revue a mesuré au
+lieu de déduire.
+
+**Leçon.**
+
+- C'est la troisième fois (J-042 pour l'écriture, J-051 pour la lecture de fichiers, J-054 pour le
+  trousseau) : une garde qui lit le texte des commandes réduit la surface, mais ne la ferme pas. Ce
+  qui ferme, c'est l'OS (sandbox), le réseau (domaines refusés) ou le privilège (jeton réduit).
+- Une affirmation sur l'environnement se mesure. « Le réseau est limité » demandait un `curl`, pas
+  une déduction tirée d'un message d'erreur.
+
+**Réponse prévue** (`EN-ATTENTE.md` §7) : refuser GitHub au réseau du sandbox, et/ou un jeton à
+privilèges réduits pour les sessions Claude. La garde textuelle refuse en plus les quatre routes,
+avec une sonde réseau au self-test.

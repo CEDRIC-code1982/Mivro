@@ -11,6 +11,10 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
+# Never read or write Python bytecode: a .pyc planted in the cache would
+# replace the source of a guard or of the stdlib (JOURNAL J-052).
+export PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=/dev/null/mivro-nopyc
+
 cd "$(git rev-parse --show-toplevel)" || exit 1
 
 FAIL=0

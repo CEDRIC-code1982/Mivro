@@ -17,6 +17,10 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
+# Never read or write Python bytecode: a .pyc planted in the cache would
+# replace the source of a guard or of the stdlib (JOURNAL J-052).
+export PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=/dev/null/mivro-nopyc
+
 # --- extract the edited path from the hook payload -------------------------
 PAYLOAD="$(cat)"
 FILE="$(printf '%s' "$PAYLOAD" | python3 -c '
@@ -65,8 +69,8 @@ CACHE_DIR="$ROOT/node_modules/.cache/mivro-harness"
 mkdir -p "$CACHE_DIR" 2>/dev/null || true
 TSBUILDINFO="$CACHE_DIR/tsc.tsbuildinfo"
 LOCK="$CACHE_DIR/tsc.lock"
-TSC_LOG="$(mktemp)"
-DC_LOG="$(mktemp)"
+TSC_LOG="$(mktemp "${TMPDIR:-/tmp}/mivro.XXXXXX")"
+DC_LOG="$(mktemp "${TMPDIR:-/tmp}/mivro.XXXXXX")"
 trap 'rm -f "$TSC_LOG" "$DC_LOG"; rmdir "$LOCK" 2>/dev/null || true' EXIT
 
 # --- step 1: typecheck (background) ---------------------------------------

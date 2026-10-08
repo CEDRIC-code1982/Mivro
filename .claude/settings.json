@@ -22,8 +22,16 @@
       "Bash(HUSKY=0 *)",
       "Bash(npm run harness:relock *)",
       "Bash(claude *)",
-      "Bash(npx @anthropic-ai/claude-code *)"
+      "Bash(npx @anthropic-ai/claude-code *)",
+      "Read(~/.ssh/**)",
+      "Read(~/.config/gh/**)"
     ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "filesystem": { "denyRead": ["~/.ssh", "~/.config/gh"] },
+    "network": { "allowedDomains": ["registry.npmjs.org"] }
   },
   "hooks": {
     "PreToolUse": [
@@ -32,7 +40,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/hooks/pre-bash-guard.py\"",
+            "command": "python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc \"$CLAUDE_PROJECT_DIR/scripts/hooks/pre-bash-guard.py\"",
             "timeout": 10
           }
         ]
@@ -42,7 +50,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/hooks/pre-edit-guard.py\"",
+            "command": "python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc \"$CLAUDE_PROJECT_DIR/scripts/hooks/pre-edit-guard.py\"",
             "timeout": 10
           }
         ]

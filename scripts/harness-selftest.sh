@@ -21,8 +21,14 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
+# Never read or write Python bytecode: a .pyc planted in the cache would
+# replace the source of a guard or of the stdlib (JOURNAL J-052).
+export PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=/dev/null/mivro-nopyc
+
 cd "$(git rev-parse --show-toplevel)" || exit 1
 REPO="$PWD"
+# The self-test must leave no litter, __pycache__ included (JOURNAL J-052).
+UNTRACKED_BEFORE="$(git ls-files --others --exclude-standard)"
 
 PASS=0
 FAIL=0
@@ -64,10 +70,18 @@ probe_file() {
 
 tmp_dir() {
   local dir
-  dir="$(mktemp -d)"
+  dir="$(mktemp -d "${TMPDIR:-/tmp}/mivro.XXXXXX")"
   TMP_DIRS+=("$dir")
   printf '%s' "$dir"
 }
+# tmp_dir runs in $(...): a failure there cannot stop the run, and the cases
+# would then work on "/" (seen under the Bash sandbox, JOURNAL J-051). Fail
+# closed once, up front.
+if ! MKTEMP_PROBE="$(mktemp -d "${TMPDIR:-/tmp}/mivro.XXXXXX")"; then
+  echo "✖ cannot create a temporary directory under ${TMPDIR:-/tmp}" >&2
+  exit 2
+fi
+rmdir "$MKTEMP_PROBE"
 
 # A throw-away git repository with one commit, for sensors that must be
 # judged on a known tree.
@@ -175,6 +189,14 @@ guard BLOCK 'gh api -X PUT repos/o/r/branches/main/protection'
 guard BLOCK 'gh pr merge 3 --admin'
 guard BLOCK 'gh pr edit 3 --add-label harness-change'
 guard BLOCK 'gh auth token'
+# J-051: the gh token is in the macOS keychain, out of the sandbox's denyRead.
+guard BLOCK 'gh auth status --show-token'
+guard BLOCK 'gh auth status -t'
+guard BLOCK 'security find-generic-password -s gh:github.com -w'
+guard BLOCK '/usr/bin/security find-internet-password -g -s github.com'
+guard BLOCK 'security dump-keychain -d'
+guard ALLOW 'gh auth status'
+guard ALLOW 'security find-generic-password -s gh:github.com'
 # J-029: harness tamper through the shell.
 guard BLOCK "sed -i '' s/2/0/ scripts/hooks/post-edit-check.sh"
 guard BLOCK 'echo x > jest.config.js'
@@ -555,8 +577,12 @@ expect_exit 2 $? "an unresolvable range fails closed (J-041)"
 # to every large diff, so assert range mode still sees a violation across one.
 BLOB="$(printf 'export const bad = JSON.parse("{}") %s;\n' "$AS_ANY" | git hash-object -w --stdin)"
 TREE="$(printf '100644 blob %s\tprobe.ts\n' "$BLOB" | git mktree)"
-SYNTH="$(git commit-tree "$TREE" -p HEAD -m 'harness selftest probe')"
-if bash scripts/check-diff.sh "HEAD...$SYNTH" >/dev/null 2>&1; then
+SYNTH="$(GIT_AUTHOR_NAME=selftest GIT_AUTHOR_EMAIL=selftest@invalid \
+  GIT_COMMITTER_NAME=selftest GIT_COMMITTER_EMAIL=selftest@invalid \
+  git commit-tree "$TREE" -p HEAD -m 'harness selftest probe')"
+if [ -z "$SYNTH" ]; then
+  bad "could not build the synthetic commit (git commit-tree failed)"
+elif bash scripts/check-diff.sh "HEAD...$SYNTH" >/dev/null 2>&1; then
   bad "range mode missed a violation across a large diff"
 else
   ok "range mode catches a violation across a large diff"
@@ -726,6 +752,7 @@ if bash scripts/harness-lock.sh >/dev/null 2>&1; then
   expect_exit 0 $? "lock green again once the probe is gone"
 else
   bad "harness lock is red on the current tree (relock or revert first)"
+  bash scripts/harness-lock.sh 2>&1 | sed -n '1,12p' | sed 's/^/      /'
 fi
 (CLAUDECODE=1 bash scripts/harness-lock.sh --update </dev/null >/dev/null 2>&1)
 expect_exit 1 $? "relock refuses to run inside Claude Code"
@@ -998,6 +1025,84 @@ for hook in PreToolUse PostToolUse Stop SubagentStart SubagentStop pre-edit-guar
   if grep -q "$hook" "$SETTINGS"; then ok "$SETTINGS wires $hook"; else bad "$SETTINGS does not wire $hook"; fi
 done
 
+# J-052: no Python of the harness reads or writes cached bytecode.
+PY_HOOKS="$(grep -c '"python3 -I -B -X pycache_prefix=/dev/null/' "$SETTINGS")"
+if [ "$PY_HOOKS" = 2 ]; then ok "both Python hooks run with -I -B -X pycache_prefix=/dev/null/ (J-052)"; else bad "$PY_HOOKS of 2 Python hooks run with -I -B -X pycache_prefix=/dev/null/ (J-052)"; fi
+if grep -q '"python3 \\"' "$SETTINGS"; then bad "a hook runs a bare python3 in $SETTINGS (J-052)"; else ok "no hook runs a bare python3 (J-052)"; fi
+for script in scripts/check.sh scripts/harness-lock.sh scripts/check-audit.sh scripts/check-scripts.sh \
+  scripts/harness-selftest.sh scripts/hooks/post-edit-check.sh scripts/hooks/seal-review.sh \
+  scripts/hooks/stop-check.sh scripts/hooks/reset-review.sh; do
+  if grep -q '^export PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=/dev/null/' "$script"; then
+    ok "$script disables Python bytecode (J-052)"
+  else
+    bad "$script does not export PYTHONPYCACHEPREFIX=/dev/null/ (J-052)"
+  fi
+done
+# A forged .pyc in a cache the hooks do not protect must not replace the source.
+# The control run proves the forgery is valid, otherwise the case is vacuous.
+PYC_DIR="$(tmp_dir)"
+printf 'V = "real"\n' >"$PYC_DIR/mivro_probe.py"
+PYTHONPYCACHEPREFIX="$PYC_DIR/cache" python3 - "$PYC_DIR/mivro_probe.py" <<'PY'
+import importlib.util, os, py_compile, sys
+src = sys.argv[1]
+with open(src, "w") as f:
+    f.write('V = "evil"\n')
+stat = os.stat(src)
+py_compile.compile(src, cfile=importlib.util.cache_from_source(src), invalidation_mode=py_compile.PycInvalidationMode.TIMESTAMP)
+with open(src, "w") as f:
+    f.write('V = "real"\n')
+os.utime(src, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+PY
+PYC_IMPORT="import sys; sys.path.insert(0, sys.argv[1]); import mivro_probe; print(mivro_probe.V)"
+PYC_CONTROL="$(PYTHONPYCACHEPREFIX="$PYC_DIR/cache" python3 -c "$PYC_IMPORT" "$PYC_DIR" 2>&1)"
+PYC_HOOKED="$(PYTHONPYCACHEPREFIX="$PYC_DIR/cache" python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc -c "$PYC_IMPORT" "$PYC_DIR" 2>&1)"
+if [ "$PYC_CONTROL" != evil ]; then
+  bad "forged .pyc not loaded by a plain python3 ($PYC_CONTROL): the J-052 case below proves nothing"
+elif [ "$PYC_HOOKED" = real ]; then
+  ok "a forged .pyc is ignored under the hooks' options (J-052)"
+else
+  bad "a forged .pyc replaces the source under the hooks' options: got '$PYC_HOOKED' (J-052)"
+fi
+
+# J-051: secrets are closed by the Bash sandbox of Claude Code, not by the guard.
+SANDBOX_CFG="$(python3 -c '
+import json, sys
+s = json.load(open(sys.argv[1]))
+box = s.get("sandbox", {})
+deny = s.get("permissions", {}).get("deny", [])
+fails = []
+if box.get("enabled") is not True: fails.append("sandbox.enabled")
+if box.get("failIfUnavailable") is not True: fails.append("sandbox.failIfUnavailable")
+for d in ("~/.ssh", "~/.config/gh"):
+    if d not in box.get("filesystem", {}).get("denyRead", []): fails.append("denyRead " + d)
+    if "Read(%s/**)" % d not in deny: fails.append("deny Read(%s/**)" % d)
+print(" ".join(fails))
+' "$SETTINGS" 2>&1)"
+if [ -z "$SANDBOX_CFG" ]; then ok "$SETTINGS enables the sandbox and denies reading the secrets (J-051)"; else bad "$SETTINGS sandbox incomplete: $SANDBOX_CFG (J-051)"; fi
+# The real test is the OS: inside the agent's sandbox, the secret directories
+# must be unreadable whatever the command's text. Out of Claude Code (terminal,
+# CI) there is no sandbox to test.
+if [ "${SANDBOX_RUNTIME:-}" = 1 ]; then
+  for secret_dir in "$HOME/.ssh" "$HOME/.config/gh"; do
+    SANDBOX_GOT="$(python3 -c '
+import os, sys
+try:
+    os.listdir(sys.argv[1]); print("READABLE")
+except PermissionError: print("DENIED")
+except FileNotFoundError: print("ABSENT")
+' "$secret_dir")"
+    case "$SANDBOX_GOT" in
+      DENIED) ok "the sandbox denies reading $secret_dir (J-051)" ;;
+      ABSENT) ok "$secret_dir absent: nothing to deny (J-051)" ;;
+      *) bad "$secret_dir is readable inside the sandbox (J-051)" ;;
+    esac
+  done
+elif [ "${CLAUDECODE:-}" = 1 ]; then
+  bad "running under Claude Code outside the Bash sandbox (J-051)"
+else
+  printf '  - sandbox read test skipped: not inside Claude Code\n'
+fi
+
 # ---------------------------------------------------------------------------
 section "11. docs - TypeDoc + Docusaurus (DOC-004)"
 
@@ -1022,6 +1127,23 @@ else
     ok "a broken documentation link fails the build"
   fi
   rm -f "$DOC_PROBE"
+fi
+
+# ---------------------------------------------------------------------------
+section "12. No litter left in the repository"
+
+cleanup
+# Files, not <(...): the Bash sandbox of Claude Code denies /dev/fd (J-051).
+LITTER_DIR="$(tmp_dir)"
+printf '%s\n' "$UNTRACKED_BEFORE" | sort >"$LITTER_DIR/before"
+git ls-files --others --exclude-standard | sort >"$LITTER_DIR/after"
+LITTER="$(comm -13 "$LITTER_DIR/before" "$LITTER_DIR/after")"
+rm -r "$LITTER_DIR"
+if [ -z "$LITTER" ]; then
+  ok "the self-test leaves no untracked file, __pycache__ included (J-052)"
+else
+  bad "the self-test left untracked files (J-052):"
+  printf '%s\n' "$LITTER" | sed -n '1,12p' | sed 's/^/      /'
 fi
 
 # ---------------------------------------------------------------------------

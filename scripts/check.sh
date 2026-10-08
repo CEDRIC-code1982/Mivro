@@ -19,6 +19,10 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
+# Never read or write Python bytecode: a .pyc planted in the cache would
+# replace the source of a guard or of the stdlib (JOURNAL J-052).
+export PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=/dev/null/mivro-nopyc
+
 cd "$(git rev-parse --show-toplevel)" || exit 1
 
 # shellcheck source=scripts/sensors.sh
@@ -96,7 +100,7 @@ if [ "$LIST" -eq 1 ]; then
   exit 0
 fi
 
-WORK="$(mktemp -d)"
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/mivro.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 
 run_sensor() {
