@@ -54,7 +54,7 @@
 | J-037 | Un verdict APPROVED pré-déposé est scellé                           | RÉSOLU  |
 | J-038 | Garde Bash : contournements restants sans script `/tmp`             | RÉSOLU  |
 | J-039 | Config ESLint de sous-dossier : règles éteintes sans trace          | RÉSOLU  |
-| J-040 | Job `security` rouge avant le premier run (`npm audit`)             | OUVERT  |
+| J-040 | Job `security` rouge avant le premier run (`npm audit`)             | RÉSOLU  |
 | J-041 | check-diff vert sur une base invalide                               | RÉSOLU  |
 | J-042 | 2e revue : même famille de trous, en une ligne                      | RÉSOLU  |
 | J-043 | 3e revue : package.json imbriqué, jest.setup, sceau                 | RÉSOLU  |
@@ -1176,7 +1176,7 @@ self-test. Ou bien le capteur lance `eslint --no-eslintrc -c .eslintrc.js`.
 
 ## J-040 — Le job `security` est rouge avant même le premier run
 
-**Date** : 2026-09-26 · **Statut** : OUVERT — lot 1 (`npm update`, Cédric) ; capteur `audit` à avis acceptés posé le 2026-10-05
+**Date** : 2026-09-26 · **Statut** : RÉSOLU le 2026-10-08 — lots 1 et 1 bis mergés (PR #1, #2) ; 4 avis acceptés jusqu'au 2027-01-05
 
 **Observé.** `npm audit --omit=dev --audit-level=high` donne exit 1 : 1 critique (`shell-quote`)
 et 7 hautes (`brace-expansion`, `browserslist`, `image-size`, `js-yaml`, `nanoid`, `undici`, `ws`).
@@ -1227,8 +1227,19 @@ d'`EN-ATTENTE.md`, vérifiés sur des copies. Montée de React Native 0.86+ : ti
 
 **Appliqué (2026-10-05, session déverrouillée).** `scripts/check-audit.sh` délègue le verdict à
 `scripts/check-audit-verdict.py`, qui lit `scripts/audit-accepted.json`. Le job CI `security` lance le
-même capteur. Quatre cas hors ligne au self-test §7. Sur l'arbre actuel, le capteur reste rouge
-uniquement sur des avis du lot 1 : J-040 reste OUVERT jusqu'au merge de `fix/j-040-npm-audit`.
+même capteur. Quatre cas hors ligne au self-test §7. À cette date, le capteur restait rouge
+uniquement sur des avis du lot 1, en attendant le merge de `fix/j-040-npm-audit`.
+
+**2026-10-08.** Le lot 1 est mergé dans `develop` (PR #1, `4242ada`). Sitôt la branche du harness
+rebasée, le capteur `audit` a attrapé un avis publié entre-temps : GHSA-vc2v-76pw-4v95 (haute),
+`compression` < 1.8.2. Il se corrige dans la plage déclarée : c'est le lot 1 bis (PR #2). Le
+capteur fait ce qu'on attend de lui : un avis nouveau rougit, il n'est jamais avalé par la liste
+des avis acceptés.
+
+**Clos le 2026-10-08.** Le lot 1 bis est mergé (PR #2, `58e4096`), la branche du harness est
+rebasée et Cédric a refait le verrou. Le stage `push` est entièrement vert (13 capteurs), `audit`
+compris, sans `--no-verify`. Restent les 4 avis acceptés jusqu'au 2027-01-05 : seule la montée de
+React Native en 0.86 ou plus les fermera (TODO, à spécifier).
 
 ## J-041 — check-diff vert sur une base invalide
 
@@ -1782,4 +1793,7 @@ jusqu'à la preuve de J-048 sur la CI.
 et un renvoi vers une section supprimée d'EN-ATTENTE, auraient pu être attrapés par `docrefs`.
 Il faudrait (a) refuser un renvoi « `EN-ATTENTE.md` §N » sans titre `### N.` correspondant, et
 (b) refuser un mot en capitales isolé et en gras dans le journal, hors liste blanche (OUVERT,
-RÉSOLU…). C'est un changement du harness, à décrire dans EN-ATTENTE à la prochaine passe.
+RÉSOLU…). La 11e revue (2026-10-08) ajoute (c) : un hash de commit cité dans `docs/context/*.md`
+doit être accessible depuis HEAD (`git merge-base --is-ancestor`), car un rebase rend périmé un hash
+cité. La règle (a) doit tolérer une forme historique (« l'ancien §N »). C'est un changement du
+harness, à décrire dans EN-ATTENTE à la prochaine passe, en lien avec J-022.

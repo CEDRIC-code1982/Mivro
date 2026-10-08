@@ -224,14 +224,15 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
 - [ ] Première CI : vérifier vert le pas `self-test counts a dead call (J-051)` (preuve Bash 5 de
       J-048), puis passer J-048 RÉSOLU.
 - [ ] Commit de `harness/en-attente-5-8`, push et PR vers `develop`.
-- [ ] **J-040 lot 1** : commandes exactes dans `EN-ATTENTE.md` §1 (branche `fix/j-040-npm-audit`,
-      lockfile seul, rebuild natif et test sur appareil). Préalable à la protection de branche.
+- [x] ~~**J-040 lot 1**~~ → mergé dans `develop` le 2026-10-08 (PR #1, `4242ada`).
+- [x] ~~**J-040 lot 1 bis**~~ → `compression` 1.8.2 mergé le 2026-10-08 (PR #2), branche du
+      harness rebasée, relock fait : stage `push` entièrement vert.
 - [x] **J-040 lot 3** : capteur `audit` à avis acceptés, posé le 2026-10-05.
 - [ ] ⚠️ À SPÉCIFIER AVEC CÉDRIC : montée React Native 0.85 → 0.86+ (ferme les avis acceptés de
       J-040, expiration 2027-01-05) — ADR, rebuild natif, reanimated, worklets, maps, firebase.
 - [ ] Merger dans `develop`, puis `develop` dans `main`, puis `bash scripts/setup-branch-protection.sh`.
-- [ ] Première revue réelle : vérifier que le verdict est scellé (`.git/mivro-review` présent après
-      un `APPROVED`).
+- [x] ~~Première revue réelle~~ → constaté le 2026-10-05 : `.git/mivro-review` écrit après
+      l'`APPROVED`, et le pre-commit l'a accepté (commit « EN-ATTENTE §2 et §4 (J-051) », `4f7d1ba` après rebase).
 - [ ] Optionnel : token GitHub fine-grained sans « Administration » pour les sessions Claude.
 - [ ] **J-022** (ouvert) : capteur des affirmations factuelles des docs.
 - [ ] **Tests des règles RTDB** sur l'émulateur Firebase (`@firebase/rules-unit-testing`) :

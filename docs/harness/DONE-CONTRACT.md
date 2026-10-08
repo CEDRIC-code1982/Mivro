@@ -7,49 +7,49 @@
 
 ## Tâche
 
-**Titre** : Appliquer EN-ATTENTE §2 et §4 en session déverrouillée (J-051)
+**Titre** : Clore J-040 sur la branche du harness (lots 1 et 1 bis, rebase, relock, docs)
 
-**Demande d'origine, en une phrase** : « applique EN-ATTENTE §2 et §4 ».
+**Demande d'origine, en une phrase** : « fais 2 et 3 » (merger le lot 1, rebaser la branche du
+harness, relock), puis le lot 1 bis (`compression`) apparu au rebase.
 
-**Branche** : `harness/en-attente-5-8` (pas encore mergée dans `develop`), à la suite de `653ea5d`.
+**Branche** : `harness/en-attente-5-8`, rebasée sur `develop` (`58e4096`).
 
 **Hors périmètre explicite** :
 
-- §1 (J-040 lot 1, `npm update`) : réservé à Cédric, hors Claude Code.
-- §3 (sandbox pour la lecture des secrets) : décision de Cédric, non demandée ici.
-- `npm run harness:relock` : Cédric le lance hors Claude Code.
-- Commit, push et PR : sur demande explicite de Cédric.
+- §3 d'`EN-ATTENTE.md` (sandbox pour la lecture des secrets) : décision de Cédric.
+- Push (`--force-with-lease`, la branche est rebasée) et PR vers `develop` : Cédric.
+- Montée de React Native 0.86+ : à spécifier avec Cédric.
 
 ---
 
 ## Conditions de fin
 
-| #   | Condition                                                                                                                    | Comment on le vérifie                                                       |
-| --- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| 1   | §2 : un appel mort du self-test est compté par un trap `ERR` sans condition de version, `set -E` posé                        | copies du self-test sous Bash 3.2 : niveau supérieur et fonction → 1 failed |
-| 2   | §2 : la CI prouve le comptage sous Bash 5 (pas `self-test counts a dead call (J-051)` au job `battery`)                      | relecture de `check.yml` ; le pas lui-même rejoué en local                  |
-| 3   | §4 : le juge `audit` sur `[]` rend exit 1 avec un message, sans trace Python                                                 | deux nouveaux cas du self-test (exit, stderr vide)                          |
-| 4   | §2 et §4 retirés d'`EN-ATTENTE.md` ; J-048 et J-051 mis à jour au journal (Bash 5 non vérifié tant que la CI n'a pas tourné) | relecture                                                                   |
-| 5   | Aucune régression ; comptes d'assertions à jour (INVENTAIRE, PROGRESS, TODO)                                                 | `npm run check:harness` : 395 passed, 0 failed (393 avant)                  |
+| #   | Condition                                                                                              | Comment on le vérifie                                    |
+| --- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| 1   | Lots 1 et 1 bis de J-040 dans `develop`, avec `package-lock.json` seul modifié                         | PR #1 et #2 MERGED ; `git show --stat 4242ada 58e4096`   |
+| 2   | `harness/en-attente-5-8` rebasée sur `develop`, sans régression                                        | `git merge-base --is-ancestor origin/develop HEAD`       |
+| 3   | Verrou refait par Cédric, conforme à l'arbre                                                           | capteur `lock` vert                                      |
+| 4   | Stage `push` entièrement vert, `audit` compris, sans `--no-verify`                                     | `bash scripts/check.sh --stage push` : 13 capteurs verts |
+| 5   | J-040 RÉSOLU au journal ; §1 retiré d'`EN-ATTENTE.md` ; TODO, INVENTAIRE, PROGRESS et RUNBOOK à jour   | relecture                                                |
+| 6   | Aucun fichier de code ni du harness modifié par l'agent dans ce delta (docs et verrou de Cédric seuls) | `git diff 4f7d1ba --stat`                                |
 
 ---
 
 ## Socle systématique
 
-- [x] `npm run check` vert, `lock` compris (relock de Cédric après §5 à §8).
+- [x] `npm run check` vert, `lock` compris (relock de Cédric le 2026-10-08).
 - [x] Les trois états rendus pour chaque écran touché — aucun écran modifié.
-- [x] Toute donnée externe validée — le rapport `npm audit` est validé (version 2, objet
-      `vulnerabilities`, chaîne `via` traçable), TS-004.
+- [x] Toute donnée externe validée — sans objet (aucun code modifié).
 - [x] Toute string affichée passe par `useTranslation()` — aucune string ajoutée.
-- [x] Docs de contexte mises à jour : `EN-ATTENTE.md`, `JOURNAL-ECHECS.md` (J-048 à J-050),
-      `INVENTAIRE.md`, `PROGRESS.md`, `TODO.md`.
-- [x] ADR : aucune nouvelle décision d'architecture (correctifs du harness dans le cadre d'ADR-016).
+- [x] Docs de contexte mises à jour : `JOURNAL-ECHECS.md`, `EN-ATTENTE.md`, `TODO.md`,
+      `INVENTAIRE.md`, `PROGRESS.md`, `RUNBOOK.md`.
+- [x] ADR : aucune nouvelle décision d'architecture.
 - [ ] Verdict `APPROVED` du subagent `reviewer` sur l'arbre final.
 
 ---
 
 ## Ce qui reste à Cédric
 
-- [x] `npm run harness:relock` hors Claude Code.
-- [ ] §1 d'`EN-ATTENTE.md` (J-040 lot 1).
-- [ ] Push de `harness/en-attente-5-8` et PR, sur sa demande.
+- [x] `npm run harness:relock` (2026-10-08).
+- [ ] `git push --force-with-lease origin harness/en-attente-5-8`, puis PR vers `develop`.
+- [ ] Décision sur le sandbox (`EN-ATTENTE.md` §3).

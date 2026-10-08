@@ -429,12 +429,12 @@ et protection de branche. SmartBLE n'a aucun de ces derniers.
   est corrigé par un trap `ERR` (§2, 2026-10-05) ; sa preuve sous Bash 5 est un pas du job
   `battery`, à voir vert sur la première CI.
 - **Mémoire de l'agent** — inscriptible par conception, risque accepté (J-046).
-- **J-040** — `npm audit` rouge jusqu'au lot 1 (`EN-ATTENTE.md` §1) ; les 4 avis du lot 3 sont
-  acceptés dans `scripts/audit-accepted.json` jusqu'au 2027-01-05.
+- **J-040** — résolu le 2026-10-08 (lots 1 et 1 bis mergés). Les 4 avis du lot 3 restent acceptés
+  dans `scripts/audit-accepted.json` jusqu'au 2027-01-05, en attendant la montée de React Native.
 - **Validations en réel.** L'héritage de l'environnement par les hooks, qui permet le
   déverrouillage, est **constaté** le 2026-09-28. Le scellement du verdict par
-  `SubagentStart`/`SubagentStop` se vérifie à la première revue réelle : `.git/mivro-review`
-  présent après un `APPROVED`. S'il ne se déclenche pas, les commits de l'agent sont refusés :
-  l'échec est fermé.
+  `SubagentStart`/`SubagentStop` est **constaté** le 2026-10-05 : `.git/mivro-review` est écrit
+  après un `APPROVED`, et le pre-commit l'accepte. S'il ne se déclenchait pas, les commits de
+  l'agent seraient refusés : l'échec est fermé.
 - **Tests des règles RTDB** sur l'émulateur Firebase : c'est un test produit, pas un capteur du
   harness (`TODO.md`).

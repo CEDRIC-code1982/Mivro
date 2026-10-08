@@ -21,15 +21,12 @@ fichier de la liste rend le verrou rouge, en local comme en CI, et `harness-guar
 ### Mise en service (une fois)
 
 1. ~~**Générer le verrou**~~ : fait le 2026-10-05.
-2. **Commit, push de `harness/beton`, PR vers `develop`.** Commit et push faits le 2026-10-05
-   (`ae53e9e`, push en `--no-verify` à cause de J-040) ; reste la PR. Les jobs `battery` et `security`
-   tournent sur la PR. `harness-guard`, lui, ne tourne **pas** encore : un workflow
-   `pull_request_target` s'exécute depuis la branche **de base**, et `harness-guard.yml` n'existe
-   pas encore sur `develop`. `security` sera rouge à cause de J-040.
-3. **J-040** : lot 1 dans une branche dédiée issue de `develop` (commandes : `EN-ATTENTE.md` §1),
-   avec rebuild natif iOS et Android, puis PR et merge. Rebase ensuite `harness/beton` et relock.
-   Le capteur à avis acceptés (§4) se pose en session déverrouillée.
-4. **Merger `harness/beton` dans `develop`**, puis **`develop` dans `main`** par PR. Les deux
+2. **PR de `harness/en-attente-5-8` vers `develop`** (elle contient `harness/beton`). Les jobs
+   `battery` et `security` tournent sur la PR. `harness-guard`, lui, ne tourne **pas** encore : un
+   workflow `pull_request_target` s'exécute depuis la branche **de base**, et `harness-guard.yml`
+   n'existe pas encore sur `develop`.
+3. ~~**J-040**~~ : lots 1 et 1 bis mergés le 2026-10-08 (PR #1, #2), relock fait.
+4. **Merger `harness/en-attente-5-8` dans `develop`**, puis **`develop` dans `main`** par PR. Les deux
    branches portent alors `harness-guard.yml`.
 5. **Activer la protection** : `bash scripts/setup-branch-protection.sh`. Le script refuse
    d'exiger `harness-guard` sur une branche qui ne porte pas encore le workflow, ce qui évite de

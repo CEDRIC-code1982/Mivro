@@ -14,32 +14,7 @@ de `check-deps.js` ont été posés par Cédric le 2026-10-05, avec le premier v
 (garde `prettier --config`, J-047, capteur `audit` à avis acceptés) ont été appliqués le 2026-10-05
 en session déverrouillée. Les points 5 à 8 (J-048 à J-050) l'ont été le 2026-10-05 aussi, en
 session déverrouillée. Les points 2 et 4 (J-051 : trap `ERR` du self-test, juge `audit` sur `[]`)
-l'ont été le 2026-10-05 aussi. Restent le point 1 et le point 3 (décision de Cédric).
-
-## Pour Cédric seul
-
-### 1. J-040, lot 1 : mises à jour de sécurité dans les plages déclarées
-
-Décision du 2026-10-05 : le lot 1 tout de suite, le lot 3 en avis acceptés (point 4), pas de lot 2
-(il ne retire que des avis modérés). Seul le lockfile bouge, ce qui a été vérifié sur une copie.
-Le lot corrige le critique `shell-quote` et 12 autres paquets. Dans ton terminal, hors Claude Code :
-
-```bash
-cd ~/Developer/Personnel/Mivro
-git switch develop && git pull --ff-only
-git switch -c fix/j-040-npm-audit
-npm update shell-quote ws undici js-yaml nanoid brace-expansion joi qs \
-  body-parser browserslist protobufjs launch-editor baseline-browser-mapping
-git diff --stat            # seul package-lock.json doit apparaître
-npx tsc --noEmit && npx jest --ci --silent
-npm run ios && npm run android   # rebuild natif, puis test sur appareil
-git commit -am "fix(deps): J-040 lot 1, mises à jour de sécurité dans les plages déclarées"
-git push -u origin fix/j-040-npm-audit
-gh pr create --base develop --fill
-```
-
-Après le merge dans `develop`, rebase `harness/beton` sur `develop`, puis `npm run harness:relock`,
-car le lockfile fait partie du verrou.
+l'ont été le 2026-10-05 aussi. Le point 1 (J-040, lots 1 et 1 bis) est fait le 2026-10-08. Reste le point 3 (décision de Cédric).
 
 ## À appliquer en session déverrouillée
 
