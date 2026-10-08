@@ -7,82 +7,53 @@
 
 ## Tâche
 
-**Titre** : Étape 1 — câblage natif Firebase (F4/F5) + correction des docs périmées
+**Titre** : Appliquer EN-ATTENTE §3, §4 et §5 (sandbox Bash J-051, première CI J-052)
 
-**Demande d'origine, en une phrase** : « Vérifie l'étape 1, j'ai mis le GoogleService-Info.plist
-dans Xcode ; si tu as besoin de compléter l'installation pour iOS et Android, les fichiers sont
-dans mon dossier Téléchargements » puis « j'ai déplacé le plist dans `ios/Mivro/`, fais les
-commandes pour finir l'étape 1 et enchaîne sur l'étape 2 ».
+**Demande d'origine, en une phrase** : « applique EN-ATTENTE §4 et §5 ». Ajoute « §3 ».
 
-**Hors périmètre explicite** : `firebase login` et `firebase deploy --only database` (compte Google
-de Cédric, hors de ma portée) ; le rebuild natif et les vérifs device ; les étapes 3 à 6 du plan.
+**Branche** : `harness/en-attente-5-8`, session déverrouillée (`MIVRO_HARNESS_UNLOCK=1`).
+
+**Hors périmètre explicite** :
+
+- `~/.claude/settings.json` (`allowUnsandboxedCommands: false`) : fichier utilisateur, à Cédric.
+- Relock, push, PR : Cédric.
+- Règle `docrefs` (a)(b)(c) de J-051 : pas encore décrite dans EN-ATTENTE.
+- J-053 (le self-test a commité dans le vrai dépôt) : découvert en fin de tâche, consigné, et
+  correctif prêt dans `EN-ATTENTE.md` §6 pour la prochaine session déverrouillée. Les deux commits
+  parasites ont été retirés avant ce commit.
+- J-054 (quatre autres routes vers le jeton par le trousseau, GitHub joignable depuis le sandbox) :
+  trouvé par la 13e revue, consigné dans `EN-ATTENTE.md` §7, décision de Cédric (réseau, jeton).
 
 ---
 
 ## Conditions de fin
 
-| #   | Condition                                                      | Comment on le vérifie                                                                              |
-| --- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| 1   | Le plist iOS est réellement embarqué dans le bundle            | `project.pbxproj` : `path` résout vers un fichier existant **et** présence dans la phase Resources |
-| 2   | La config Android est en place et cohérente avec iOS           | `google-services.json` dans le module app ; même `project_id` et `project_number` que le plist     |
-| 3   | L'URL RTDB est fournie à l'app                                 | `.env` existe et porte `FIREBASE_DATABASE_URL` en `europe-west1`                                   |
-| 4   | Aucun fichier de config Firebase ni `.env` n'est suivi par git | `git check-ignore` sur les 3 fichiers ; `git status` ne les montre pas                             |
-| 5   | Le projet Firebase est lié en CLI                              | `.firebaserc` présent avec l'alias `default` = `mivro-40125`                                       |
-| 6   | Plus aucune doc ne mentionne l'ancien bundle id comme actuel   | `grep cedricpineau.midpoint` : seules restent des mentions historiques ou barrées                  |
-| 7   | Le contrat précédent est formellement clos                     | ses 7 conditions revérifiées une par une, résultat consigné                                        |
-| 8   | Aucune régression                                              | `npm run check` exit 0 (1226 tests) et `npm run check:harness` 64/64                               |
+| #   | Condition                                                                                                                                                        | Comment on le vérifie                                     |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| 1   | §4 : identité du commit synthétique, verrou rouge qui liste ses fichiers                                                                                         | `npm run check:harness`, section 3 et 7                   |
+| 2   | §5 : hooks en `python3 -I -B -X pycache_prefix=…`, export dans les 9 scripts, 3 cas                                                                              | `npm run check:harness`, sections 10 et 12                |
+| 3   | §3 : sandbox actif, `~/.ssh` et `~/.config/gh` illisibles sous sandbox ; garde du trousseau posée pour les routes du §3, incomplète par nature (J-054, consigné) | `PermissionError` en session ; self-test sections 1 et 10 |
+| 4   | Le harness fonctionne sous sandbox                                                                                                                               | self-test 418/0 ; stage `push` vert, `lock` compris       |
+| 5   | §3, §4, §5 retirés d'EN-ATTENTE ; JOURNAL, TODO, INVENTAIRE, RUNBOOK, PROGRESS à jour                                                                            | relecture                                                 |
+| 6   | Verrou refait par Cédric, puis tout vert                                                                                                                         | `bash scripts/check.sh --stage push`                      |
 
 ---
 
 ## Socle systématique
 
-- [x] `npm run check` vert (typecheck + lint + format + `check:arch` + `check:diff` + tests).
+- [x] `npm run check` vert, `lock` compris (relock de Cédric le 2026-10-08).
 - [x] Les trois états rendus pour chaque écran touché — aucun écran modifié.
-- [x] Toute donnée externe validée par Zod — aucune nouvelle source de données.
+- [x] Toute donnée externe validée — sans objet (harness seul).
 - [x] Toute string affichée passe par `useTranslation()` — aucune string ajoutée.
-- [x] Docs de contexte mises à jour : `RUNBOOK.md` (procédure d'enregistrement Firebase),
-      `TODO.md` (bundle id, prérequis `.env`), `PROGRESS.md` (métriques + bundle id).
-- [ ] ADR : aucun — pas de décision d'architecture, uniquement du câblage et de la correction
-      documentaire.
-- [ ] Verdict `APPROVED` du subagent `reviewer`.
+- [x] Docs de contexte mises à jour : `JOURNAL-ECHECS.md`, `EN-ATTENTE.md`, `TODO.md`,
+      `INVENTAIRE.md`, `PROGRESS.md`, `RUNBOOK.md`.
+- [x] ADR : le sandbox prolonge ADR-016 (protection du harness), pas de nouvelle décision.
+- [ ] Verdict `APPROVED` du subagent `reviewer` sur l'arbre final.
 
 ---
 
 ## Ce qui reste à Cédric
 
-- [ ] `firebase login` puis `firebase deploy --only database` (compte Google requis).
-- [ ] Vérifier dans la console : Realtime Database → Règles affiche bien `database.rules.json`
-      (racine en `read: false` / `write: false`), pas les règles all-deny par défaut.
-- [ ] Rebuild natif : `react-native-config` lit `.env` au build, pas au reload Metro.
-- [ ] Vérifs device F4/F5 : deux appareils dans une même session, le marqueur de l'un doit bouger
-      chez l'autre en 1-2 s.
-
----
-
-## Hypothèses prises
-
-- Le plist déplacé à la main dans `ios/Mivro/` devait **rester** à cet emplacement : j'ai corrigé
-  la référence Xcode plutôt que de remettre le fichier à la racine de `ios/`.
-- `.firebaserc` est versionné (config projet, pas un secret), contrairement aux deux fichiers de
-  config Firebase et au `.env` qui restent gitignorés.
-- L'ajout de `google-services.json` et du plist à `.prettierignore` est le bon geste : ce sont des
-  fichiers générés par une console tierce, leur format ne nous appartient pas.
-
----
-
-## Clôture du contrat précédent (palette indigo + DOC-004 + archi)
-
-Le travail avait été commité (`b153b92`, `1d077a9`) **sans** que le verdict `reviewer` soit
-consigné. Ses 7 conditions ont été revérifiées mécaniquement le 2026-08-24 :
-
-| #   | Condition                                          | Résultat                                                            |
-| --- | -------------------------------------------------- | ------------------------------------------------------------------- |
-| 1   | Travail sur `develop`, `main` intacte              | ✅ `develop` ; `main` = `de6b15c`, inchangée                        |
-| 2   | Aucune paire du thème n'échoue WCAG AA             | ✅ `PENDING_DESIGN_DECISION` vide (0 paire en dette)                |
-| 3   | La marque reste l'indigo voulu                     | ✅ `palette.brand[500]` = `#6366F1`                                 |
-| 4   | `npm run docs` passe sans erreur                   | ✅ exit 0, Docusaurus compile                                       |
-| 5   | DOC-004 est un capteur, plus une règle de jugement | ✅ 0 occurrence dans `CLAUDE.md`, 4ᵉ garde du pre-push              |
-| 6   | Plus d'exemption de grandfathering en archi        | ✅ le seul `pathNot` restant est la logique « pas la même feature » |
-| 7   | Aucune régression                                  | ✅ `npm run check` exit 0 ; `check:harness` 64/64                   |
-
-Contrat objectivement satisfait. Seule la trace formelle manquait — elle est ici.
+- [ ] `npm run harness:relock`, hors Claude Code.
+- [ ] `"sandbox": { "allowUnsandboxedCommands": false }` dans `~/.claude/settings.json`.
+- [ ] Revue en session normale, commit, `git push`, CI `battery` verte sur la PR #3.

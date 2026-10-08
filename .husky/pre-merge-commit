@@ -1,0 +1,11 @@
+# ---------------------------------------------------------------------------
+# pre-merge-commit — a merge commit is a commit too.
+#
+# `git merge --no-ff` creates a commit without running pre-commit, so an agent
+# could land unreviewed work through a merge (JOURNAL J-042). Same gate as
+# pre-commit: outside Claude Code it is a no-op. cherry-pick / revert / rebase
+# run no hook at all: the project permissions put them behind a confirmation
+# (`ask`), and the Bash guard refuses the stash-to-commit trick.
+# ---------------------------------------------------------------------------
+
+bash scripts/review-gate.sh || exit 1

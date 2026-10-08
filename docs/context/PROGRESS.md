@@ -1,7 +1,45 @@
 # PROGRESS.md — Mivro
 
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-07-14 (ADR rattrapage — série ADR-001→014 complète).
+> Dernière mise à jour : 2026-09-26 (harness v2 — le harness devient une frontière de confiance).
+
+## Harness v2 — frontière de confiance (2026-09-26, branche `harness/beton`, non commité)
+
+L'audit red-team de ce jour a montré qu'on pouvait contourner le harness de bout en bout : il pouvait
+se réécrire lui-même, `--no-verify` était pré-approuvé, et il n'y avait ni CI ni protection de
+`develop`. Réponse en quatre couches (**ADR-016**, journal **J-026 à J-035**) :
+
+- **gardes** `PreToolUse` Bash et Edit ;
+- **verrou** `scripts/harness.lock` ;
+- **hook Stop** et **verdict reviewer scellé** au pre-commit ;
+- **CI GitHub Actions** (`battery`, `security`, `harness-guard`) et protection de branche prête à
+  être appliquée.
+
+Une **table unique de capteurs** (`scripts/sensors.sh`, reprise de SmartBLE) alimente
+`npm run check`, le Stop, le pre-push et la CI.
+
+Nouveaux capteurs :
+
+- identité native (J-023) ;
+- liste blanche des dépendances ;
+- références du journal ;
+- shellcheck du harness ;
+- parité des catalogues i18n FR/EN (31 cas) ;
+- `JSON.parse` et `Response.json()` qui renvoient `unknown`.
+
+**2026-09-28, session déverrouillée.** Les constats de la revue (J-036 à J-039, J-041) sont
+corrigés :
+
+- `harness-guard` passe sous `pull_request_target` ;
+- le verdict est lu dans le dernier message du reviewer, vérifié dans le binaire 2.1.283 ;
+- le garde Bash est réécrit ;
+- `check-diff` refuse les configs imbriquées et échoue fermé.
+
+Le déverrouillage est vérifié en réel. `check:harness` compte 418 assertions sous sandbox (416 en terminal ou en CI) après neuf revues et la première CI (J-036 à J-052 ; sandbox Bash de Claude Code actif depuis le 2026-10-08 ; §2 et §4 de J-051 appliqués le 2026-10-05 ;
+harness défini par zones produit, comparées sans casse). Le verrou est généré (2026-10-05) et le stage `check` est vert. Les septième et huitième revues
+(J-047 à J-050 : casse des chemins absolus, Read des secrets, options Prettier/ESLint, juge
+`audit`) sont appliquées. Le stage `push` est entièrement vert depuis le 2026-10-08 (J-040 : lots 1 et 1 bis
+mergés, PR #1 et #2) ; 4 avis restent acceptés nommément jusqu'au 2027-01-05. Mise en service : RUNBOOK > « Harness ».
 
 ## ADR rattrapage — série ADR-001→014 complète (2026-07-14)
 
@@ -302,13 +340,13 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 
 ---
 
-## Métriques actuelles (mesurées le 2026-08-24)
+## Métriques actuelles (mesurées le 2026-09-26)
 
 | Métrique                           | Valeur                                                            |
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
-| Suites de tests                    | 86                                                                |
-| Tests (cas) — `npm run check`      | 1226                                                              |
+| Suites de tests                    | 87                                                                |
+| Tests (cas) — `npm run check`      | 1257                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |

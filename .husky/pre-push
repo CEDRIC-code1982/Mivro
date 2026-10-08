@@ -1,42 +1,35 @@
-#!/usr/bin/env sh
 # ---------------------------------------------------------------------------
-# pre-push — the last gate before code leaves the machine.
+# pre-push — the "push" stage of scripts/sensors.sh, on what is being pushed.
 #
-#   1. check:arch  — dependency-cruiser (layer boundaries, Atomic Design)
-#   2. check:diff  — no banned escape hatch in the pushed commits
-#   3. test:ci     — the full Jest suite
-#   4. docs        — TypeDoc + Docusaurus build (DOC-004), ~11 s
+# Git passes one line per pushed ref on stdin:
+#   <local ref> <local sha> <remote ref> <remote sha>
+# The diff range for check-diff is derived from those lines, not from @{u}:
+# `git push origin other:develop` used to be checked against the wrong range
+# (JOURNAL J-033). A new branch is compared with its merge-base on
+# origin/develop (else origin/main).
 #
-# Bypass (only for a genuine emergency): git push --no-verify
+# Same sensor table as `npm run check` and the CI, plus the documentation build.
+# Local and bypassable by design (--no-verify): the CI is the real gate, and the
+# Bash guard refuses --no-verify from the agent.
 # ---------------------------------------------------------------------------
-set -e
 
-# Range actually being pushed: upstream..HEAD, falling back to main..HEAD.
-UPSTREAM="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
-if [ -z "$UPSTREAM" ]; then
-  if git rev-parse --verify --quiet main >/dev/null 2>&1; then
-    UPSTREAM="main"
+ZERO="0000000000000000000000000000000000000000"
+ARGS=""
+
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  [ -n "${local_sha:-}" ] || continue
+  [ "$local_sha" = "$ZERO" ] && continue # ref deletion: nothing to check
+  if [ "$remote_sha" = "$ZERO" ] || ! git cat-file -e "$remote_sha" 2>/dev/null; then
+    base="$(git merge-base "$local_sha" origin/develop 2>/dev/null || git merge-base "$local_sha" origin/main 2>/dev/null || true)"
+    [ -n "$base" ] || base="$local_sha~1"
   else
-    UPSTREAM="HEAD~1"
+    base="$remote_sha"
   fi
-fi
+  ARGS="$ARGS --range $base...$local_sha"
+done
 
-printf '▸ pre-push 1/4  architecture (check:arch)\n'
-npm run --silent check:arch
+[ -n "$ARGS" ] || exit 0
 
-printf '▸ pre-push 2/4  banned patterns (check:diff, range %s...HEAD)\n' "$UPSTREAM"
-bash scripts/check-diff.sh "$UPSTREAM...HEAD"
-
-printf '▸ pre-push 3/4  full test suite (test:ci)\n'
-npm run --silent test:ci
-
-# DOC-004: the documentation must build. onBrokenLinks is set to 'throw', so a
-# dangling reference fails here rather than being discovered on the published site.
-printf '▸ pre-push 4/4  documentation (docs — TypeDoc + Docusaurus)\n'
-if [ ! -d docs-site/node_modules ]; then
-  printf '  ✖ docs-site dependencies are missing. Run: npm --prefix docs-site install\n' >&2
-  exit 1
-fi
-npm run --silent docs >/dev/null
-
-printf '✔ pre-push: all gates green\n'
+printf '▸ pre-push: sensors, stage push (%s)\n' "$(echo "$ARGS" | sed 's/--range //g')"
+# shellcheck disable=SC2086  # ARGS is a list of --range options, split on purpose
+exec bash scripts/check.sh --stage push $ARGS

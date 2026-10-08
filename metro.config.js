@@ -1,6 +1,6 @@
 // [MODIFIED] Wrapped with Sentry for source maps support
-const { withSentryConfig } = require('@sentry/react-native/metro');
 const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
+const { withSentryConfig } = require('@sentry/react-native/metro');
 
 /**
  * Metro configuration

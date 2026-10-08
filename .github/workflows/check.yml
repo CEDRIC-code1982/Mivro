@@ -1,0 +1,111 @@
+# ---------------------------------------------------------------------------
+# The server-side gate. Everything local (Claude Code hooks, husky) can be
+# bypassed by whoever controls the machine; this is what `main` and `develop`
+# require (scripts/setup-branch-protection.sh), JOURNAL J-030.
+#
+# These jobs run under `pull_request`, i.e. with the PR's own copy of this
+# file: a PR could hollow them out. What stops that is harness-guard.yml
+# (pull_request_target, base-branch code): any change under .github/ needs
+# Cedric's `harness-change` label (JOURNAL J-036).
+#
+#   battery        the "push" stage of scripts/sensors.sh — same table as
+#                  `npm run check`, the Stop hook and the pre-push — plus the
+#                  harness self-test. Abstentions are failures here.
+#   security       gitleaks on the pushed commits, npm audit on runtime deps.
+#   harness-guard  lives in harness-guard.yml, under pull_request_target, so
+#                  that a PR cannot rewrite the job that judges it (J-036).
+# ---------------------------------------------------------------------------
+name: check
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  battery:
+    name: battery
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            docs-site/package-lock.json
+
+      - name: Install
+        run: |
+          npm ci
+          npm --prefix docs-site ci
+
+      - name: Diff range
+        id: range
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            base="$PR_BASE"
+          elif [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$BEFORE" 2>/dev/null; then
+            base="$BEFORE"
+          else
+            base="$(git merge-base "$SHA" origin/develop 2>/dev/null || git merge-base "$SHA" origin/main)"
+          fi
+          echo "range=$base...$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Sensors (stage push)
+        env:
+          MIVRO_NO_ABSTAIN: '1'
+        run: bash scripts/check.sh --stage push --range "${{ steps.range.outputs.range }}"
+
+      - name: Harness self-test
+        run: npm run check:harness
+
+      - name: self-test counts a dead call (J-051)
+        run: |
+          sed '/^section() {/a\
+          undefined_helper_ci_probe' scripts/harness-selftest.sh > /tmp/st-dead.sh
+          bash /tmp/st-dead.sh | grep -q ' 1 failed'
+
+  security:
+    name: security
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # gitleaks lists the PR's commits through the API.
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: npm audit (runtime dependencies, high and above, named exceptions)
+        run: bash scripts/check-audit.sh # npm audit reads the lockfile only, no install needed
+

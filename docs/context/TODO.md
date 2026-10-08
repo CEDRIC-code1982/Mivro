@@ -187,7 +187,7 @@ _Estimation : L. Dépendances : comptes stores._
 
 ## Dette technique connue
 
-- [ ] **Test sans marge de temps** (J-025) : `usePOIQuery > retry logic > does not retry on parse_error` depasse les 5 000 ms par defaut quand la machine est chargee (observe pendant un `pod install` concurrent). Passe 9/9 en isolation. Donner un timeout explicite a ce test precis plutot que relever le budget global, qui masquerait d'autres lenteurs. (P2)
+- [x] ~~**Test sans marge de temps** (J-025)~~ → **FAIT (2026-09-26)** : timeout explicite de 15 s sur ce seul test (`LOADED_MACHINE_TIMEOUT_MS`), budget global de Jest inchangé.
 
 - [ ] **POI rayon géant** (ex: Paris + Tokyo) : la requête Overpass `(around:RAYON_ÉNORME)` fait timeout/erreur → `POIListView` affiche « Erreur inattendue » au lieu d'un EmptyState. Découvert au QA (Pacifique). À traiter : borner le rayon POI ou mapper le timeout vers un message dédié. (P2)
 - [ ] **Re-vérif device** : confirmer sur iPhone que (a) le champ fantôme F1 a disparu, (b) le footer carte tient en Dynamic Type 200 %. Vérifier aussi qu'aucun autre écran ne casse en 200 %.
@@ -207,6 +207,47 @@ _Estimation : L. Dépendances : comptes stores._
 - [x] ~~**`test:ci` ne passe pas `--coverage`**~~ → **FAIT (2026-08-21, harness)** : `test:ci` = `jest --ci --coverage`, les `coverageThreshold` sont donc réellement bloquants dans `npm run check`. A nécessité de couvrir les 4 callbacks `tabBarIcon` de `BottomTabsNavigator` (seul seuil qui échouait : `src/navigations/` functions 42,85 % < 50 %).
 
 ---
+
+## Harness v2 (2026-09-26) — mise en service (Cédric)
+
+Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
+
+- [x] ~~Appliquer `EN-ATTENTE.md` en session déverrouillée~~ → **FAIT (2026-09-28)** : J-036 à
+      J-039 et J-041 à J-046 corrigés, déverrouillage vérifié en réel ; self-test à 393 assertions au 2026-10-05.
+- [x] ~~`npm run harness:relock`~~ → **FAIT (2026-10-05)** : premier verrou généré.
+- [x] ~~EN-ATTENTE §5 à §8 (J-048 à J-050)~~ → appliqués le 2026-10-05 ; la 9e revue rouvre
+      J-048 et J-049 (J-051).
+- [x] ~~EN-ATTENTE §3, §4 et §5 (J-051 sandbox, J-052)~~ → appliqués le 2026-10-08 en session
+      déverrouillée ; self-test à 418 assertions, stage `push` vert sous sandbox, `lock` compris (relock du 2026-10-08).
+- [x] ~~Relock après §3 à §5~~ → fait le 2026-10-08.
+- [ ] **Bloque la PR #3** : revue, commit, push ; `battery` vert sur la CI ferme J-052.
+- [x] ~~Cédric : `"sandbox": { "allowUnsandboxedCommands": false }` dans `~/.claude/settings.json`~~
+      → posé le 2026-10-08, constaté (`dangerouslyDisableSandbox` désactivé en session).
+- [ ] Session déverrouillée : `EN-ATTENTE.md` §6 (J-053, le self-test ne doit jamais écrire dans
+      l'historique), relock.
+- [ ] ⚠️ Décision de Cédric, `EN-ATTENTE.md` §7 (J-054) : le jeton GitHub se lit encore par le
+      trousseau (`security -i`, `gh auth git-credential`, `git credential fill`), et `api.github.com`
+      répond depuis le sandbox. Il faut refuser GitHub au réseau du sandbox, et/ou passer à un jeton à
+      privilèges réduits. Depuis l'agent, `gh` (sans sa config) et `git` en SSH ne passent plus :
+      suivre la CI et merger restent à Cédric.
+- [x] ~~EN-ATTENTE §2 et §4 (J-051)~~ → appliqués le 2026-10-05 ; self-test à 395 assertions.
+- [x] ~~`npm run harness:relock` après §2 et §4~~ → **FAIT (2026-10-05)**.
+- [ ] Première CI : vérifier vert le pas `self-test counts a dead call (J-051)` (preuve Bash 5 de
+      J-048), puis passer J-048 RÉSOLU.
+- [ ] Commit de `harness/en-attente-5-8`, push et PR vers `develop`.
+- [x] ~~**J-040 lot 1**~~ → mergé dans `develop` le 2026-10-08 (PR #1, `4242ada`).
+- [x] ~~**J-040 lot 1 bis**~~ → `compression` 1.8.2 mergé le 2026-10-08 (PR #2), branche du
+      harness rebasée, relock fait : stage `push` entièrement vert.
+- [x] **J-040 lot 3** : capteur `audit` à avis acceptés, posé le 2026-10-05.
+- [ ] ⚠️ À SPÉCIFIER AVEC CÉDRIC : montée React Native 0.85 → 0.86+ (ferme les avis acceptés de
+      J-040, expiration 2027-01-05) — ADR, rebuild natif, reanimated, worklets, maps, firebase.
+- [ ] Merger dans `develop`, puis `develop` dans `main`, puis `bash scripts/setup-branch-protection.sh`.
+- [x] ~~Première revue réelle~~ → constaté le 2026-10-05 : `.git/mivro-review` écrit après
+      l'`APPROVED`, et le pre-commit l'a accepté (commit « EN-ATTENTE §2 et §4 (J-051) », `4f7d1ba` après rebase).
+- [ ] Optionnel : token GitHub fine-grained sans « Administration » pour les sessions Claude.
+- [ ] **J-022** (ouvert) : capteur des affirmations factuelles des docs.
+- [ ] **Tests des règles RTDB** sur l'émulateur Firebase (`@firebase/rules-unit-testing`) :
+      `$other` absent au niveau `sessions/$sessionId`, écriture refusée hors des trois nœuds. (P2)
 
 ## Harness d'agent (2026-08-21) — points ouverts
 

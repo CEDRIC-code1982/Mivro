@@ -1,0 +1,4 @@
+# Harness file (scripts/harness-protected.txt). Its mere presence matters: when
+# it is absent, ESLint falls back to the `eslintIgnore` key of package.json —
+# even under --no-eslintrc — and one added key silenced the whole of src/
+# (JOURNAL J-044). Ignore patterns belong in .eslintrc.js `ignorePatterns`.

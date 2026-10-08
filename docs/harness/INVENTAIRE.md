@@ -5,7 +5,7 @@
 >
 > ⚠️ **Les sections 1 à 9 sont un instantané daté, conservé tel quel.** Plusieurs constats ont
 > depuis été corrigés : DOC-004 est outillée, le thème passe WCAG AA, les scripts morts sont
-> réparés. **La section 10 donne l'état courant** — c'est elle qu'il faut lire pour savoir où vit
+> réparés. **Les sections 10 et 11 donnent l’état courant** — c'est elle qu'il faut lire pour savoir où vit
 > une règle aujourd'hui.
 >
 > Ce document a par ailleurs été écrit depuis `main`, alors 6 commits en retard sur
@@ -342,3 +342,99 @@ Docusaurus) · `npm run docs:dev`.
 
 ⚠️ Le pre-push a besoin des dépendances de `docs-site/` : `npm --prefix docs-site install`
 après un clone.
+
+---
+
+## 11. HARNESS v2 (2026-09-26) — état courant
+
+> Suite à l'audit red-team du 2026-09-26 (JOURNAL J-026 à J-035) et à la comparaison avec le
+> harness de P0114 SmartBLE. Décision d'ensemble : **ADR-016**. Changements encore à appliquer en
+> session déverrouillée : `EN-ATTENTE.md`.
+
+### Quatre couches, chacune suppose que la précédente peut tomber
+
+> État au 2026-09-28, **après** application des correctifs J-036 à J-041. La dernière colonne dit ce
+> qui passe encore : c'est la limite de conception, pas un trou connu.
+
+| Couche                   | Mécanisme                                                                                                                                                         | Contournable par                                                                                                    |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| 1. Refus à la source     | `pre-bash-guard.py`, `pre-edit-guard.py` (PreToolUse) ; permissions `ask`/`deny` du projet                                                                        | un script écrit dans `/tmp` puis exécuté, ou une forme que le garde ne modélise pas : c'est une liste noire (J-042) |
+| 2. Détection             | `harness.lock` (capteur `lock`, stage `fast`) ; hook `PostToolUse` à chaque édition ; `check-diff` (configs imbriquées)                                           | un relock, qui exige Cédric dans son terminal                                                                       |
+| 3. Obligation de process | hooks `Stop` / `SubagentStop` ; verdict lu dans le dernier message du reviewer (`SubagentStop`), effacé à chaque `SubagentStart` ; `review-gate.sh` au pre-commit | un commit fait dans un clone sans hooks, puis importé (script `/tmp`)                                               |
+| 4. Serveur               | `check.yml` (`battery`, `security`) + `harness-guard.yml` (`pull_request_target`, code de la base) + protection de `main`/`develop`                               | un token GitHub admin (voir RUNBOOK)                                                                                |
+
+### La table des capteurs — `scripts/sensors.sh`
+
+`npm run check -- --list` (stage `check`) ou `bash scripts/check.sh --stage push --list`.
+
+| id          | stage | Rôle                                                                               |
+| ----------- | ----- | ---------------------------------------------------------------------------------- |
+| `typecheck` | fast  | `tsc --noEmit` incrémental                                                         |
+| `lint`      | fast  | ESLint `.ts/.tsx/.js/.mjs/.cjs`, **zéro warning**, cache indexé sur les règles     |
+| `format`    | fast  | Prettier                                                                           |
+| `arch`      | fast  | dependency-cruiser                                                                 |
+| `diff`      | fast  | `check-diff.sh` : échappatoires, `any` en toute position, tests focalisés, secrets |
+| `lock`      | fast  | intégrité du harness                                                               |
+| `native`    | fast  | team Apple, bundle id, deployment target, plist Firebase, scheme Debug             |
+| `deps`      | fast  | liste blanche des dépendances npm                                                  |
+| `docrefs`   | fast  | numérotation du journal, citations `J-NNN` résolues                                |
+| `scripts`   | fast  | shellcheck + syntaxe Python du harness (peut s'abstenir sans shellcheck)           |
+| `tests`     | check | Jest + seuils de couverture                                                        |
+| `audit`     | push  | `npm audit --omit=dev`, hautes et critiques, avis acceptés par GHSA (s'abstient)   |
+| `docs`      | push  | TypeDoc + Docusaurus (peut s'abstenir sans `docs-site/node_modules`)               |
+
+Une abstention (exit 3) est nommée et n'est jamais comptée verte ; en CI (`MIVRO_NO_ABSTAIN=1`)
+elle échoue.
+
+### Mesures (2026-09-26, MacBook de Cédric, cache chaud)
+
+| Étape                                           | Durée                         |
+| ----------------------------------------------- | ----------------------------- |
+| Hook `PostToolUse` sur un `.ts`                 | 3,2 – 3,4 s                   |
+| Garde Bash (un appel)                           | ≈ 50 ms                       |
+| Stage `fast` (hook `Stop`), capteurs parallèles | ≈ 4 – 5 s                     |
+| `npm run check` (stage `check`)                 | ≈ 20 s                        |
+| `check:harness` (418 sous sandbox, 416 en CI)   | ≈ 5 min (build de doc inclus) |
+
+### Protection du harness
+
+- **Modèle (J-045)** : liste blanche des zones produit (`harness_paths.PRODUCT_ZONES`). Tout fichier
+  hors de ces zones est du harness, qu'il soit nommé ou non. `scripts/harness-protected.txt` y ajoute
+  les fichiers du harness situés **dans** les zones. Les deux gardes, le verrou et la CI lisent la
+  même fonction.
+- **Comparaison (J-046)** : insensible à la casse (APFS). Un chemin qui traverse `node_modules`,
+  `build`, `dist`, `coverage` ou `Pods` n'est jamais produit. `CLAUDE.md` et `CLAUDE.local.md` sont
+  du harness à toute profondeur, `functions/package.json` aussi.
+- **Évolution** : session `MIVRO_HARNESS_UNLOCK=1 claude`, puis `npm run harness:relock` (terminal
+  interactif, hors Claude Code), puis PR avec le label `harness-change`. Procédure : RUNBOOK.
+- **Observé** : Claude Code recharge `.claude/settings.json` **à chaud**. La protection prend effet
+  sans redémarrage, y compris pour l'agent qui vient de l'écrire.
+
+### Comparaison avec P0114 SmartBLE (2026-09-26)
+
+Repris de SmartBLE : table unique de capteurs et stage sélectif, abstention nommée, pre-push qui lit
+les refs sur stdin, capteurs de config native, liste blanche des dépendances, shellcheck du harness,
+vérification des références du journal, budget d'appels pour le reviewer.
+
+Ce que Mivro a en plus, et que SmartBLE gagnerait à reprendre : seuils de couverture, règles ESLint
+maison (casts, logs, magic values), self-test par violation volontaire, contraste WCAG, build de la
+doc au push. Désormais aussi : protection du harness, verrou, hook Stop, verdict scellé, CI active
+et protection de branche. SmartBLE n'a aucun de ces derniers.
+
+### Reste ouvert
+
+- **J-022** — aucun capteur ne vérifie les affirmations factuelles des docs.
+- **J-051** — la lecture des secrets du `$HOME` est fermée par le sandbox Bash de Claude Code
+  (2026-10-08) ; reste à Cédric la clé utilisateur `allowUnsandboxedCommands: false`. Le comptage des appels morts (J-048)
+  est corrigé par un trap `ERR` (§2, 2026-10-05) ; sa preuve sous Bash 5 est un pas du job
+  `battery`, à voir vert sur la première CI.
+- **Mémoire de l'agent** — inscriptible par conception, risque accepté (J-046).
+- **J-040** — résolu le 2026-10-08 (lots 1 et 1 bis mergés). Les 4 avis du lot 3 restent acceptés
+  dans `scripts/audit-accepted.json` jusqu'au 2027-01-05, en attendant la montée de React Native.
+- **Validations en réel.** L'héritage de l'environnement par les hooks, qui permet le
+  déverrouillage, est **constaté** le 2026-09-28. Le scellement du verdict par
+  `SubagentStart`/`SubagentStop` est **constaté** le 2026-10-05 : `.git/mivro-review` est écrit
+  après un `APPROVED`, et le pre-commit l'accepte. S'il ne se déclenchait pas, les commits de
+  l'agent seraient refusés : l'échec est fermé.
+- **Tests des règles RTDB** sur l'émulateur Firebase : c'est un test produit, pas un capteur du
+  harness (`TODO.md`).

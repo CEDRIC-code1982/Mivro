@@ -13,19 +13,26 @@
     "test:coverage": "jest --coverage",
     "test:unit": "jest --testPathIgnorePatterns \"/node_modules/\" \"/src/test-utils/\" \"\\\\.integration\\\\.test\\\\.tsx?$\"",
     "test:integration": "jest --testPathPattern \"\\\\.integration\\\\.test\\\\.tsx?$\"",
-    "lint": "eslint . --ext .ts,.tsx",
-    "lint:fix": "eslint . --ext .ts,.tsx --fix",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "lint": "eslint . --no-eslintrc -c .eslintrc.js --ext .ts,.tsx,.js,.jsx,.mjs,.cjs --max-warnings 0",
+    "lint:fix": "eslint . --no-eslintrc -c .eslintrc.js --ext .ts,.tsx,.js,.jsx,.mjs,.cjs --max-warnings 0 --fix",
+    "format": "prettier --config .prettierrc.js --no-editorconfig --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --config .prettierrc.js --no-editorconfig --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "typecheck": "tsc --noEmit",
     "check:arch": "depcruise src --config .dependency-cruiser.js",
     "check:arch:graph": "depcruise src --config .dependency-cruiser.js --output-type dot > .dependency-graph.dot",
     "check:diff": "bash scripts/check-diff.sh",
     "check:harness": "bash scripts/harness-selftest.sh",
-    "docs:api": "typedoc",
-    "docs": "typedoc && npm --prefix docs-site run build",
+    "check:fast": "bash scripts/check.sh --stage fast",
+    "check:push": "bash scripts/check.sh --stage push",
+    "check:lock": "bash scripts/harness-lock.sh",
+    "check:native": "python3 scripts/check-native.py",
+    "check:deps": "node scripts/check-deps.js",
+    "check:doc-refs": "bash scripts/check-doc-refs.sh",
+    "harness:relock": "bash scripts/harness-lock.sh --update",
+    "docs:api": "typedoc --options typedoc.config.mjs",
+    "docs": "typedoc --options typedoc.config.mjs && cd docs-site && npx --no-install docusaurus build",
     "docs:dev": "typedoc && npm --prefix docs-site run start",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm run check:arch && npm run check:diff && npm run test:ci",
+    "check": "bash scripts/check.sh --stage check",
     "prepare": "husky",
     "pods": "cd ios && rm -rf Pods/ && rm -rf build && rm -rf Podfile.lock && bundle install && bundle exec pod install && cd ..",
     "android-clean": "cd android && rm -rf app/.cxx && rm -rf app/build && ./gradlew --stop && ./gradlew clean && cd ..",
@@ -33,12 +40,12 @@
     "clear": "rm -rf $TMPDIR/react-native-packager-cache-* &&  rm -rf $TMPDIR/metro-bundler-cache-* && rm -rf node_modules/ && npm cache clean --force &&  npm install && npm start -- --reset-cache"
   },
   "lint-staged": {
-    "*.{ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
+    "*.{ts,tsx,js,jsx,mjs,cjs}": [
+      "eslint --no-eslintrc -c .eslintrc.js --fix --max-warnings 0",
+      "prettier --config .prettierrc.js --no-editorconfig --write"
     ],
     "*.{json,md}": [
-      "prettier --write"
+      "prettier --config .prettierrc.js --no-editorconfig --write"
     ]
   },
   "dependencies": {

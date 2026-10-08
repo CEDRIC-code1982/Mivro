@@ -85,6 +85,12 @@ module.exports = {
     },
   },
 
+  /**
+   * Build the visitor.
+   *
+   * @param {object} context - The ESLint rule context.
+   * @returns {object} The AST visitor.
+   */
   create(context) {
     const options = context.options[0] || {};
     const checkFileName = options.checkFileName !== false;
