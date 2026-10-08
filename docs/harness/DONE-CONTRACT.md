@@ -7,53 +7,49 @@
 
 ## Tâche
 
-**Titre** : Appliquer EN-ATTENTE §3, §4 et §5 (sandbox Bash J-051, première CI J-052)
+**Titre** : Appliquer EN-ATTENTE §6 et §7 (J-053 historique intouchable, J-054 trousseau et réseau)
 
-**Demande d'origine, en une phrase** : « applique EN-ATTENTE §4 et §5 ». Ajoute « §3 ».
+**Demande d'origine, en une phrase** : « applique EN-ATTENTE §6 et §7 » (session déverrouillée de
+Cédric), puis « Lance 4 » : revue et commit.
 
-**Branche** : `harness/en-attente-5-8`, session déverrouillée (`MIVRO_HARNESS_UNLOCK=1`).
+**Branche** : `harness/en-attente-5-8`, à la suite de `b1d3993`.
 
 **Hors périmètre explicite** :
 
-- `~/.claude/settings.json` (`allowUnsandboxedCommands: false`) : fichier utilisateur, à Cédric.
-- Relock, push, PR : Cédric.
+- Jeton GitHub à privilèges réduits pour les sessions Claude : réglage GitHub de Cédric (TODO).
+- Push, CI de la PR #3, merge : Cédric (GitHub est refusé au réseau du sandbox, `gh` et SSH aussi).
 - Règle `docrefs` (a)(b)(c) de J-051 : pas encore décrite dans EN-ATTENTE.
-- J-053 (le self-test a commité dans le vrai dépôt) : découvert en fin de tâche, consigné, et
-  correctif prêt dans `EN-ATTENTE.md` §6 pour la prochaine session déverrouillée. Les deux commits
-  parasites ont été retirés avant ce commit.
-- J-054 (quatre autres routes vers le jeton par le trousseau, GitHub joignable depuis le sandbox) :
-  trouvé par la 13e revue, consigné dans `EN-ATTENTE.md` §7, décision de Cédric (réseau, jeton).
 
 ---
 
 ## Conditions de fin
 
-| #   | Condition                                                                                                                                                        | Comment on le vérifie                                     |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| 1   | §4 : identité du commit synthétique, verrou rouge qui liste ses fichiers                                                                                         | `npm run check:harness`, section 3 et 7                   |
-| 2   | §5 : hooks en `python3 -I -B -X pycache_prefix=…`, export dans les 9 scripts, 3 cas                                                                              | `npm run check:harness`, sections 10 et 12                |
-| 3   | §3 : sandbox actif, `~/.ssh` et `~/.config/gh` illisibles sous sandbox ; garde du trousseau posée pour les routes du §3, incomplète par nature (J-054, consigné) | `PermissionError` en session ; self-test sections 1 et 10 |
-| 4   | Le harness fonctionne sous sandbox                                                                                                                               | self-test 418/0 ; stage `push` vert, `lock` compris       |
-| 5   | §3, §4, §5 retirés d'EN-ATTENTE ; JOURNAL, TODO, INVENTAIRE, RUNBOOK, PROGRESS à jour                                                                            | relecture                                                 |
-| 6   | Verrou refait par Cédric, puis tout vert                                                                                                                         | `bash scripts/check.sh --stage push`                      |
+| #   | Condition                                                                                                                                                     | Comment on le vérifie                                                      |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| 1   | §6 : `scratch_repo` échoue fermé (`$dir` vide, `git init` raté), commit par `--git-dir`, appelants arrêtés                                                    | cas du self-test ; preuve sur faux dépôt (J-053)                           |
+| 2   | §6 : la sortie du self-test vérifie `HEAD` et `refs/heads`, et `tmp_dir` ne laisse plus de répertoire                                                         | run : HEAD et branches inchangés, 0 `mivro.*` neuf dans `$TMPDIR`          |
+| 3   | §6 : seconde forge `.pyc` dans le `__pycache__/` voisin, contrôle qui distingue une forge ratée                                                               | self-test section 10                                                       |
+| 4   | §7 : GitHub refusé au réseau du sandbox (`deniedDomains`), effet mesuré et pas seulement écrit                                                                | sonde `curl https://api.github.com` refusée (« host is on the deny list ») |
+| 5   | §7 : la garde refuse `security -i/-p`, `gh auth git-credential`, `git credential fill/approve/reject`, `git credential-*`                                     | cas `guard BLOCK` du self-test, `gh pr view` toujours ALLOW                |
+| 6   | §6 et §7 retirés d'EN-ATTENTE (seul y reste le §1, mineur de la 14e revue) ; J-053 et J-054 décrits comme appliqués, OUVERT jusqu'à leur preuve ; docs à jour | relecture                                                                  |
+| 7   | Aucune régression                                                                                                                                             | stage `push` vert (13) ; self-test 427/0 sous sandbox (424 en CI)          |
 
 ---
 
 ## Socle systématique
 
-- [x] `npm run check` vert, `lock` compris (relock de Cédric le 2026-10-08).
+- [x] `npm run check` vert, `lock` compris (relock de Cédric après §6 et §7).
 - [x] Les trois états rendus pour chaque écran touché — aucun écran modifié.
 - [x] Toute donnée externe validée — sans objet (harness seul).
 - [x] Toute string affichée passe par `useTranslation()` — aucune string ajoutée.
-- [x] Docs de contexte mises à jour : `JOURNAL-ECHECS.md`, `EN-ATTENTE.md`, `TODO.md`,
-      `INVENTAIRE.md`, `PROGRESS.md`, `RUNBOOK.md`.
-- [x] ADR : le sandbox prolonge ADR-016 (protection du harness), pas de nouvelle décision.
+- [x] Docs de contexte mises à jour : `EN-ATTENTE.md`, `JOURNAL-ECHECS.md`, `TODO.md`, `RUNBOOK.md`.
+- [x] ADR : aucune nouvelle décision d'architecture (application d'ADR-016 au sandbox).
 - [ ] Verdict `APPROVED` du subagent `reviewer` sur l'arbre final.
 
 ---
 
 ## Ce qui reste à Cédric
 
-- [ ] `npm run harness:relock`, hors Claude Code.
-- [ ] `"sandbox": { "allowUnsandboxedCommands": false }` dans `~/.claude/settings.json`.
-- [ ] Revue en session normale, commit, `git push`, CI `battery` verte sur la PR #3.
+- [x] `npm run harness:relock` (2026-10-08).
+- [ ] `git push origin harness/en-attente-5-8`, puis CI de la PR #3 et merge.
+- [ ] Jeton GitHub à privilèges réduits (J-054).

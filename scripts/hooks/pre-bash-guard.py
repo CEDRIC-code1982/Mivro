@@ -628,6 +628,9 @@ class Guard:
             self._check_find(args)
         elif name == "git":
             self._check_git(args)
+        elif name.startswith("git-credential-"):
+            # The helper binary itself, out of `git --exec-path` (JOURNAL J-054).
+            deny(name, "Printing a stored credential would let a raw HTTP call bypass this guard.")
         elif name in {"npm", "yarn", "pnpm"}:
             self._check_npm(args)
         elif name == "husky":
@@ -908,6 +911,11 @@ class Guard:
                 f"Write it as a plain top-level `git {sub} ...`, so that Cedric's confirmation applies.",
             )
 
+        # `git credential fill` and the helpers (`credential.helper osxkeychain` is
+        # global) print the GitHub token from the keychain (JOURNAL J-054).
+        if (sub == "credential" and pos[:1] in (["fill"], ["approve"], ["reject"])) or sub.startswith("credential-"):
+            deny(f"git {sub} {pos[0] if pos else ''}".rstrip(), "Printing a stored credential would let a raw HTTP call bypass this guard.")
+
         if sub == "push":
             if any(f.startswith("--force") for f in longs) or "f" in shorts:
                 deny(
@@ -1143,13 +1151,26 @@ class Guard:
             deny("gh auth token", "Exporting the token would let a raw HTTP call bypass this guard.")
         elif group == "auth" and action == "status" and ("--show-token" in longs or "t" in short_flags(args)):
             deny("gh auth status --show-token", "Printing the token would let a raw HTTP call bypass this guard.")
+        elif group == "auth" and action == "git-credential":
+            # The git credential helper protocol prints the same token (JOURNAL J-054).
+            deny("gh auth git-credential", "Printing the token would let a raw HTTP call bypass this guard.")
 
     def _check_security(self, args: list[str]) -> None:
         # The gh token lives in the macOS keychain, which is not a file: the Bash
         # sandbox's denyRead does not cover it (verified in-session, JOURNAL J-051).
         action = positional(args)[:1]
         shorts = short_flags(args)
-        if action in (["find-generic-password"], ["find-internet-password"]) and {"w", "g"} & shorts:
+        # Options before the command: `-i` reads commands from stdin and `-p` implies
+        # it, so `printf 'find-generic-password -w ...' | security -i` hid the
+        # action from the text (JOURNAL J-054).
+        leading: list[str] = []
+        for arg in args:
+            if not arg.startswith("-"):
+                break
+            leading.append(arg)
+        if {"i", "p"} & short_flags(leading):
+            deny("security -i/-p (interactive mode)", "Commands read from stdin cannot be judged, keychain reads included.")
+        elif action in (["find-generic-password"], ["find-internet-password"]) and {"w", "g"} & shorts:
             deny(f"security {action[0]} -w/-g", "Printing a keychain secret would let a raw HTTP call bypass this guard.")
         elif action == ["dump-keychain"] and "d" in shorts:
             deny("security dump-keychain -d", "Dumping the keychain prints every stored secret.")

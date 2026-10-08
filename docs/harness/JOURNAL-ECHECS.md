@@ -1887,7 +1887,7 @@ la fasse pas rougir. J-052 passe RÉSOLU quand `battery` est vert sur la PR #3.
 
 ## J-053 — Le self-test a commité dans le vrai dépôt
 
-**Date** : 2026-10-08 · **Statut** : OUVERT — correctif dans `EN-ATTENTE.md` §6
+**Date** : 2026-10-08 · **Statut** : OUVERT — appliqué le 2026-10-08 ; preuve : relock et CI verte
 
 **Observé.** Après la session déverrouillée du 2026-10-08, `harness/en-attente-5-8` portait deux
 commits vides « init », d'auteur `selftest <selftest@mivro>`, créés à 14:05 et 14:06, un par
@@ -1910,9 +1910,29 @@ sortie du self-test.
 **Réponse prévue** (`EN-ATTENTE.md` §6) : `scratch_repo` échoue fermé, les appelants s'arrêtent sur
 son échec, et la sortie du self-test vérifie `HEAD` et les références des branches.
 
+**Appliqué le 2026-10-08** (ancien §6 d'EN-ATTENTE), en session déverrouillée. `scratch_repo` vérifie
+que `git init` a pris dans le répertoire attendu (`rev-parse --show-toplevel`), puis commite par
+`--git-dir`/`--work-tree` explicites. Les deux pannes, rejouées sur un faux dépôt « extérieur » du
+scratchpad, rendent 1 sans commit. `cleanup()` compare en dernier `HEAD` et `refs/heads` à leur
+valeur de départ, et sort en 1 s'ils ont bougé. Les répertoires de `tmp_dir` sont enregistrés dans
+un fichier : le tableau se perdait dans le sous-shell de `$(…)`, et chaque run en laissait dans
+`$TMPDIR`. Un run n'en laisse plus aucun.
+
+La seconde forge `.pyc`, posée dans le `__pycache__/` voisin du source, a révélé un défaut du cas
+J-052. Sous le sandbox, le Python d'Apple ne peut pas écrire dans son cache par défaut
+(`~/Library/Caches/com.apple.python`). La forge échouait donc après avoir écrit `"evil"` dans le
+source, sans le restaurer. Le contrôle lisait alors `evil` dans le source et croyait la forge valide.
+Le cas ne passait que parce que l'autre lecture rendait aussi `evil` : un échec de forge pouvait
+valider un contrôle vide. Désormais la forge restaure le source dans un `finally` et vise
+explicitement le `__pycache__/` voisin. Son contrôle prend les options des hooks moins `-X` :
+`python3 -I -B` y charge bien `evil`, et seul `-X pycache_prefix` le neutralise.
+
+**Leçon ajoutée.** Le contrôle d'une sonde doit pouvoir distinguer « la forge marche » de « la
+forge a cassé l'état ». Une préparation qui échoue à moitié ne doit rien laisser derrière elle.
+
 ## J-054 — Treizième revue : le trousseau ne se ferme pas par le texte des commandes
 
-**Date** : 2026-10-08 · **Statut** : OUVERT — `EN-ATTENTE.md` §7, décision de Cédric
+**Date** : 2026-10-08 · **Statut** : OUVERT — appliqué le 2026-10-08 ; reste le jeton réduit (TODO)
 
 **Observé.** La garde du trousseau posée au §3 de J-051 refuse `gh auth token`,
 `gh auth status --show-token` et `security find-*-password -w/-g`. Quatre autres routes rendent le
@@ -1936,3 +1956,31 @@ lieu de déduire.
 **Réponse prévue** (`EN-ATTENTE.md` §7) : refuser GitHub au réseau du sandbox, et/ou un jeton à
 privilèges réduits pour les sessions Claude. La garde textuelle refuse en plus les quatre routes,
 avec une sonde réseau au self-test.
+
+**Appliqué le 2026-10-08** (ancien §7 d'EN-ATTENTE), en session déverrouillée, sur la décision de
+Cédric (« applique EN-ATTENTE §6 et §7 »). `.claude/settings.json` refuse `github.com`,
+`api.github.com`, `*.github.com` et `*.githubusercontent.com` (`sandbox.network.deniedDomains`, clé
+vérifiée dans le binaire 2.1.289). Le refus a pris effet dans la session même : la sonde
+`curl https://api.github.com` du self-test échoue, et le sandbox signale « host is on the deny
+list ». La garde refuse `security -i/-p` (options avant la commande), `gh auth git-credential`,
+`git credential fill|approve|reject`, `git credential-*` et le binaire `git-credential-*` appelé
+directement. Sans commande, `security` n'affiche que son aide : il n'a pas de mode interactif
+implicite. Le self-test vérifie aussi la clé dans la config, pour la CI et le terminal, où la sonde
+est sautée. Reste le jeton à privilèges réduits (TODO), hors du dépôt.
+
+**Vu par la 14e revue** (2026-10-08). Le code tient contre toutes les variantes essayées : options
+avant ou après la commande, `env`, `sh -c`, chemins absolus, `xargs`, `git -c credential.helper=…`,
+et le binaire `git-credential-*`. Il n'y a pas de régression sur `gh pr view`,
+`security list-keychains` ou `git credential --help`. Deux écarts, dont un dans le harness :
+
+- La sonde `curl` vers `api.github.com` passe sur **tout** échec, y compris hors ligne. Il lui faut
+  un contrôle positif, `registry.npmjs.org` joignable : `EN-ATTENTE.md` §1.
+- La TODO avait perdu l'entrée du jeton réduit et gardait un relock déjà fait. C'est corrigé avant le
+  commit.
+
+Règle à consigner pour le capteur `docrefs`, avec (a)(b)(c) de J-051 :
+
+- (d) une entrée OUVERT qui renvoie « à la TODO » doit avoir une ligne `- [ ]` ouverte dans
+  `TODO.md` qui la cite ;
+- (e) une case `harness:relock` encore ouverte alors que `scripts/harness.lock` correspond à l'arbre
+  est périmée.

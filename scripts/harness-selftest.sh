@@ -29,22 +29,38 @@ cd "$(git rev-parse --show-toplevel)" || exit 1
 REPO="$PWD"
 # The self-test must leave no litter, __pycache__ included (JOURNAL J-052).
 UNTRACKED_BEFORE="$(git ls-files --others --exclude-standard)"
+# Nor touch the history: two runs left "init" commits on the working branch
+# (JOURNAL J-053). Checked last in cleanup(), whatever the cause.
+SELFTEST_HEAD="$(git rev-parse HEAD)"
+SELFTEST_REFS="$(git for-each-ref --format='%(objectname) %(refname)' refs/heads)"
 
 PASS=0
 FAIL=0
 PROBES=()
-TMP_DIRS=()
+# tmp_dir runs in $(...): an array append there is lost with the subshell, and
+# every run left its mivro.* directories behind (JOURNAL J-053). The directories
+# are recorded in a file instead, which cleanup() reads back.
+SELFTEST_TMP_LIST=""
 
-cleanup() {
+cleanup() { # cleanup [final]: final also removes the list itself, on exit
   local probe dir
   for probe in "${PROBES[@]:-}"; do
     [ -n "$probe" ] && rm -f "$probe"
   done
-  for dir in "${TMP_DIRS[@]:-}"; do
-    [ -n "$dir" ] && [ -d "$dir" ] && rm -r "$dir"
-  done
+  if [ -n "$SELFTEST_TMP_LIST" ] && [ -f "$SELFTEST_TMP_LIST" ]; then
+    while IFS= read -r dir; do
+      [ -n "$dir" ] && [ -d "$dir" ] && rm -r "$dir"
+    done <"$SELFTEST_TMP_LIST"
+    if [ "${1:-}" = final ]; then rm -f "$SELFTEST_TMP_LIST"; else : >"$SELFTEST_TMP_LIST"; fi
+  fi
+  if [ "$(git rev-parse HEAD)" != "$SELFTEST_HEAD" ] ||
+    [ "$(git for-each-ref --format='%(objectname) %(refname)' refs/heads)" != "$SELFTEST_REFS" ]; then
+    printf '\033[31m✖ the self-test changed the repository history (JOURNAL J-053)\033[0m\n' >&2
+    exit 1
+  fi
 }
-trap cleanup EXIT INT TERM
+trap 'cleanup final' EXIT
+trap cleanup INT TERM
 
 ok() { PASS=$((PASS + 1)); printf '  \033[32m/\033[0m %s\n' "$1"; }
 bad() { FAIL=$((FAIL + 1)); printf '  \033[31mX\033[0m %s\n' "$1"; }
@@ -70,14 +86,15 @@ probe_file() {
 
 tmp_dir() {
   local dir
-  dir="$(mktemp -d "${TMPDIR:-/tmp}/mivro.XXXXXX")"
-  TMP_DIRS+=("$dir")
+  dir="$(mktemp -d "${TMPDIR:-/tmp}/mivro.XXXXXX")" || return 1
+  printf '%s\n' "$dir" >>"$SELFTEST_TMP_LIST"
   printf '%s' "$dir"
 }
 # tmp_dir runs in $(...): a failure there cannot stop the run, and the cases
 # would then work on "/" (seen under the Bash sandbox, JOURNAL J-051). Fail
 # closed once, up front.
-if ! MKTEMP_PROBE="$(mktemp -d "${TMPDIR:-/tmp}/mivro.XXXXXX")"; then
+if ! MKTEMP_PROBE="$(mktemp -d "${TMPDIR:-/tmp}/mivro.XXXXXX")" ||
+  ! SELFTEST_TMP_LIST="$(mktemp "${TMPDIR:-/tmp}/mivro-dirs.XXXXXX")"; then
   echo "✖ cannot create a temporary directory under ${TMPDIR:-/tmp}" >&2
   exit 2
 fi
@@ -88,8 +105,15 @@ rmdir "$MKTEMP_PROBE"
 scratch_repo() {
   local dir
   dir="$(tmp_dir)"
-  git -C "$dir" init -q
-  git -C "$dir" -c user.email=selftest@mivro -c user.name=selftest commit -q --allow-empty -m init
+  # Never let git fall back to the repository above: an empty or broken $dir made
+  # `git -C "$dir" commit` commit into Mivro itself (JOURNAL J-053).
+  if [ -z "$dir" ] || [ ! -d "$dir" ] || ! git -C "$dir" init -q 2>/dev/null ||
+    [ "$(cd "$dir" && pwd -P)" != "$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" ]; then
+    echo "✖ cannot create a scratch repository under ${TMPDIR:-/tmp}" >&2
+    return 1
+  fi
+  git --git-dir="$dir/.git" --work-tree="$dir" -c user.email=selftest@mivro -c user.name=selftest \
+    commit -q --allow-empty -m init || return 1
   printf '%s' "$dir"
 }
 
@@ -197,6 +221,14 @@ guard BLOCK '/usr/bin/security find-internet-password -g -s github.com'
 guard BLOCK 'security dump-keychain -d'
 guard ALLOW 'gh auth status'
 guard ALLOW 'security find-generic-password -s gh:github.com'
+# J-054: four more routes to the same token.
+guard BLOCK "printf 'find-generic-password -w -s gh:github.com\n' | security -i"
+guard BLOCK "security -p 'k> ' </dev/null"
+guard BLOCK 'gh auth git-credential get'
+guard BLOCK "printf 'protocol=https\nhost=github.com\n\n' | git credential fill"
+guard BLOCK 'git credential-osxkeychain get'
+guard BLOCK '"$(git --exec-path)"/git-credential-osxkeychain get'
+guard ALLOW 'gh pr view 3'
 # J-029: harness tamper through the shell.
 guard BLOCK "sed -i '' s/2/0/ scripts/hooks/post-edit-check.sh"
 guard BLOCK 'echo x > jest.config.js'
@@ -494,7 +526,7 @@ rm -f "$BANNED_PROBE"
 
 # J-026: a brand-new feature is only untracked files. With no tracked change,
 # check-diff used to fall back to the upstream range and see nothing.
-SCRATCH="$(scratch_repo)"
+SCRATCH="$(scratch_repo)" || exit 2
 cp scripts/check-diff.sh "$SCRATCH/"
 printf 'export const x = 1 %s;\n' "$AS_ANY" >"$SCRATCH/feature.ts"
 (cd "$SCRATCH" && bash check-diff.sh >/dev/null 2>&1)
@@ -859,7 +891,7 @@ fi
 # ---------------------------------------------------------------------------
 section "8. Reviewer verdict - seal (SubagentStop) and pre-commit gate"
 
-REVIEW_REPO="$(scratch_repo)"
+REVIEW_REPO="$(scratch_repo)" || exit 2
 mkdir -p "$REVIEW_REPO/scripts/hooks"
 cp scripts/review-gate.sh "$REVIEW_REPO/scripts/"
 cp scripts/hooks/seal-review.sh scripts/hooks/reset-review.sh scripts/hooks/tree-hash.sh "$REVIEW_REPO/scripts/hooks/"
@@ -1039,30 +1071,52 @@ for script in scripts/check.sh scripts/harness-lock.sh scripts/check-audit.sh sc
   fi
 done
 # A forged .pyc in a cache the hooks do not protect must not replace the source.
-# The control run proves the forgery is valid, otherwise the case is vacuous.
-PYC_DIR="$(tmp_dir)"
-printf 'V = "real"\n' >"$PYC_DIR/mivro_probe.py"
-PYTHONPYCACHEPREFIX="$PYC_DIR/cache" python3 - "$PYC_DIR/mivro_probe.py" <<'PY'
+# Two forgeries: one in the cache PYTHONPYCACHEPREFIX names (only -I ignores
+# it), one in the __pycache__/ next to the source (only -X pycache_prefix
+# ignores it, JOURNAL J-053). The control run proves each forgery is valid,
+# otherwise its case is vacuous. The source is restored even when the forgery
+# fails: an "evil" source left behind passed for a valid forgery (J-053).
+forge_pyc() { # forge_pyc <dir> [local]: a "real" source, and an "evil" .pyc where this python3 caches it
+  printf 'V = "real"\n' >"$1/mivro_probe.py"
+  python3 - "$1/mivro_probe.py" "${2:-}" <<'PY'
 import importlib.util, os, py_compile, sys
 src = sys.argv[1]
+if sys.argv[2] == "local":
+    # Apple's python3 caches under ~/Library/Caches/com.apple.python by default.
+    sys.pycache_prefix = None
+cfile = importlib.util.cache_from_source(src)
 with open(src, "w") as f:
     f.write('V = "evil"\n')
 stat = os.stat(src)
-py_compile.compile(src, cfile=importlib.util.cache_from_source(src), invalidation_mode=py_compile.PycInvalidationMode.TIMESTAMP)
-with open(src, "w") as f:
-    f.write('V = "real"\n')
-os.utime(src, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+try:
+    py_compile.compile(src, cfile=cfile, invalidation_mode=py_compile.PycInvalidationMode.TIMESTAMP)
+finally:
+    with open(src, "w") as f:
+        f.write('V = "real"\n')
+    os.utime(src, ns=(stat.st_atime_ns, stat.st_mtime_ns))
 PY
+}
+pyc_case() { # pyc_case <where> <control output> <hooked output>
+  if [ "$2" != evil ]; then
+    bad "forged .pyc $1 not loaded by a plain python3 ($2): the J-052 case below proves nothing"
+  elif [ "$3" = real ]; then
+    ok "a forged .pyc $1 is ignored under the hooks' options (J-052)"
+  else
+    bad "a forged .pyc $1 replaces the source under the hooks' options: got '$3' (J-052)"
+  fi
+}
 PYC_IMPORT="import sys; sys.path.insert(0, sys.argv[1]); import mivro_probe; print(mivro_probe.V)"
-PYC_CONTROL="$(PYTHONPYCACHEPREFIX="$PYC_DIR/cache" python3 -c "$PYC_IMPORT" "$PYC_DIR" 2>&1)"
-PYC_HOOKED="$(PYTHONPYCACHEPREFIX="$PYC_DIR/cache" python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc -c "$PYC_IMPORT" "$PYC_DIR" 2>&1)"
-if [ "$PYC_CONTROL" != evil ]; then
-  bad "forged .pyc not loaded by a plain python3 ($PYC_CONTROL): the J-052 case below proves nothing"
-elif [ "$PYC_HOOKED" = real ]; then
-  ok "a forged .pyc is ignored under the hooks' options (J-052)"
-else
-  bad "a forged .pyc replaces the source under the hooks' options: got '$PYC_HOOKED' (J-052)"
-fi
+PYC_DIR="$(tmp_dir)"
+PYTHONPYCACHEPREFIX="$PYC_DIR/cache" forge_pyc "$PYC_DIR"
+pyc_case "in PYTHONPYCACHEPREFIX" \
+  "$(PYTHONPYCACHEPREFIX="$PYC_DIR/cache" python3 -c "$PYC_IMPORT" "$PYC_DIR" 2>&1)" \
+  "$(PYTHONPYCACHEPREFIX="$PYC_DIR/cache" python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc -c "$PYC_IMPORT" "$PYC_DIR" 2>&1)"
+PYC_LOCAL="$(tmp_dir)"
+forge_pyc "$PYC_LOCAL" local
+# The control is the hooks' options minus -X: -I alone reads that __pycache__/.
+pyc_case "in the __pycache__/ next to the source" \
+  "$(unset PYTHONPYCACHEPREFIX && python3 -I -B -c "$PYC_IMPORT" "$PYC_LOCAL" 2>&1)" \
+  "$(unset PYTHONPYCACHEPREFIX && python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc -c "$PYC_IMPORT" "$PYC_LOCAL" 2>&1)"
 
 # J-051: secrets are closed by the Bash sandbox of Claude Code, not by the guard.
 SANDBOX_CFG="$(python3 -c '
@@ -1076,6 +1130,8 @@ if box.get("failIfUnavailable") is not True: fails.append("sandbox.failIfUnavail
 for d in ("~/.ssh", "~/.config/gh"):
     if d not in box.get("filesystem", {}).get("denyRead", []): fails.append("denyRead " + d)
     if "Read(%s/**)" % d not in deny: fails.append("deny Read(%s/**)" % d)
+for host in ("github.com", "api.github.com"):
+    if host not in box.get("network", {}).get("deniedDomains", []): fails.append("deniedDomains " + host)
 print(" ".join(fails))
 ' "$SETTINGS" 2>&1)"
 if [ -z "$SANDBOX_CFG" ]; then ok "$SETTINGS enables the sandbox and denies reading the secrets (J-051)"; else bad "$SETTINGS sandbox incomplete: $SANDBOX_CFG (J-051)"; fi
@@ -1097,6 +1153,13 @@ except FileNotFoundError: print("ABSENT")
       *) bad "$secret_dir is readable inside the sandbox (J-051)" ;;
     esac
   done
+  # A token read from the keychain must have nowhere to go: any HTTP answer from
+  # GitHub, whatever its status, means the sandbox let the call out (J-054).
+  if curl -s -o /dev/null --max-time 5 https://api.github.com 2>/dev/null; then
+    bad "the sandbox lets a call out to api.github.com (J-054)"
+  else
+    ok "the sandbox refuses api.github.com (J-054)"
+  fi
 elif [ "${CLAUDECODE:-}" = 1 ]; then
   bad "running under Claude Code outside the Bash sandbox (J-051)"
 else
