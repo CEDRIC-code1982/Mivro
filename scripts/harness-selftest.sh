@@ -774,14 +774,95 @@ rm -f "$HOOK_PROBE"
 # ---------------------------------------------------------------------------
 section "7. Harness lock, native identity, dependency allowlist, journal refs"
 
-if bash scripts/harness-lock.sh >/dev/null 2>&1; then
+# The lock cases are judged as in a locked session (MIVRO_HARNESS_UNLOCK unset):
+# construction mode only changes how the drift is reported, never the verdict
+# that CI and Cedric's terminal will give (JOURNAL J-055).
+if MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1; then
   LOCK_PROBE="scripts/__selftest_lock_probe.sh"
   probe_file "$LOCK_PROBE" "exit 0"
-  bash scripts/harness-lock.sh >/dev/null 2>&1
+  MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1
   expect_exit 1 $? "a new file in scripts/ turns the lock red (J-029)"
+  # J-055: in an unlocked Claude Code session the same drift abstains (exit 3),
+  # and only there.
+  CLAUDECODE=1 MIVRO_HARNESS_UNLOCK=1 bash scripts/harness-lock.sh >/dev/null 2>&1
+  expect_exit 3 $? "construction mode: the drift abstains in an unlocked Claude Code session (J-055)"
+  MIVRO_HARNESS_UNLOCK=1 CLAUDECODE='' bash scripts/harness-lock.sh >/dev/null 2>&1
+  expect_exit 1 $? "construction mode: outside Claude Code the drift stays red (J-055)"
+  CLAUDECODE=1 MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1
+  expect_exit 1 $? "construction mode: a locked Claude Code session keeps the drift red (J-055)"
+  CLAUDECODE=1 MIVRO_HARNESS_UNLOCK=1 MIVRO_NO_ABSTAIN=1 bash scripts/check.sh --only lock >/dev/null 2>&1
+  expect_exit 1 $? "construction mode: CI (MIVRO_NO_ABSTAIN=1) refuses the abstention (J-055)"
+  CLAUDECODE=1 MIVRO_HARNESS_UNLOCK=1 MIVRO_NO_ABSTAIN='' bash scripts/check.sh --only lock >/dev/null 2>&1
+  expect_exit 0 $? "construction mode: locally the abstention is tolerated, named (J-055)"
+  # A module dropped at the repository root must not fake unlocked(): the probe
+  # runs with `python3 -I`, so the current directory is not on sys.path (J-055).
+  SHADOW_PROBE="subprocess.py"
+  probe_file "$SHADOW_PROBE" "import sys" "sys.exit(0)"
+  CLAUDECODE=1 MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1
+  expect_exit 1 $? "a subprocess.py at the root cannot fake the unlock (J-055)"
+  rm -f "$SHADOW_PROBE"
+  # Same for a module dropped next to harness_paths: scripts/hooks/ is appended
+  # after the stdlib, never inserted before it.
+  SHADOW_PROBE="scripts/hooks/re.py"
+  probe_file "$SHADOW_PROBE" "import sys" "sys.exit(0)"
+  CLAUDECODE=1 MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1
+  expect_exit 1 $? "a re.py in scripts/hooks/ cannot fake the unlock (J-055)"
+  rm -f "$SHADOW_PROBE"
+  # And a forged bytecode of harness_paths whose unlocked() returns True, with
+  # the size and mtime of the real source. The probe no longer imports
+  # harness_paths at all; the case stays as a regression guard should anyone
+  # bring a Python import back into it (J-052, J-055).
+  FORGED_PYC="$(python3 -I -B -c 'import importlib.util, sys; sys.pycache_prefix = None; print(importlib.util.cache_from_source("scripts/hooks/harness_paths.py"))')"
+  PROBES+=("$FORGED_PYC")
+  FORGE_SRC="$(tmp_dir)/harness_paths.py"
+  python3 -I -B - "$FORGE_SRC" "$FORGED_PYC" <<'PY'
+import os, py_compile, sys
+forge_src, target = sys.argv[1], sys.argv[2]
+real = "scripts/hooks/harness_paths.py"
+size = os.path.getsize(real)
+body = "def unlocked():\n    return True\n"
+body += "#" * (size - len(body.encode()) - 1) + "\n"
+with open(forge_src, "w", encoding="utf-8") as handle:
+    handle.write(body)
+stat = os.stat(real)
+os.utime(forge_src, (stat.st_atime, stat.st_mtime))
+os.makedirs(os.path.dirname(target), exist_ok=True)
+py_compile.compile(forge_src, cfile=target, dfile=real, doraise=True)
+PY
+  # Control: without -X the forge IS loaded, so the case below proves something.
+  FORGE_SEEN="$(python3 -I -B -c 'import sys; sys.path.append("scripts/hooks"); import harness_paths; print(harness_paths.unlocked())' 2>/dev/null)"
+  if [ "$FORGE_SEEN" = "True" ]; then
+    CLAUDECODE=1 MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1
+    expect_exit 1 $? "a forged harness_paths .pyc cannot fake the unlock (J-055)"
+  else
+    bad "forged .pyc control failed: plain python3 -I did not load it ($FORGE_SEEN), the case proves nothing"
+  fi
+  rm -f "$FORGED_PYC"
+  rmdir "$(dirname "$FORGED_PYC")" 2>/dev/null || true
+  # A harness_paths/ package wins over harness_paths.py in module lookup: the
+  # probe now imports nothing from scripts/hooks/ at all (third review, J-055).
+  SHADOW_PROBE="scripts/hooks/harness_paths/__init__.py"
+  probe_file "$SHADOW_PROBE" "def unlocked():" "    return True"
+  CLAUDECODE=1 MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1
+  expect_exit 1 $? "a harness_paths/ package cannot fake the unlock (J-055)"
+  rm -f "$SHADOW_PROBE"
+  rmdir scripts/hooks/harness_paths 2>/dev/null || true
+  # An unlock carried by a settings `env` block is refused, variable set or not.
+  SETTINGS_HOME="$(tmp_dir)"
+  mkdir -p "$SETTINGS_HOME/.claude"
+  printf '{"env": {"MIVRO_HARNESS_UNLOCK": "1"}}\n' >"$SETTINGS_HOME/.claude/settings.json"
+  HOME="$SETTINGS_HOME" CLAUDECODE=1 MIVRO_HARNESS_UNLOCK=1 bash scripts/harness-lock.sh >/dev/null 2>&1
+  expect_exit 1 $? "an unlock written in a settings env block is refused by the lock (J-055)"
   rm -f "$LOCK_PROBE"
-  bash scripts/harness-lock.sh >/dev/null 2>&1
+  MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1
   expect_exit 0 $? "lock green again once the probe is gone"
+elif bash scripts/harness-lock.sh >/dev/null 2>&1; [ $? -eq 3 ]; then
+  # Same predicate as the sensor: skip only when the lock itself abstains, so an
+  # unlock it refuses (settings `env` block) is still reported as red below.
+  # Harness construction in progress: the drift is the work itself. Named, not
+  # counted; the lock cases above run again after Cedric's relock, and in CI.
+  printf '  - lock cases skipped: harness construction mode, relock pending (J-055)\n'
+  MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh 2>&1 | sed -n '2,12p' | sed 's/^/      /'
 else
   bad "harness lock is red on the current tree (relock or revert first)"
   bash scripts/harness-lock.sh 2>&1 | sed -n '1,12p' | sed 's/^/      /'

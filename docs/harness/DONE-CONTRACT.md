@@ -7,49 +7,48 @@
 
 ## Tâche
 
-**Titre** : Appliquer EN-ATTENTE §6 et §7 (J-053 historique intouchable, J-054 trousseau et réseau)
+**Titre** : Chantier du harness, lot 1 — le mode chantier (J-055)
 
-**Demande d'origine, en une phrase** : « applique EN-ATTENTE §6 et §7 » (session déverrouillée de
-Cédric), puis « Lance 4 » : revue et commit.
+**Demande d'origine** : « Je veux que le chantier de harness soit en modification automatique le
+temps de le finir », puis « Go chantier », avec « commit et push en autonomie ».
 
-**Branche** : `harness/en-attente-5-8`, à la suite de `b1d3993`.
+**Branche** : `harness/chantier`, issue de `b605577` (§6 et §7, absents de `develop` depuis le
+merge prématuré de la PR #3).
 
 **Hors périmètre explicite** :
 
-- Jeton GitHub à privilèges réduits pour les sessions Claude : réglage GitHub de Cédric (TODO).
-- Push, CI de la PR #3, merge : Cédric (GitHub est refusé au réseau du sandbox, `gh` et SSH aussi).
-- Règle `docrefs` (a)(b)(c) de J-051 : pas encore décrite dans EN-ATTENTE.
+- Push : impossible depuis l'agent (le sandbox lui interdit `~/.ssh` et GitHub, et doit continuer à
+  le faire). Commits locaux seulement, le push revient à Cédric en fin de chantier.
+- Relock : à Cédric, une fois, en fin de chantier (`--update` refuse de tourner dans Claude Code).
+- Lots suivants : contrôle positif de la sonde réseau (EN-ATTENTE §1), règle `docrefs` (a) à (e).
 
 ---
 
 ## Conditions de fin
 
-| #   | Condition                                                                                                                                                     | Comment on le vérifie                                                      |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| 1   | §6 : `scratch_repo` échoue fermé (`$dir` vide, `git init` raté), commit par `--git-dir`, appelants arrêtés                                                    | cas du self-test ; preuve sur faux dépôt (J-053)                           |
-| 2   | §6 : la sortie du self-test vérifie `HEAD` et `refs/heads`, et `tmp_dir` ne laisse plus de répertoire                                                         | run : HEAD et branches inchangés, 0 `mivro.*` neuf dans `$TMPDIR`          |
-| 3   | §6 : seconde forge `.pyc` dans le `__pycache__/` voisin, contrôle qui distingue une forge ratée                                                               | self-test section 10                                                       |
-| 4   | §7 : GitHub refusé au réseau du sandbox (`deniedDomains`), effet mesuré et pas seulement écrit                                                                | sonde `curl https://api.github.com` refusée (« host is on the deny list ») |
-| 5   | §7 : la garde refuse `security -i/-p`, `gh auth git-credential`, `git credential fill/approve/reject`, `git credential-*`                                     | cas `guard BLOCK` du self-test, `gh pr view` toujours ALLOW                |
-| 6   | §6 et §7 retirés d'EN-ATTENTE (seul y reste le §1, mineur de la 14e revue) ; J-053 et J-054 décrits comme appliqués, OUVERT jusqu'à leur preuve ; docs à jour | relecture                                                                  |
-| 7   | Aucune régression                                                                                                                                             | stage `push` vert (13) ; self-test 427/0 sous sandbox (424 en CI)          |
+| #   | Condition                                                                                  | Comment on le vérifie                                              |
+| --- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| 1   | `lock` s'abstient (exit 3) en session Claude Code déverrouillée, et seulement là           | clone jetable : 6 cas (verrouillé, chantier, hors Claude Code, CI) |
+| 2   | Hors de cette session, la dérive reste rouge : session verrouillée, terminal, pre-push, CI | idem ; `MIVRO_NO_ABSTAIN=1 check.sh --only lock` → 1               |
+| 3   | Le self-test juge le verrou comme en session verrouillée, et nomme le saut en chantier     | self-test 425/0 en chantier ; section 7 complète dans le clone     |
+| 4   | `.claude/settings.json` identique à l'état approuvé (`deniedDomains` GitHub restauré)      | `git diff b605577 -- .claude/settings.json` vide                   |
+| 5   | J-055 au journal ; RUNBOOK (mode chantier) et en-tête d'EN-ATTENTE à jour                  | relecture                                                          |
 
 ---
 
 ## Socle systématique
 
-- [x] `npm run check` vert, `lock` compris (relock de Cédric après §6 et §7).
+- [x] `npm run check` vert, sauf `lock` qui s'abstient (mode chantier, par construction).
 - [x] Les trois états rendus pour chaque écran touché — aucun écran modifié.
 - [x] Toute donnée externe validée — sans objet (harness seul).
 - [x] Toute string affichée passe par `useTranslation()` — aucune string ajoutée.
-- [x] Docs de contexte mises à jour : `EN-ATTENTE.md`, `JOURNAL-ECHECS.md`, `TODO.md`, `RUNBOOK.md`.
-- [x] ADR : aucune nouvelle décision d'architecture (application d'ADR-016 au sandbox).
+- [x] Docs de contexte mises à jour : `JOURNAL-ECHECS.md`, `EN-ATTENTE.md`, `RUNBOOK.md`.
+- [x] ADR : le mode chantier prolonge ADR-016 sans le changer (la CI reste stricte).
 - [ ] Verdict `APPROVED` du subagent `reviewer` sur l'arbre final.
 
 ---
 
-## Ce qui reste à Cédric
+## Ce qui reste à Cédric (fin de chantier)
 
-- [x] `npm run harness:relock` (2026-10-08).
-- [ ] `git push origin harness/en-attente-5-8`, puis CI de la PR #3 et merge.
-- [ ] Jeton GitHub à privilèges réduits (J-054).
+- [ ] `npm run harness:relock`, push de `harness/chantier`, PR vers `develop`, merge.
+- [ ] Relancer une session normale (sans `MIVRO_HARNESS_UNLOCK`).

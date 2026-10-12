@@ -69,6 +69,7 @@
 | J-052 | 1re CI : identité git, `__pycache__`, cache de bytecode forgeable   | OUVERT  |
 | J-053 | Le self-test a commité dans le vrai dépôt (`scratch_repo`)          | OUVERT  |
 | J-054 | 13e revue : quatre routes vers le jeton par le trousseau            | OUVERT  |
+| J-055 | Le chantier du harness coûtait plus que le harness lui-même         | OUVERT  |
 
 ---
 
@@ -1984,3 +1985,42 @@ Règle à consigner pour le capteur `docrefs`, avec (a)(b)(c) de J-051 :
   `TODO.md` qui la cite ;
 - (e) une case `harness:relock` encore ouverte alors que `scripts/harness.lock` correspond à l'arbre
   est périmée.
+
+## J-055 — Le chantier du harness coûtait plus que le harness lui-même
+
+**Date** : 2026-10-12 · **Statut** : OUVERT — mode chantier posé ; clos au relock final de Cédric
+
+**Observé.** Du 2026-10-05 au 2026-10-12, chaque correctif du harness touchait un fichier protégé. Il
+fallait donc à chaque fois une session déverrouillée lancée par Cédric, un relock, une revue, puis un
+commit dans une autre session. Ces allers-retours ont coûté du temps et produit des erreurs de
+manipulation :
+
+- un commit est parti de la mauvaise branche, parce que des commentaires `#` collés dans zsh avaient
+  été passés en arguments ;
+- la PR #3 a été mergée avant le push de `b605577` ;
+- une session déverrouillée a été lancée sans que la variable arrive à Claude Code (lancée dans le
+  terminal, alors que la conversation continuait dans VS Code).
+
+Cédric : « Cela me fait perdre du temps et c'est source d'erreur. »
+
+**Leçon.** Le verrou protège le harness **contre l'agent pendant le travail produit**. Pendant la
+construction du harness lui-même, il protège le chantier contre son propre ouvrier. Un verrou qui
+s'ouvre et se referme à chaque modification ne protège pas mieux qu'un verrou qui reste ouvert le
+temps du chantier puis se ferme une fois, sous la CI, qui elle reste stricte du début à la fin.
+
+**Réponse : le mode chantier** (2026-10-12, décision de Cédric). Cédric lance une seule session
+déverrouillée (`MIVRO_HARNESS_UNLOCK=1`), et l'agent y modifie le harness seul, revue et commit local
+par lot, sans push.
+
+- Dans cette session seulement (`CLAUDECODE=1` et `harness_paths.unlocked()`), le capteur `lock`
+  **s'abstient** : il nomme la dérive, et elle n'est jamais comptée comme du vert. Le hook Stop ne
+  bloque plus chaque tour sur le chantier en cours.
+- Partout ailleurs, la dérive reste **rouge** : dans le terminal de Cédric et au pre-push (pas de
+  `CLAUDECODE`), et en CI (`MIVRO_NO_ABSTAIN=1` refuse toute abstention). Rien ne se merge sans le
+  relock.
+- Le relock reste à Cédric (`--update` refuse de tourner dans Claude Code), une fois, en fin de
+  chantier.
+- Le self-test juge les cas du verrou comme en session verrouillée. En chantier, il les saute en le
+  disant, et la CI les rejoue.
+
+J-055 passe RÉSOLU au relock final, quand Cédric relance une session normale.

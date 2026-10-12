@@ -35,6 +35,23 @@ fichier de la liste rend le verrou rouge, en local comme en CI, et `harness-guar
 
 À partir de là, toute PR qui touche le harness exige que tu poses le label `harness-change`.
 
+### Mode chantier (J-055) : finir le harness d'une traite
+
+Pour un chantier du harness, on ne déverrouille pas à chaque correctif : on ouvre **une** session
+déverrouillée, et l'agent y travaille seul jusqu'à la fin.
+
+1. Lance la session dans un terminal, avec la commande du paragraphe suivant, plus
+   `--permission-mode acceptEdits`. **Écris ensuite dans cette fenêtre de terminal**, pas dans le
+   panneau de VS Code : c'est une autre session, qui n'a pas la variable.
+2. L'agent applique EN-ATTENTE lot par lot. Chaque lot passe une revue `reviewer`, puis un commit
+   local, sans push. Le capteur `lock` s'abstient au lieu de rougir, mais seulement dans cette
+   session. Ton terminal et la CI restent stricts, et le pre-push aussi, **à condition de pousser
+   depuis un terminal hors Claude Code**. Un `! git push` tapé dans la session de chantier hérite
+   de son déverrouillage. La CI rattraperait la dérive, mais pousse toujours d'ailleurs.
+3. En fin de chantier, l'agent te donne une liste unique : `npm run harness:relock` (tape
+   `RELOCK`), push, PR, merge.
+4. Relance ensuite une session normale, sans la variable : le harness est reverrouillé.
+
 ### Déverrouiller une session (procédure complète)
 
 La variable doit être posée **au lancement** de Claude Code : les hooks héritent de

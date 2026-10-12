@@ -45,7 +45,7 @@ lint|fast|0|ESLint, zero warning, root config only|npx --no-install eslint . --n
 format|fast|0|Prettier, root config only|npx --no-install prettier --config .prettierrc.js --no-editorconfig --check --loglevel warn "**/*.{ts,tsx,js,jsx,json,md}"
 arch|fast|0|Layer boundaries (dependency-cruiser)|npx --no-install depcruise src --config .dependency-cruiser.js
 diff|fast|0|Banned patterns in the diff (check-diff)|for r in $RANGES; do bash scripts/check-diff.sh "$r" || exit 1; done
-lock|fast|0|Harness lock (scripts/harness.lock)|bash scripts/harness-lock.sh
+lock|fast|1|Harness lock (scripts/harness.lock)|bash scripts/harness-lock.sh
 native|fast|0|Native identity (team, bundle id, scheme)|python3 scripts/check-native.py
 deps|fast|0|Dependency allowlist|node scripts/check-deps.js
 docrefs|fast|0|Failure-journal references|bash scripts/check-doc-refs.sh
