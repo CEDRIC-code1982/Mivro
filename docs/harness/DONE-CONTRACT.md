@@ -7,32 +7,33 @@
 
 ## Tâche
 
-**Titre** : Chantier du harness, lot 1 — le mode chantier (J-055)
+**Titre** : Chantier du harness, lot 2 — sonde réseau contrôlée, règle de déverrouillage décodée (J-054, J-055, J-056)
 
-**Demande d'origine** : « Je veux que le chantier de harness soit en modification automatique le
-temps de le finir », puis « Go chantier », avec « commit et push en autonomie ».
+**Demande d'origine** : mode chantier (« Go chantier », « commit et push en autonomie ») ; lot 2 =
+EN-ATTENTE §1 et les trois mineurs de la 4e revue du lot 1.
 
-**Branche** : `harness/chantier`, issue de `b605577` (§6 et §7, absents de `develop` depuis le
-merge prématuré de la PR #3).
+**Branche** : `harness/chantier`, à la suite de `d89c1de`.
 
 **Hors périmètre explicite** :
 
-- Push : impossible depuis l'agent (le sandbox lui interdit `~/.ssh` et GitHub, et doit continuer à
-  le faire). Commits locaux seulement, le push revient à Cédric en fin de chantier.
-- Relock : à Cédric, une fois, en fin de chantier (`--update` refuse de tourner dans Claude Code).
-- Lots suivants : contrôle positif de la sonde réseau (EN-ATTENTE §1), règle `docrefs` (a) à (e).
+- EN-ATTENTE §2 (chargement de `harness_paths` par chemin dans les gardes, destination « dossier »
+  de la garde Bash) et la règle `docrefs` : lots suivants.
+- Rendre le pre-push strict même dans les processus de l'agent (4e revue, option) : à arbitrer avec
+  Cédric, le RUNBOOK accepte aujourd'hui qu'un `! git push` hérite du chantier.
+- Push et relock : Cédric, en fin de chantier.
 
 ---
 
 ## Conditions de fin
 
-| #   | Condition                                                                                  | Comment on le vérifie                                              |
-| --- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
-| 1   | `lock` s'abstient (exit 3) en session Claude Code déverrouillée, et seulement là           | clone jetable : 6 cas (verrouillé, chantier, hors Claude Code, CI) |
-| 2   | Hors de cette session, la dérive reste rouge : session verrouillée, terminal, pre-push, CI | idem ; `MIVRO_NO_ABSTAIN=1 check.sh --only lock` → 1               |
-| 3   | Le self-test juge le verrou comme en session verrouillée, et nomme le saut en chantier     | self-test 425/0 en chantier ; section 7 complète dans le clone     |
-| 4   | `.claude/settings.json` identique à l'état approuvé (`deniedDomains` GitHub restauré)      | `git diff b605577 -- .claude/settings.json` vide                   |
-| 5   | J-055 au journal ; RUNBOOK (mode chantier) et en-tête d'EN-ATTENTE à jour                  | relecture                                                          |
+| #   | Condition                                                                                                                                   | Comment on le vérifie                                                   |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| 1   | La sonde `api.github.com` a un contrôle positif : `registry.npmjs.org` doit répondre, sinon échec nommé                                     | self-test section sandbox, sous sandbox                                 |
+| 2   | Un déverrouillage dans un bloc `env` de settings est refusé même si le K final de la clé est écrit en échappement JSON (antislash, u, 004B) | cas croisé du self-test (4 fixtures) dans le clone                      |
+| 3   | La règle de déverrouillage du verrou et `harness_paths.unlocked()` répondent pareil sur les mêmes settings                                  | cas croisé : clean → 3/True, plain/escaped/malformed → 1/False          |
+| 4   | Les deux gardes exécutent leur chemin déverrouillé sans planter (J-056)                                                                     | 2 cas du self-test, `MIVRO_HARNESS_UNLOCK=1`                            |
+| 5   | Commentaire de `pre-bash-guard.py` à jour sur le déverrouillage ; J-055 précisé, J-056 consigné ; EN-ATTENTE §1 retiré                      | relecture                                                               |
+| 6   | Aucune régression                                                                                                                           | self-test du dépôt 0 failed ; `check.sh --stage check` vert sauf `lock` |
 
 ---
 
@@ -40,15 +41,15 @@ merge prématuré de la PR #3).
 
 - [x] `npm run check` vert, sauf `lock` qui s'abstient (mode chantier, par construction).
 - [x] Les trois états rendus pour chaque écran touché — aucun écran modifié.
-- [x] Toute donnée externe validée — sans objet (harness seul).
+- [x] Toute donnée externe validée — les settings sont décodés en JSON, malformé = échec fermé.
 - [x] Toute string affichée passe par `useTranslation()` — aucune string ajoutée.
-- [x] Docs de contexte mises à jour : `JOURNAL-ECHECS.md`, `EN-ATTENTE.md`, `RUNBOOK.md`.
-- [x] ADR : le mode chantier prolonge ADR-016 sans le changer (la CI reste stricte).
+- [x] Docs de contexte mises à jour : `JOURNAL-ECHECS.md`, `EN-ATTENTE.md`.
+- [x] ADR : aucune nouvelle décision.
 - [ ] Verdict `APPROVED` du subagent `reviewer` sur l'arbre final.
 
 ---
 
 ## Ce qui reste à Cédric (fin de chantier)
 
-- [ ] `npm run harness:relock`, push de `harness/chantier`, PR vers `develop`, merge.
+- [ ] `npm run harness:relock`, push de `harness/chantier` depuis un terminal hors Claude Code, PR, merge.
 - [ ] Relancer une session normale (sans `MIVRO_HARNESS_UNLOCK`).

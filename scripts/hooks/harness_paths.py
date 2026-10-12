@@ -15,6 +15,7 @@ guards, the lock and harness-guard all read — they can never disagree.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -58,12 +59,26 @@ def _settings_inject_unlock() -> bool:
             os.path.join(project, ".claude", "settings.local.json"),
         ]
     for path in candidates:
+        if not os.path.exists(path):
+            continue
+        # Any failure on an existing settings file (unreadable, not UTF-8,
+        # malformed, absurdly nested) counts as an injected unlock: fail closed.
+        # It must never raise: every guard calls this on every tool call, and a
+        # crash there refuses everything, the repairing edit included (J-056).
         try:
             with open(path, encoding="utf-8") as handle:
-                if UNLOCK_ENV in handle.read():
-                    return True
-        except OSError:
-            continue
+                text = handle.read()
+            if UNLOCK_ENV in text:
+                return True
+            # Decoded, not only searched: a key whose final K is a JSON unicode
+            # escape (backslash, u, 004B) is the same key to Claude Code
+            # (review of J-055).
+            data = json.loads(text)
+            env = data.get("env") if isinstance(data, dict) else None
+            if isinstance(env, dict) and UNLOCK_ENV in env:
+                return True
+        except Exception:  # noqa: BLE001 - fail closed on anything, by design
+            return True
     return False
 
 

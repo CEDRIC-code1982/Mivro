@@ -853,6 +853,48 @@ PY
   printf '{"env": {"MIVRO_HARNESS_UNLOCK": "1"}}\n' >"$SETTINGS_HOME/.claude/settings.json"
   HOME="$SETTINGS_HOME" CLAUDECODE=1 MIVRO_HARNESS_UNLOCK=1 bash scripts/harness-lock.sh >/dev/null 2>&1
   expect_exit 1 $? "an unlock written in a settings env block is refused by the lock (J-055)"
+  # The unlock rule exists twice (harness_paths.unlocked() for the hooks, the
+  # lock's own probe): both must answer the same on the same settings, including
+  # a key spelled with a JSON escape and a malformed file (fail closed).
+  for fixture in clean plain escaped malformed latin1; do
+    case "$fixture" in
+      clean) settings='{"permissions": {"allow": []}}' ;;
+      plain) settings='{"env": {"MIVRO_HARNESS_UNLOCK": "1"}}' ;;
+      # The key's final K spelled as a JSON unicode escape: backslash, u, 004B.
+      # Built at run time (printf octal 134 is the backslash), so no tool that
+      # decodes JSON on the way into this file can turn it back into a plain K.
+      escaped) settings="{\"env\": {\"MIVRO_HARNESS_UNLOC$(printf '\134')u004B\": \"1\"}}" ;;
+      malformed) settings='{"env": ' ;;
+      latin1) settings='' ;;
+    esac
+    printf '%s\n' "$settings" >"$SETTINGS_HOME/.claude/settings.json"
+    # Not UTF-8 (a Latin-1 e-acute, octal 351): it must fail closed, never crash
+    # the guards, which read these files on every tool call (review of lot 2).
+    [ "$fixture" = latin1 ] && printf '{"x": "caf\351"}\n' >"$SETTINGS_HOME/.claude/settings.json"
+    # Control: the escaped fixture must not contain the plain key, and must be
+    # valid JSON that decodes to it, or the case below could pass through the
+    # malformed branch and prove nothing (J-056).
+    if [ "$fixture" = escaped ]; then
+      if grep -qF "MIVRO_HARNESS_UNLOCK" "$SETTINGS_HOME/.claude/settings.json" ||
+        ! python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc -c \
+          'import json, sys; sys.exit(0 if "MIVRO_HARNESS_UNLOCK" in json.load(open(sys.argv[1]))["env"] else 1)' \
+          "$SETTINGS_HOME/.claude/settings.json" 2>/dev/null; then
+        bad "escaped fixture is not an escaped, valid unlock key: the case proves nothing (J-056)"
+      fi
+    fi
+    HOME="$SETTINGS_HOME" CLAUDECODE=1 MIVRO_HARNESS_UNLOCK=1 bash scripts/harness-lock.sh >/dev/null 2>&1
+    LOCK_SAYS=$?
+    PY_SAYS="$(HOME="$SETTINGS_HOME" CLAUDE_PROJECT_DIR="$PWD" MIVRO_HARNESS_UNLOCK=1 \
+      python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc -c \
+      'import sys; sys.path.append("scripts/hooks"); import harness_paths; print(harness_paths.unlocked())' 2>/dev/null)"
+    # stdout only: with a throwaway HOME, Xcode's python3 launcher (xcrun) warns
+    # on stderr about its cache. A Python error leaves PY_SAYS empty: a mismatch.
+    case "$fixture:$LOCK_SAYS:$PY_SAYS" in
+      clean:3:True | plain:1:False | escaped:1:False | malformed:1:False | latin1:1:False)
+        ok "both unlock rules agree on $fixture settings (J-055)" ;;
+      *) bad "unlock rules disagree on $fixture settings: lock exit $LOCK_SAYS, harness_paths $PY_SAYS (J-055)" ;;
+    esac
+  done
   rm -f "$LOCK_PROBE"
   MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1
   expect_exit 0 $? "lock green again once the probe is gone"
@@ -867,6 +909,22 @@ else
   bad "harness lock is red on the current tree (relock or revert first)"
   bash scripts/harness-lock.sh 2>&1 | sed -n '1,12p' | sed 's/^/      /'
 fi
+# J-056: every guard case above runs locked (MIVRO_HARNESS_UNLOCK=''), which
+# never reaches the unlocked code path. A NameError there once made both guards
+# crash on every tool call, the repairing edit included. Run that path too.
+for guard_script in scripts/hooks/pre-bash-guard.py scripts/hooks/pre-edit-guard.py; do
+  case "$guard_script" in
+    *bash*) GUARD_PAYLOAD="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"ls\"},\"cwd\":\"$PWD\"}" ;;
+    *) GUARD_PAYLOAD="{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$PWD/src/App.tsx\",\"old_string\":\"a\",\"new_string\":\"b\"},\"cwd\":\"$PWD\"}" ;;
+  esac
+  GUARD_OUT="$(printf '%s' "$GUARD_PAYLOAD" | CLAUDE_PROJECT_DIR="$PWD" MIVRO_HARNESS_UNLOCK=1 \
+    python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc "$guard_script" 2>&1)"
+  GUARD_CODE=$?
+  case "$GUARD_CODE:$GUARD_OUT" in
+    0:*) ok "$(basename "$guard_script") runs its unlocked code path without crashing (J-056)" ;;
+    *) bad "$(basename "$guard_script") fails on its unlocked code path (exit $GUARD_CODE): ${GUARD_OUT%%$'\n'*} (J-056)" ;;
+  esac
+done
 (CLAUDECODE=1 bash scripts/harness-lock.sh --update </dev/null >/dev/null 2>&1)
 expect_exit 1 $? "relock refuses to run inside Claude Code"
 # J-043: every file jest loads before the tests is part of the harness.
@@ -1236,7 +1294,11 @@ except FileNotFoundError: print("ABSENT")
   done
   # A token read from the keychain must have nowhere to go: any HTTP answer from
   # GitHub, whatever its status, means the sandbox let the call out (J-054).
-  if curl -s -o /dev/null --max-time 5 https://api.github.com 2>/dev/null; then
+  # Positive control first: the network itself works, so a failure below is the
+  # deny list and not an offline machine (lesson of J-053).
+  if ! curl -s -o /dev/null --max-time 5 https://registry.npmjs.org/-/ping 2>/dev/null; then
+    bad "network probe control failed: registry.npmjs.org unreachable, the GitHub probe proves nothing"
+  elif curl -s -o /dev/null --max-time 5 https://api.github.com 2>/dev/null; then
     bad "the sandbox lets a call out to api.github.com (J-054)"
   else
     ok "the sandbox refuses api.github.com (J-054)"

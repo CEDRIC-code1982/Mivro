@@ -756,8 +756,13 @@ class Guard:
             self._deny_hook_bypass(f"{key} (injects git configuration such as core.hooksPath)")
         if self.protect and key in {"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY"}:
             self._deny_hook_bypass(f"{key} (redirects git away from this repository's hooks)")
-        # Emptying it only LOCKS (what the self-test does); setting it never unlocks
-        # anything, but is refused to make the intent visible.
+        # Emptying it only LOCKS (what the self-test does). Setting it does not
+        # unlock the hooks, which read the environment Claude Code was launched
+        # with; but since J-055 the lock sensor reads the variable of the process
+        # that runs it, so an agent-set value would make the agent's own
+        # `check.sh` (and a pre-push it starts) abstain. Refused for both reasons.
+        # A value smuggled through a file is beyond this textual check; the Stop
+        # hook, the reviewer and CI do not inherit it.
         if key == harness_paths.UNLOCK_ENV and value.strip("'\"") not in {"", "0"}:
             deny(
                 f"setting {harness_paths.UNLOCK_ENV} from the agent",

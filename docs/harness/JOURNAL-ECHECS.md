@@ -70,6 +70,7 @@
 | J-053 | Le self-test a commité dans le vrai dépôt (`scratch_repo`)          | OUVERT  |
 | J-054 | 13e revue : quatre routes vers le jeton par le trousseau            | OUVERT  |
 | J-055 | Le chantier du harness coûtait plus que le harness lui-même         | OUVERT  |
+| J-056 | L'agent a cassé les gardes en deux éditions, et s'est enfermé       | OUVERT  |
 
 ---
 
@@ -2024,3 +2025,50 @@ par lot, sans push.
   disant, et la CI les rejoue.
 
 J-055 passe RÉSOLU au relock final, quand Cédric relance une session normale.
+
+**Précision** (revues du lot 1, 2026-10-12). La condition de l'abstention n'est pas
+`harness_paths.unlocked()` appelée depuis la sonde. Quatre revues ont fait mentir une sonde qui
+importait `harness_paths` avec un fichier posé dans le dépôt : un `subprocess.py` à la racine, un
+`re.py` dans `scripts/hooks/`, un `.pyc` forgé, un paquet `harness_paths/`. La règle est donc
+réécrite dans `harness-lock.sh` (fonction `construction_unlocked`) : du shell, plus un Python isolé
+qui ne charge que la stdlib. Elle lit les settings du projet depuis la racine, et décode le JSON,
+parce qu'une clé dont le K final est écrit en échappement JSON (antislash, u, 004B) est la même clé pour Claude Code. `harness_paths.unlocked()`
+décode aussi le JSON désormais. Le self-test compare les deux copies de la règle sur les mêmes
+settings.
+
+## J-056 — L'agent a cassé les gardes en deux éditions, et s'est enfermé
+
+**Date** : 2026-10-12 · **Statut** : OUVERT — règle de méthode, cas au self-test posés au lot 2 ; clos au relock final
+
+**Observé.** En mode chantier, l'agent a modifié `harness_paths._settings_inject_unlock()` pour
+décoder le JSON (`json.loads`), puis a voulu ajouter `import json` dans une **seconde** édition.
+Entre les deux, chaque garde, qui importe `harness_paths` et appelle `unlocked()` à chaque outil,
+plantait sur `NameError`. Comme elles échouent fermé, elles refusaient tout, y compris l'édition qui
+les aurait réparées, et toute commande Bash. Cédric a dû ajouter l'import à la main, depuis un autre
+terminal.
+
+**Leçon.** L'échec fermé des gardes est voulu, et il a tenu : rien n'est passé sans jugement. Mais
+un fichier que les gardes chargent à chaque appel ne supporte aucun état intermédiaire cassé. Une
+modification de `scripts/hooks/*.py` se fait en **une seule édition**, import compris (ou par un
+`Write` du fichier entier), et sa syntaxe et son chargement se vérifient avant tout autre outil.
+
+**Réponse** (lot 2 du chantier) :
+
+- deux cas au self-test exécutent les deux gardes sur leur chemin **déverrouillé**
+  (`MIVRO_HARNESS_UNLOCK=1`). Les autres cas les lancent verrouillées, ce qui ne passait jamais
+  par le code qui a planté ;
+- `_settings_inject_unlock()` ne lève plus jamais d'exception. Toute erreur sur un fichier de
+  settings existant (illisible, pas en UTF-8, malformé) vaut refus. La revue du lot 2 avait trouvé
+  qu'un octet Latin-1 dans un settings faisait encore planter les deux gardes ;
+- le cas croisé a une 5e fixture, non UTF-8.
+
+En session, la règle de méthode reste la première protection : une garde cassée bloque avant que
+le self-test ait pu tourner.
+
+**Même session, seconde erreur du même ordre.** La fixture « clé échappée » du cas croisé a été
+écrite avec la séquence d'échappement JSON du K final. Or l'entrée des outils de l'agent est
+elle-même du JSON : la séquence a été décodée avant d'arriver dans le fichier, et la fixture était
+devenue identique à la clé en clair. Le cas passait donc sans rien prouver. C'est la leçon de J-053
+(un contrôle doit distinguer). Repérée parce que le contrat affichait un « K » seul à la place de la
+séquence. La fixture est désormais construite à l'exécution (`printf '\134'`, l'antislash en octal),
+et le cas vérifie que le texte ne contient pas la clé en clair.

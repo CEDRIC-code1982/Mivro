@@ -29,22 +29,8 @@ local par lot. Le relock final et le push restent à Cédric.
 
 ## À appliquer en session déverrouillée
 
-### 1. Sonde réseau du self-test : un contrôle positif (14e revue, mineur)
-
-La sonde J-054 (`curl https://api.github.com`, section sandbox) passe au vert sur **tout** échec de
-`curl`. Hors ligne, ou avec un DNS en panne, elle conclut donc « refusé » sans rien prouver. C'est
-la leçon de J-053 : un contrôle doit distinguer une sonde qui marche d'une préparation cassée. Dans
-`scripts/harness-selftest.sh`, juste avant la sonde :
-
-```bash
-  # Positive control: the network itself works, so a failure below is the deny list (J-054).
-  if ! curl -s -o /dev/null --max-time 5 https://registry.npmjs.org/-/ping 2>/dev/null; then
-    bad "network probe control failed: registry.npmjs.org unreachable, the GitHub probe proves nothing"
-  elif curl -s -o /dev/null --max-time 5 https://api.github.com 2>/dev/null; then
-```
-
-(la branche `bad "the sandbox lets a call out to api.github.com (J-054)"` et le `else ok …` restent
-inchangés). `registry.npmjs.org` répond 200 sous sandbox (constaté le 2026-10-08).
+L'ancien §1 (contrôle positif de la sonde réseau) est appliqué au lot 2 du chantier, le
+2026-10-12.
 
 ### 2. Isoler chaque Python du harness, et résoudre une destination « dossier » (revue du lot 1 de J-055)
 
