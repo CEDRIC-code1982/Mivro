@@ -856,7 +856,24 @@ PY
   # The unlock rule exists twice (harness_paths.unlocked() for the hooks, the
   # lock's own probe): both must answer the same on the same settings, including
   # a key spelled with a JSON escape and a malformed file (fail closed).
-  for fixture in clean plain escaped malformed latin1; do
+  # bounded <seconds> <cmd...>: a settings FIFO must never hang the self-test,
+  # so a regression there turns into a named failure instead (review of lot 2).
+  bounded() {
+    local limit="$1" pid watch rc
+    shift
+    "$@" &
+    pid=$!
+    # Its own output goes to /dev/null: inherited by a `$(...)`, the sleeping
+    # watchdog would hold the pipe open until the limit (review of lot 3).
+    (sleep "$limit" && kill -9 "$pid") >/dev/null 2>&1 &
+    watch=$!
+    wait "$pid"
+    rc=$?
+    kill "$watch" 2>/dev/null
+    wait "$watch" 2>/dev/null
+    return "$rc"
+  }
+  for fixture in clean plain escaped malformed latin1 fifo; do
     case "$fixture" in
       clean) settings='{"permissions": {"allow": []}}' ;;
       plain) settings='{"env": {"MIVRO_HARNESS_UNLOCK": "1"}}' ;;
@@ -865,9 +882,15 @@ PY
       # decodes JSON on the way into this file can turn it back into a plain K.
       escaped) settings="{\"env\": {\"MIVRO_HARNESS_UNLOC$(printf '\134')u004B\": \"1\"}}" ;;
       malformed) settings='{"env": ' ;;
-      latin1) settings='' ;;
+      latin1 | fifo) settings='' ;;
     esac
+    rm -f "$SETTINGS_HOME/.claude/settings.json"
     printf '%s\n' "$settings" >"$SETTINGS_HOME/.claude/settings.json"
+    # Not a regular file: a FIFO blocks open() forever; it must be refused first.
+    if [ "$fixture" = fifo ]; then
+      rm -f "$SETTINGS_HOME/.claude/settings.json"
+      mkfifo "$SETTINGS_HOME/.claude/settings.json"
+    fi
     # Not UTF-8 (a Latin-1 e-acute, octal 351): it must fail closed, never crash
     # the guards, which read these files on every tool call (review of lot 2).
     [ "$fixture" = latin1 ] && printf '{"x": "caf\351"}\n' >"$SETTINGS_HOME/.claude/settings.json"
@@ -882,19 +905,20 @@ PY
         bad "escaped fixture is not an escaped, valid unlock key: the case proves nothing (J-056)"
       fi
     fi
-    HOME="$SETTINGS_HOME" CLAUDECODE=1 MIVRO_HARNESS_UNLOCK=1 bash scripts/harness-lock.sh >/dev/null 2>&1
+    bounded 15 env HOME="$SETTINGS_HOME" CLAUDECODE=1 MIVRO_HARNESS_UNLOCK=1 bash scripts/harness-lock.sh >/dev/null 2>&1
     LOCK_SAYS=$?
-    PY_SAYS="$(HOME="$SETTINGS_HOME" CLAUDE_PROJECT_DIR="$PWD" MIVRO_HARNESS_UNLOCK=1 \
+    PY_SAYS="$(bounded 15 env HOME="$SETTINGS_HOME" CLAUDE_PROJECT_DIR="$PWD" MIVRO_HARNESS_UNLOCK=1 \
       python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc -c \
       'import sys; sys.path.append("scripts/hooks"); import harness_paths; print(harness_paths.unlocked())' 2>/dev/null)"
     # stdout only: with a throwaway HOME, Xcode's python3 launcher (xcrun) warns
     # on stderr about its cache. A Python error leaves PY_SAYS empty: a mismatch.
     case "$fixture:$LOCK_SAYS:$PY_SAYS" in
-      clean:3:True | plain:1:False | escaped:1:False | malformed:1:False | latin1:1:False)
+      clean:3:True | plain:1:False | escaped:1:False | malformed:1:False | latin1:1:False | fifo:1:False)
         ok "both unlock rules agree on $fixture settings (J-055)" ;;
       *) bad "unlock rules disagree on $fixture settings: lock exit $LOCK_SAYS, harness_paths $PY_SAYS (J-055)" ;;
     esac
   done
+  rm -f "$SETTINGS_HOME/.claude/settings.json"
   rm -f "$LOCK_PROBE"
   MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1
   expect_exit 0 $? "lock green again once the probe is gone"
@@ -911,20 +935,115 @@ else
 fi
 # J-056: every guard case above runs locked (MIVRO_HARNESS_UNLOCK=''), which
 # never reaches the unlocked code path. A NameError there once made both guards
-# crash on every tool call, the repairing edit included. Run that path too.
+# crash on every tool call, the repairing edit included; a later one, caught by
+# the fail-closed settings check, silently turned the session back to locked.
+# So the target is a harness file and HOME holds clean settings: exit 0 is then
+# only possible if the unlocked branch was really taken, and the locked run of
+# the same payload (control) must refuse it.
+UNLOCK_HOME="$(tmp_dir)"
+mkdir -p "$UNLOCK_HOME/.claude"
+printf '{}\n' >"$UNLOCK_HOME/.claude/settings.json"
 for guard_script in scripts/hooks/pre-bash-guard.py scripts/hooks/pre-edit-guard.py; do
   case "$guard_script" in
-    *bash*) GUARD_PAYLOAD="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"ls\"},\"cwd\":\"$PWD\"}" ;;
-    *) GUARD_PAYLOAD="{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$PWD/src/App.tsx\",\"old_string\":\"a\",\"new_string\":\"b\"},\"cwd\":\"$PWD\"}" ;;
+    *bash*) GUARD_PAYLOAD="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"echo x > scripts/check.sh\"},\"cwd\":\"$PWD\"}" ;;
+    *) GUARD_PAYLOAD="{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$PWD/scripts/check.sh\",\"old_string\":\"a\",\"new_string\":\"b\"},\"cwd\":\"$PWD\"}" ;;
   esac
-  GUARD_OUT="$(printf '%s' "$GUARD_PAYLOAD" | CLAUDE_PROJECT_DIR="$PWD" MIVRO_HARNESS_UNLOCK=1 \
+  printf '%s' "$GUARD_PAYLOAD" | HOME="$UNLOCK_HOME" CLAUDE_PROJECT_DIR="$PWD" MIVRO_HARNESS_UNLOCK='' \
+    python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc "$guard_script" >/dev/null 2>&1
+  GUARD_LOCKED=$?
+  GUARD_OUT="$(printf '%s' "$GUARD_PAYLOAD" | HOME="$UNLOCK_HOME" CLAUDE_PROJECT_DIR="$PWD" MIVRO_HARNESS_UNLOCK=1 \
     python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc "$guard_script" 2>&1)"
   GUARD_CODE=$?
-  case "$GUARD_CODE:$GUARD_OUT" in
-    0:*) ok "$(basename "$guard_script") runs its unlocked code path without crashing (J-056)" ;;
-    *) bad "$(basename "$guard_script") fails on its unlocked code path (exit $GUARD_CODE): ${GUARD_OUT%%$'\n'*} (J-056)" ;;
+  case "$GUARD_LOCKED:$GUARD_CODE" in
+    2:0) ok "$(basename "$guard_script") takes its unlocked branch on a harness file, refuses it locked (J-056)" ;;
+    # The guard's own ✖ line, not the xcrun cache warning a throwaway HOME adds.
+    *) bad "$(basename "$guard_script") unlocked path broken (locked exit $GUARD_LOCKED, unlocked exit $GUARD_CODE): $(printf '%s\n' "$GUARD_OUT" | grep -m1 '✖') (J-056)" ;;
   esac
 done
+# J-056 prevention: unlocked, an edit of scripts/hooks/*.py is simulated on a
+# throwaway copy first; one that would break the guards is refused before it
+# lands, a harmless one passes. Nothing is written here: payloads only.
+edit_sim() { # edit_sim <expect exit> <label> <file> <old> <new> [guard script]
+  local out code
+  out="$(python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc -c \
+    'import json, sys; print(json.dumps({"tool_name": "Edit", "tool_input": {"file_path": sys.argv[1], "old_string": sys.argv[2], "new_string": sys.argv[3]}, "cwd": sys.argv[4]}))' \
+    "$PWD/$3" "$4" "$5" "$PWD" |
+    HOME="$UNLOCK_HOME" CLAUDE_PROJECT_DIR="$PWD" MIVRO_HARNESS_UNLOCK=1 \
+      python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc "${6:-scripts/hooks/pre-edit-guard.py}" 2>&1)"
+  code=$?
+  # A refusal must be the simulation's, not a crash of the guard (also exit 2).
+  if [ "$1" = 2 ] && [ "$code" = 2 ] && ! printf '%s' "$out" | grep -q "would break the guards"; then
+    bad "$2 — refused for another reason: $(printf '%s\n' "$out" | grep -m1 '✖')"
+    return
+  fi
+  expect_exit "$1" "$code" "$2"
+}
+edit_sim 2 "an edit leaving a syntax error in harness_paths is refused (J-056)" \
+  scripts/hooks/harness_paths.py 'def unlocked() -> bool:' 'def unlocked() -> bool'
+edit_sim 2 "an edit making unlocked() false in the unlocked session is refused (J-056)" \
+  scripts/hooks/harness_paths.py 'def unlocked() -> bool:' $'def unlocked() -> bool:\n    return False\n\n\ndef _shadowed() -> bool:'
+edit_sim 2 "an edit making the Bash guard refuse everything is refused (J-056)" \
+  scripts/hooks/pre-bash-guard.py 'import harness_paths' $'import harness_paths\nsys.exit(2)'
+edit_sim 0 "a harmless edit of harness_paths passes the simulation (J-056)" \
+  scripts/hooks/harness_paths.py 'fail closed on anything, by design' 'fail closed on anything, by design.'
+# The repair path itself: breaking the edit guard's scripts/hooks branch would
+# refuse every later hooks edit; the health check probes that branch (review of
+# lot 3).
+edit_sim 2 "an edit breaking the edit guard's own hooks branch is refused (J-056)" \
+  scripts/hooks/pre-edit-guard.py 'broken = _hooks_edit_breaks_guards(rel, root, payload)' \
+  'broken = _hooks_edit_breaks_guardz(rel, root, payload)'
+# A broken checker must never lock out: a guard whose health-check script is
+# itself broken still lets a harmless hooks edit through (review of lot 3).
+CHECKER_COPY="$(tmp_dir)"
+cp -R scripts/hooks "$CHECKER_COPY/hooks"
+python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc - "$CHECKER_COPY/hooks/pre-edit-guard.py" <<'PY'
+import sys
+path = sys.argv[1]
+with open(path, encoding="utf-8") as handle:
+    text = handle.read()
+old = "import json, os, subprocess, sys\n\ndef broken"
+if old not in text:
+    sys.exit("health-check import line not found: the case below would prove nothing")
+with open(path, "w", encoding="utf-8") as handle:
+    handle.write(text.replace(old, "import json, os, subprocess\n\ndef broken", 1))
+PY
+edit_sim 0 "a guard with a broken health check does not lock a harmless hooks edit out (J-056)" \
+  scripts/hooks/harness_paths.py 'fail closed on anything, by design' 'fail closed on anything, by design.' \
+  "$CHECKER_COPY/hooks/pre-edit-guard.py"
+# Second review of lot 3: a case variant of the path is the same file on APFS,
+# a slow unlocked() is a broken one, and a new module that does not compile
+# must not land unchecked.
+edit_sim 2 "a case variant of a hooks path is simulated too (J-056, J-047)" \
+  scripts/HOOKS/harness_paths.py 'def unlocked() -> bool:' 'def unlocked() -> bool'
+edit_sim 2 "an edit making unlocked() slow is refused (J-056)" \
+  scripts/hooks/harness_paths.py 'def unlocked() -> bool:' $'def unlocked() -> bool:\n    __import__("time").sleep(1.5)'
+# Third review of lot 3: beyond the check's time limit a blocking tree used to
+# pass as "the checker failed"; and the Bash guard is probed on the repair
+# command too, not only on `ls`.
+edit_sim 2 "an edit making unlocked() block is refused (J-056)" \
+  scripts/hooks/harness_paths.py 'def unlocked() -> bool:' $'def unlocked() -> bool:\n    __import__("time").sleep(60)'
+edit_sim 2 "an edit making harness_paths loop at import is refused (J-056)" \
+  scripts/hooks/harness_paths.py $'import json\n' $'import json\nwhile True:\n    pass\n'
+# Fourth review of lot 3: an exit at load (no Exception) used to slip through.
+edit_sim 2 "an edit making harness_paths exit at load (inverted __main__ test) is refused (J-056)" \
+  scripts/hooks/harness_paths.py 'if __name__ == "__main__":' 'if __name__ != "__main__":'
+edit_sim 2 "an edit making harness_paths call os._exit at load is refused (J-056)" \
+  scripts/hooks/harness_paths.py $'import json\n' $'import json\nimport os as _os_selftest\n_os_selftest._exit(2)\n'
+edit_sim 2 "an edit breaking the Bash guard's repair command, ls intact, is refused (J-056)" \
+  scripts/hooks/pre-bash-guard.py 'staged_only = sub == "restore" and (' \
+  'staged_only = sub == "restore" and undefined_name_selftest and ('
+edit_sim 2 "a new hooks module that does not compile is refused (J-056)" \
+  scripts/hooks/__selftest_new_module.py '' 'def broken(:'
+# The repair path the simulation keeps open: unlocked, the Bash guard lets a
+# hooks file be restored from git; locked, it refuses (J-056).
+RESTORE_CMD="git restore -- scripts/hooks/pre-edit-guard.py"
+RESTORE_PAYLOAD="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$RESTORE_CMD\"},\"cwd\":\"$PWD\"}"
+printf '%s' "$RESTORE_PAYLOAD" | HOME="$UNLOCK_HOME" CLAUDE_PROJECT_DIR="$PWD" MIVRO_HARNESS_UNLOCK=1 \
+  python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc scripts/hooks/pre-bash-guard.py >/dev/null 2>&1
+expect_exit 0 $? "unlocked, a broken hooks file can be restored through Bash (J-056 repair path)"
+printf '%s' "$RESTORE_PAYLOAD" | HOME="$UNLOCK_HOME" CLAUDE_PROJECT_DIR="$PWD" MIVRO_HARNESS_UNLOCK='' \
+  python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc scripts/hooks/pre-bash-guard.py >/dev/null 2>&1
+expect_exit 2 $? "locked, restoring a hooks file through Bash is refused (J-056 repair path)"
 (CLAUDECODE=1 bash scripts/harness-lock.sh --update </dev/null >/dev/null 2>&1)
 expect_exit 1 $? "relock refuses to run inside Claude Code"
 # J-043: every file jest loads before the tests is part of the harness.

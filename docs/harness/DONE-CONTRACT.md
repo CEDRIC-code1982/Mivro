@@ -7,33 +7,31 @@
 
 ## Tâche
 
-**Titre** : Chantier du harness, lot 2 — sonde réseau contrôlée, règle de déverrouillage décodée (J-054, J-055, J-056)
+**Titre** : Chantier du harness, lot 3 — une édition des gardes qui les casserait est refusée avant d'atterrir (J-056)
 
-**Demande d'origine** : mode chantier (« Go chantier », « commit et push en autonomie ») ; lot 2 =
-EN-ATTENTE §1 et les trois mineurs de la 4e revue du lot 1.
+**Demande d'origine** : mode chantier (« Go chantier », commits en autonomie) ; lot 3 = les trois
+mineurs de la 2e revue du lot 2, et une réponse mécanique à la 3e occurrence de J-056.
 
-**Branche** : `harness/chantier`, à la suite de `d89c1de`.
+**Branche** : `harness/chantier`, à la suite de `bfe83ba`.
 
 **Hors périmètre explicite** :
 
-- EN-ATTENTE §2 (chargement de `harness_paths` par chemin dans les gardes, destination « dossier »
-  de la garde Bash) et la règle `docrefs` : lots suivants.
-- Rendre le pre-push strict même dans les processus de l'agent (4e revue, option) : à arbitrer avec
-  Cédric, le RUNBOOK accepte aujourd'hui qu'un `! git push` hérite du chantier.
+- EN-ATTENTE §2 (chargement de `harness_paths` par chemin dans les gardes, destination « dossier »,
+  `mkfifo`/`mknod` dans la garde Bash) et la règle `docrefs` : lots suivants.
 - Push et relock : Cédric, en fin de chantier.
 
 ---
 
 ## Conditions de fin
 
-| #   | Condition                                                                                                                                   | Comment on le vérifie                                                   |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| 1   | La sonde `api.github.com` a un contrôle positif : `registry.npmjs.org` doit répondre, sinon échec nommé                                     | self-test section sandbox, sous sandbox                                 |
-| 2   | Un déverrouillage dans un bloc `env` de settings est refusé même si le K final de la clé est écrit en échappement JSON (antislash, u, 004B) | cas croisé du self-test (4 fixtures) dans le clone                      |
-| 3   | La règle de déverrouillage du verrou et `harness_paths.unlocked()` répondent pareil sur les mêmes settings                                  | cas croisé : clean → 3/True, plain/escaped/malformed → 1/False          |
-| 4   | Les deux gardes exécutent leur chemin déverrouillé sans planter (J-056)                                                                     | 2 cas du self-test, `MIVRO_HARNESS_UNLOCK=1`                            |
-| 5   | Commentaire de `pre-bash-guard.py` à jour sur le déverrouillage ; J-055 précisé, J-056 consigné ; EN-ATTENTE §1 retiré                      | relecture                                                               |
-| 6   | Aucune régression                                                                                                                           | self-test du dépôt 0 failed ; `check.sh --stage check` vert sauf `lock` |
+| #   | Condition                                                                                                                                                                                                                                            | Comment on le vérifie                                                |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| 1   | En session déverrouillée, une édition de `scripts/hooks/*.py` qui casserait `harness_paths` ou la garde Bash (la voie de réparation : chargement, `unlocked()` juste et rapide, `git restore` accepté) est refusée avant d'atterrir, blocage compris | cas `edit_sim` au self-test (message vérifié)                        |
+| 2   | Un échec du vérificateur lui-même ne bloque pas l'édition (refus différentiel : le même contrôle doit passer sur l'arbre actuel)                                                                                                                     | cas « health check cassé » au self-test : édition anodine → 0        |
+| 3   | Les cas « chemin déverrouillé » des gardes ne passent que si la branche déverrouillée est prise                                                                                                                                                      | cible du harness + settings propres ; contrôle négatif rouge         |
+| 4   | Un fichier de settings non régulier (FIFO) est refusé avant toute ouverture, dans les deux copies de la règle                                                                                                                                        | 6e fixture `fifo` du cas croisé (clone), sous garde-temps            |
+| 5   | `HOME` absent ne fait plus échouer la sonde du verrou sur une variable non liée                                                                                                                                                                      | `${HOME:-}` ; shellcheck                                             |
+| 6   | J-056 consigné (3e occurrence, réponse mécanique) ; aucune régression                                                                                                                                                                                | self-test du dépôt 443/0 ; `check.sh --stage check` vert sauf `lock` |
 
 ---
 
@@ -41,7 +39,7 @@ EN-ATTENTE §1 et les trois mineurs de la 4e revue du lot 1.
 
 - [x] `npm run check` vert, sauf `lock` qui s'abstient (mode chantier, par construction).
 - [x] Les trois états rendus pour chaque écran touché — aucun écran modifié.
-- [x] Toute donnée externe validée — les settings sont décodés en JSON, malformé = échec fermé.
+- [x] Toute donnée externe validée — sans objet (harness seul).
 - [x] Toute string affichée passe par `useTranslation()` — aucune string ajoutée.
 - [x] Docs de contexte mises à jour : `JOURNAL-ECHECS.md`, `EN-ATTENTE.md`.
 - [x] ADR : aucune nouvelle décision.

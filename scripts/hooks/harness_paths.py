@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import stat
 import subprocess
 
 HOOKS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -66,6 +67,10 @@ def _settings_inject_unlock() -> bool:
         # It must never raise: every guard calls this on every tool call, and a
         # crash there refuses everything, the repairing edit included (J-056).
         try:
+            # Not a regular file (a FIFO would block open() forever, a device
+            # or socket is no settings file): refused before any open().
+            if not stat.S_ISREG(os.stat(path).st_mode):
+                return True
             with open(path, encoding="utf-8") as handle:
                 text = handle.read()
             if UNLOCK_ENV in text:

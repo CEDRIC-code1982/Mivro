@@ -124,16 +124,20 @@ construction_unlocked() {
   # UTF-8, malformed...) fails closed, and the file is named on stderr so a
   # refused construction mode is not a mystery.
   python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc - \
-    "$HOME/.claude/settings.json" "$HOME/.claude/settings.local.json" \
+    "${HOME:-}/.claude/settings.json" "${HOME:-}/.claude/settings.local.json" \
     ".claude/settings.json" ".claude/settings.local.json" <<'PY'
 import json
 import os
+import stat
 import sys
 
 for path in sys.argv[1:]:
     if not os.path.exists(path):
         continue
     try:
+        # Not a regular file (a FIFO would block open() forever): refused.
+        if not stat.S_ISREG(os.stat(path).st_mode):
+            raise ValueError("not a regular file")
         with open(path, encoding="utf-8") as handle:
             text = handle.read()
         if "MIVRO_HARNESS_UNLOCK" in text:

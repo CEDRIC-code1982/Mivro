@@ -2065,6 +2065,47 @@ modification de `scripts/hooks/*.py` se fait en **une seule édition**, import c
 En session, la règle de méthode reste la première protection : une garde cassée bloque avant que
 le self-test ait pu tourner.
 
+**Troisième occurrence, et réponse mécanique** (lot 3, 2026-10-12). L'agent a encore modifié
+`harness_paths.py` en deux éditions : `stat` utilisé, puis importé. Le `try/except` du lot 2 a
+rattrapé le `NameError`, donc pas de plantage cette fois. Mais `unlocked()` rendait `False`, la
+session se croyait verrouillée, et l'ajout de l'import a été refusé : Cédric l'a posé à la main. La
+règle de méthode écrite deux heures plus tôt n'avait pas suffi.
+
+La garde d'édition **simule** désormais, en session déverrouillée, toute modification de
+`scripts/hooks/*.py` sur une copie jetable du dossier. Elle vérifie que chaque module compile, que
+`harness_paths` se charge, que `unlocked()` tient toujours, et que les deux gardes répondent sans
+erreur à un appel anodin. Une édition qui casserait l'une de ces conditions est refusée **avant**
+d'atterrir, avec la raison. Un échec du vérificateur lui-même laisse passer l'édition, pour qu'il ne
+devienne jamais l'enfermement qu'il prévient. Les trois éditions fautives de cette session sont
+rejouées en payload et refusées, une édition anodine passe ; quatre cas au self-test. Les deux cas
+« chemin déverrouillé » visent maintenant un fichier du harness avec des settings propres : un
+exit 0 n'est possible que si la branche déverrouillée a vraiment été prise (contrôle négatif
+vérifié). Dernier écart de la revue du lot 2 : un fichier de settings non régulier (une FIFO
+bloquerait `open()`) est refusé avant toute ouverture, dans les deux copies de la règle.
+
+**Revue du lot 3 : le vérificateur pouvait lui-même enfermer.** Deux scénarios ont été démontrés
+sur des copies :
+
+- la sonde de la garde d'édition visait `src/`, jamais sa propre branche `scripts/hooks/`. Une
+  édition qui cassait cette branche, c'est-à-dire le chemin de réparation, passait la simulation, et
+  toutes les éditions suivantes de `scripts/hooks/` étaient refusées ;
+- tout échec du contrôle de santé valait refus. Un script de contrôle cassé (par exemple, `sys`
+  retiré de son import) refusait donc toute édition de `scripts/hooks/`, y compris celle qui le
+  réparait.
+
+Réponse :
+
+- le contrôle sonde aussi la garde d'édition sur un fichier de `scripts/hooks/`, avec un
+  `old_string` introuvable qui arrête la simulation imbriquée tout de suite ;
+- seul un code de sortie réservé (3, préfixe `BROKEN:`) signifie « l'édition casse les gardes ».
+  Toute autre erreur du vérificateur laisse passer ;
+- le refus est **différentiel** : on n'impute la panne à l'édition que si l'arbre actuel passe le
+  contrôle. Une édition sur un arbre déjà cassé, qui peut être la réparation, passe ;
+- délais alignés sur le `timeout` de 10 s du hook : 4 s par contrôle, 2 s par sonde ;
+- au self-test, deux cas rejouent les deux scénarios, et `edit_sim` exige le message de refus de la
+  simulation, puisqu'un plantage de la garde rend lui aussi 2. Le garde-temps du cas croisé ne
+  retient plus le tube de `$(…)`, ce qui coûtait 15 s par fixture.
+
 **Même session, seconde erreur du même ordre.** La fixture « clé échappée » du cas croisé a été
 écrite avec la séquence d'échappement JSON du K final. Or l'entrée des outils de l'agent est
 elle-même du JSON : la séquence a été décodée avant d'arriver dans le fichier, et la fixture était
@@ -2072,3 +2113,37 @@ devenue identique à la clé en clair. Le cas passait donc sans rien prouver. C'
 (un contrôle doit distinguer). Repérée parce que le contrat affichait un « K » seul à la place de la
 séquence. La fixture est désormais construite à l'exécution (`printf '\134'`, l'antislash en octal),
 et le cas vérifie que le texte ne contient pas la clé en clair.
+
+**Seconde revue du lot 3 : changement de principe.** La revue a encore trouvé deux trous dans le
+vérificateur lui-même. Une édition qui inversait sa logique passait, puis refusait toute édition
+suivante de `scripts/hooks/` par Edit ou Write. Et une lenteur ajoutée à `unlocked()` passait sans
+être vue, puis rendait le vérificateur aveugle. Chaque revue trouvait un niveau de plus, parce qu'on
+demandait au vérificateur de se vérifier lui-même. La réponse change donc de principe : la
+simulation est un filet contre les accidents, pas une frontière de sécurité, et son premier devoir
+est de garder **la voie de réparation** ouverte. En session déverrouillée, la garde Bash laisse
+passer `git restore -- scripts/hooks/<fichier>`, et le self-test le vérifie (refusé verrouillé). La
+simulation garantit donc d'abord que la garde Bash et `harness_paths` restent sains : chargement,
+`unlocked()` juste et rapide (1 s au plus), réponse en 1,5 s au plus. Une édition qui n'abîmerait
+que la garde d'édition se répare par ce `git restore`, que le message de refus indique. Corrigé
+aussi : le chemin est comparé sans casse (J-047), et un module créé par un Edit à `old_string` vide
+est simulé. Cinq cas de plus au self-test.
+
+**Troisième revue du lot 3.** Le principe tient. Le différentiel, le code réservé et la voie de
+réparation sont validés, et d'autres voies Bash (`git show … >`, `cp`) restent ouvertes même si
+`git restore` cassait. Un trou réel subsistait pourtant : une édition qui fait **bloquer**
+`harness_paths`, au lieu de le ralentir, dépassait le délai du contrôle, et ce dépassement comptait
+comme une panne du vérificateur, donc l'édition passait. Désormais, un dépassement sur l'arbre
+proposé vaut panne, toujours avec le différentiel (l'arbre actuel doit répondre dans son délai). Les
+délais sont resserrés : 3,5 s par contrôle, 1 s par sonde, 0,8 s pour `unlocked()`. Ils remplacent
+les valeurs des passes précédentes. La garde Bash est aussi sondée sur la commande de réparation
+elle-même. Trois cas de plus au self-test : `unlocked()` qui dort 60 s, une boucle au chargement, et
+une branche `git restore` cassée alors que `ls` reste intact.
+
+**Quatrième revue du lot 3.** Le budget de temps est validé (7,3 s au pire sur 10 s), et les faux
+refus sont improbables (marge de 6 à 8 fois). Une dernière voie restait, en un seul caractère :
+inverser le test `__main__` de `harness_paths` le fait sortir en code 2 au chargement. Ce n'est pas
+une `Exception`, le contrôle mourait sur un code autre que le code réservé, et l'édition passait.
+Plutôt que de rattraper un cas de plus, la règle se simplifie : **tout** échec du contrôle sur
+l'arbre proposé vaut panne. C'est le différentiel qui protège contre un vérificateur cassé, puisque
+le même contrôle échoue alors aussi sur l'arbre actuel. Le code 3 ne sert plus qu'à nommer la
+panne. Deux cas de plus au self-test : sortie au chargement, et `os._exit`.

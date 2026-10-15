@@ -62,6 +62,7 @@ remplacerait donc aussi leur module. Correctif :
 - `cp src/subprocess.py .` et `mv src/subprocess.py ./` (basename dans le dossier) ;
 - `cp -R "$TMPDIR/scripts" .` (fusion d'un dossier nommé comme un dossier du harness) ;
 - `cp -R "$TMPDIR/s/." .` (contenu d'un dossier, nom de base `.`).
+- `mkfifo` ou `mknod` sur un chemin protégé (revue du lot 2) : un fichier de settings FIFO bloquerait les gardes.
 
 Alors que `cp src/a.txt subprocess.py`, `cp -t scripts/hooks …`, `rsync` et `tar` sont refusés.
 Quand la dernière cible d'un `cp`/`mv`/`ln`/`install` est un dossier existant (ou finit par `/`), il
