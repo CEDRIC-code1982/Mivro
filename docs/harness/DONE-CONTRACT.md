@@ -7,31 +7,29 @@
 
 ## Tâche
 
-**Titre** : Chantier du harness, lot 3 — une édition des gardes qui les casserait est refusée avant d'atterrir (J-056)
+**Titre** : Chantier du harness, lot 4 — la garde Bash juge ce qu'une copie dépose dans un dossier (EN-ATTENTE §2b)
 
-**Demande d'origine** : mode chantier (« Go chantier », commits en autonomie) ; lot 3 = les trois
-mineurs de la 2e revue du lot 2, et une réponse mécanique à la 3e occurrence de J-056.
+**Demande d'origine** : « fais le §2b puis on clôt ».
 
-**Branche** : `harness/chantier`, à la suite de `bfe83ba`.
+**Branche** : `harness/chantier`, à la suite de `8fd98f1`.
 
 **Hors périmètre explicite** :
 
-- EN-ATTENTE §2 (chargement de `harness_paths` par chemin dans les gardes, destination « dossier »,
-  `mkfifo`/`mknod` dans la garde Bash) et la règle `docrefs` : lots suivants.
-- Push et relock : Cédric, en fin de chantier.
+- EN-ATTENTE §2a (charger `harness_paths` par chemin explicite dans les gardes), la règle `docrefs`
+  et la constante `_BROKEN` inutilisée : laissés en TODO à la clôture du chantier.
+- Relock, push, PR, merge : Cédric, à la clôture.
 
 ---
 
 ## Conditions de fin
 
-| #   | Condition                                                                                                                                                                                                                                            | Comment on le vérifie                                                |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| 1   | En session déverrouillée, une édition de `scripts/hooks/*.py` qui casserait `harness_paths` ou la garde Bash (la voie de réparation : chargement, `unlocked()` juste et rapide, `git restore` accepté) est refusée avant d'atterrir, blocage compris | cas `edit_sim` au self-test (message vérifié)                        |
-| 2   | Un échec du vérificateur lui-même ne bloque pas l'édition (refus différentiel : le même contrôle doit passer sur l'arbre actuel)                                                                                                                     | cas « health check cassé » au self-test : édition anodine → 0        |
-| 3   | Les cas « chemin déverrouillé » des gardes ne passent que si la branche déverrouillée est prise                                                                                                                                                      | cible du harness + settings propres ; contrôle négatif rouge         |
-| 4   | Un fichier de settings non régulier (FIFO) est refusé avant toute ouverture, dans les deux copies de la règle                                                                                                                                        | 6e fixture `fifo` du cas croisé (clone), sous garde-temps            |
-| 5   | `HOME` absent ne fait plus échouer la sonde du verrou sur une variable non liée                                                                                                                                                                      | `${HOME:-}` ; shellcheck                                             |
-| 6   | J-056 consigné (3e occurrence, réponse mécanique) ; aucune régression                                                                                                                                                                                | self-test du dépôt 443/0 ; `check.sh --stage check` vert sauf `lock` |
+| #   | Condition                                                                                                                                                                                                                                                                                              | Comment on le vérifie                         |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| 1   | Une copie de fichiers vers un dossier est jugée fichier par fichier ; une copie récursive vers le dépôt, et tout cas incertain (accolades, tout glob en source ou en destination, qualificateurs zsh, source créée dans la commande), est refusée avec un message dédié                                | cas `guard BLOCK` du self-test                |
+| 2   | Les copies de fichiers légitimes en zone produit passent ; faux positifs assumés : pas de copie récursive ni par glob à l'intérieur du dépôt, ni de `mv` d'un dossier (passer par `git mv`)                                                                                                            | cas `guard ALLOW` (dont `mv README.md docs/`) |
+| 3   | `mkfifo` et `mknod` (options sautées) sur un chemin protégé sont refusés ; `cd -`, `pushd ±N`, `pushd -n` et CDPATH rendent le dossier courant inconnu                                                                                                                                                 | cas BLOCK et ALLOW du self-test               |
+| 4   | Déverrouillé, l'écriture Bash par fichier d'un module des gardes est refusée (écrivains indirects : EN-ATTENTE §3), `git restore` reste ouvert                                                                                                                                                         | 15 cas `guard_unlocked`                       |
+| 5   | EN-ATTENTE §2b retiré, journal à jour ; aucune régression, y compris sous chaque forme de sous-shell, imbriquée comprise (`{(…)}`, `{({(…)})}`, `then(…)`, `do(…)`, `<=(…)`) . Le refus des qualificateurs zsh qui exécutent du code (`e:…:`, `+fonction`) est un filet sans garantie : EN-ATTENTE §4c | self-test 579/0 ; `check.sh --stage check`    |
 
 ---
 
@@ -41,13 +39,13 @@ mineurs de la 2e revue du lot 2, et une réponse mécanique à la 3e occurrence 
 - [x] Les trois états rendus pour chaque écran touché — aucun écran modifié.
 - [x] Toute donnée externe validée — sans objet (harness seul).
 - [x] Toute string affichée passe par `useTranslation()` — aucune string ajoutée.
-- [x] Docs de contexte mises à jour : `JOURNAL-ECHECS.md`, `EN-ATTENTE.md`.
+- [x] Docs de contexte mises à jour : `EN-ATTENTE.md`, `JOURNAL-ECHECS.md`.
 - [x] ADR : aucune nouvelle décision.
 - [ ] Verdict `APPROVED` du subagent `reviewer` sur l'arbre final.
 
 ---
 
-## Ce qui reste à Cédric (fin de chantier)
+## Ce qui reste à Cédric (clôture du chantier)
 
 - [ ] `npm run harness:relock`, push de `harness/chantier` depuis un terminal hors Claude Code, PR, merge.
 - [ ] Relancer une session normale (sans `MIVRO_HARNESS_UNLOCK`).

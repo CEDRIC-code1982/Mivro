@@ -32,7 +32,7 @@ local par lot. Le relock final et le push restent à Cédric.
 L'ancien §1 (contrôle positif de la sonde réseau) est appliqué au lot 2 du chantier, le
 2026-10-12.
 
-### 2. Isoler chaque Python du harness, et résoudre une destination « dossier » (revue du lot 1 de J-055)
+### 2. Isoler chaque Python du harness (revue du lot 1 de J-055) — le (a) reste à faire
 
 **a. Ne plus jamais trouver `harness_paths` par son nom.** Les trois revues du lot 1 ont trouvé
 quatre façons de faire mentir un Python du harness qui fait `import harness_paths` :
@@ -56,19 +56,54 @@ remplacerait donc aussi leur module. Correctif :
 - cas au self-test : un paquet `scripts/hooks/harness_paths/` posé, et la garde refuse toujours
   `echo x > scripts/check.sh`.
 
-**b. La garde Bash juge ce qu'une copie dépose dans un dossier.** Passent aujourd'hui la garde
-(exit 0, rejoué par les revues) :
+**b.** Appliqué au lot 4 du chantier (2026-10-15) : la garde Bash juge ce qu'une copie, un
+déplacement ou un lien dépose dans un dossier, refuse `mkfifo`/`mknod` sur un chemin protégé, et,
+en session déverrouillée, l'écriture Bash par fichier d'un module des gardes (`git restore`
+excepté). Voir le §3 pour les écrivains indirects.
 
-- `cp src/subprocess.py .` et `mv src/subprocess.py ./` (basename dans le dossier) ;
-- `cp -R "$TMPDIR/scripts" .` (fusion d'un dossier nommé comme un dossier du harness) ;
-- `cp -R "$TMPDIR/s/." .` (contenu d'un dossier, nom de base `.`).
-- `mkfifo` ou `mknod` sur un chemin protégé (revue du lot 2) : un fichier de settings FIFO bloquerait les gardes.
+### 3. En session déverrouillée, les écrivains indirects vers `scripts/hooks/` (revue du lot 4)
 
-Alors que `cp src/a.txt subprocess.py`, `cp -t scripts/hooks …`, `rsync` et `tar` sont refusés.
-Quand la dernière cible d'un `cp`/`mv`/`ln`/`install` est un dossier existant (ou finit par `/`), il
-faut juger ce que la copie y dépose : `<dossier>/<basename>` pour un fichier. Pour une copie
-récursive, la source est inconnue au moment du jugement, donc le refus est systématique si la
-destination est la racine ou un dossier qui contient du harness. Cas au self-test :
-`guard BLOCK "cp src/x.py ."`, `guard BLOCK "mv src/x.sh scripts/"`,
-`guard BLOCK 'cp -R "$TMPDIR/scripts" .'`, `guard BLOCK 'cp -R "$TMPDIR/s/." .'`,
-`guard ALLOW "cp src/a.ts src/b/"`.
+En session déverrouillée, `tar -xf … -C scripts/`, `unzip … -d scripts/hooks`, `curl -o scripts/hooks/x.py`,
+`patch`, `git apply` et un interpréteur qui ouvre un module en écriture passent la garde Bash : ces
+chemins sont conditionnés par `self.protect`. Ce ne sont pas des voies d'édition accidentelles, et en
+session déverrouillée l'agent a de toute façon le droit de modifier le harness. Le filet de J-056
+vise les accidents, et l'Edit simulé reste la voie normale. À traiter si l'on veut un filet
+complet : appliquer `_hooks_module` à leurs cibles et dossiers d'extraction, et refuser `patch` et
+`git apply` aux cibles inconnues. Cas au self-test : un `guard_unlocked BLOCK` par écrivain.
+
+### 4. Quatre trous de la garde Bash, antérieurs au chantier (cinquième, onzième et dernière revues du lot 4)
+
+**a. Le dossier courant après un sous-shell.** `(cd /tmp); cp /tmp/x .babelrc` passe : la garde
+garde `/tmp` comme dossier courant après le `)`, alors que le shell revient au dépôt. La copie
+écrit donc `<dépôt>/.babelrc`. Correctif : sauvegarder `self.cwd` à chaque `(` et le restaurer au
+`)` correspondant, dans la boucle de `_check_line`. À défaut, passer le dossier à inconnu après un
+`)`. Cas au self-test : `guard BLOCK '(cd /tmp); cp /tmp/x .babelrc'`, plus un contrôle `ALLOW`
+avec une cible produit.
+
+**b. Un `$` au milieu d'un nom de commande.** `bash -c '(rm${IFS}scripts/check.sh)'` passe, parce
+que `${IFS}` découpe le mot à l'exécution. La garde ne juge comme variable qu'un nom de commande qui
+commence par `$`. Correctif : refuser tout nom de commande qui contient `$` ou le marqueur de
+substitution, quelle que soit sa position. Cas au self-test : la commande ci-dessus en
+`guard BLOCK`.
+
+**c. Les qualificateurs zsh qui exécutent du code.** En zsh, `*(e:'cmd':)` exécute `cmd` pour
+chaque fichier qui correspond, et `*(+fonction)` appelle une fonction. Le lot 4 a posé un filet :
+`deny_code_qualifier`, appliqué par `deny_argument_qualifiers` à tout groupe qui n'ouvre pas une
+commande, ainsi qu'aux `=(…)` collés et aux ouvreurs échappés dans `extract_substitutions`. Mais
+de la septième à la onzième revue, chaque revue a trouvé une nouvelle position d'où le qualificateur
+échappe au filet. Ce n'est donc pas une garantie, et le trou existait déjà à `8fd98f1`. Deux
+pistes :
+
+- un seul lecteur de quotes et d'échappements, partagé par `extract_substitutions`,
+  `fold_glob_groups` et `deny_argument_qualifiers` ;
+- un exécutable de sonde dédié, approuvé par Cédric, qui lit ses cas depuis un fichier. La garde
+  refuse en effet toute sonde Bash qui contient `e:`, si bien que ni les revues ni l'agent ne
+  peuvent vérifier zsh sur ces formes.
+
+Cas au self-test : rejouer chaque ouvreur et chaque point d'arrêt du repli (`*`, quote, nom, `=`,
+`)`, `\;`, `\$`, `\<`) suivi d'un qualificateur `e:`, en `guard BLOCK`.
+
+**d. Une commande formée par l'expansion des accolades.** `{rm,-rf,node_modules}` passe : le shell
+la développe en `rm -rf node_modules`, mais la garde lit un seul mot, sans nom de commande connu.
+`8fd98f1` l'acceptait aussi. Correctif : refuser un nom de commande qui contient `{` suivi d'une
+`,` hors quotes. Cas au self-test : la commande ci-dessus en `guard BLOCK`.

@@ -1044,6 +1044,196 @@ expect_exit 0 $? "unlocked, a broken hooks file can be restored through Bash (J-
 printf '%s' "$RESTORE_PAYLOAD" | HOME="$UNLOCK_HOME" CLAUDE_PROJECT_DIR="$PWD" MIVRO_HARNESS_UNLOCK='' \
   python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc scripts/hooks/pre-bash-guard.py >/dev/null 2>&1
 expect_exit 2 $? "locked, restoring a hooks file through Bash is refused (J-056 repair path)"
+
+# EN-ATTENTE §2b: what a copy, move or link drops into a destination directory
+# is judged, not the directory word; FIFOs and device nodes are writes; and,
+# unlocked, the modules the guards load are written through the Edit tool only.
+DROP_SRC="$(tmp_dir)"
+# Real files in each source tree: what is judged is what actually lands.
+mkdir -p "$DROP_SRC/scripts" "$DROP_SRC/s" "$DROP_SRC/theme" "$DROP_SRC/x/__mocks__" \
+  "$DROP_SRC/plain/sub" "$DROP_SRC/hooks"
+touch "$DROP_SRC/scripts/check.sh" "$DROP_SRC/s/.npmrc" "$DROP_SRC/theme/contrast.test.ts" \
+  "$DROP_SRC/x/__mocks__/@theme.ts" "$DROP_SRC/plain/a.ts" "$DROP_SRC/plain/sub/b.ts" \
+  "$DROP_SRC/hooks/pre-bash-guard.py"
+guard BLOCK 'cp src/x.py .'
+guard BLOCK 'mv src/subprocess.py ./'
+guard BLOCK 'mv src/x.sh scripts/'
+guard BLOCK "cp -R $DROP_SRC/scripts ."
+guard BLOCK "cp -R $DROP_SRC/s/. ."
+guard BLOCK 'cp -t scripts/hooks src/x.py'
+guard BLOCK 'cp README.md scripts/'
+guard BLOCK 'mv scripts/check.sh docs/'
+guard BLOCK 'mkfifo .claude/settings.local.json'
+guard BLOCK 'mknod scripts/x p'
+guard ALLOW 'cp src/App.tsx src/components/'
+guard BLOCK 'cp -R src/features src/backup/'
+guard ALLOW 'mv README.md docs/'
+guard ALLOW 'cp README.md docs/'
+guard ALLOW 'mknod src/x p'
+# Review of lot 4: a tree landing in a product zone may carry harness files, and
+# ditto / `cp -R x/` copy the contents, not the directory.
+guard BLOCK "cp -R $DROP_SRC/theme src/"
+guard BLOCK "mv $DROP_SRC/x src/"
+guard BLOCK "rsync -a $DROP_SRC/x/ src/"
+guard BLOCK "ditto $DROP_SRC/x src"
+guard BLOCK "cp -R $DROP_SRC/x/ src/"
+guard BLOCK "cp -R $DROP_SRC/theme/ src/theme"
+guard BLOCK "ditto $DROP_SRC/theme src/theme"
+guard BLOCK 'cp -R $(mktemp -d) src/'
+guard BLOCK "cp -R $DROP_SRC/plain src/"
+guard BLOCK "ditto $DROP_SRC/plain src/features/plain"
+# Second review of lot 4: a glob source is several sources, and rsync -R lands
+# each source under its path as written.
+guard BLOCK "cp -R $DROP_SRC/* src/"
+guard BLOCK "cp -R $DROP_SRC/the?e src/"
+guard BLOCK "cp $DROP_SRC/theme/* src/theme/"
+guard BLOCK "cd $DROP_SRC && rsync -R theme/contrast.test.ts $REPO/src/"
+# Fourth review of lot 4: any glob source is unknown (zsh expands it in ways the
+# hook cannot see), so even a product-to-product glob copy is refused.
+guard BLOCK 'cp src/components/atoms/Avatar/*.ts src/components/'
+# Third review of lot 4: braces, a source built by the same command, a glob in
+# the destination, a glob that may match dotfiles: all unknown, refused here.
+GROW_DIR="$(tmp_dir)/grow"
+guard BLOCK "cp -R $DROP_SRC/{theme,plain} src/"
+guard BLOCK "cp $DROP_SRC/theme/{contrast.test.ts,x} src/theme/"
+guard BLOCK "mkdir -p $GROW_DIR/theme && touch $GROW_DIR/theme/contrast.test.ts && cp -R $GROW_DIR/theme src/"
+guard BLOCK "cp $DROP_SRC/theme/contrast.test.ts src/the*/"
+guard BLOCK "cp $DROP_SRC/theme/contrast.test.ts src/theme/contrast.test.t?"
+guard BLOCK "cp $DROP_SRC/s/.* src/components/"
+# Fourth review of lot 4: mknod option values, zsh globs, cd - and CDPATH.
+guard BLOCK 'cd src && mknod -m 600 ../.babelrc p'
+guard BLOCK "cp $DROP_SRC/theme/*(D) src/theme/"
+guard BLOCK "cp $DROP_SRC/theme/[^a]* src/theme/"
+guard BLOCK "cp $DROP_SRC/theme/@(contrast.test.ts|x) src/theme/"
+guard BLOCK "cp $DROP_SRC/**/contrast.test.ts src/theme/"
+guard BLOCK "touch $GROW_DIR/a.json && cp $GROW_DIR/*.json src/components/"
+guard ALLOW 'cd src && echo x > notes.md'
+guard BLOCK 'cd src && cd - && echo x > notes.md'
+guard BLOCK 'export CDPATH=scripts; cd src && echo x > notes.md'
+guard BLOCK 'CDPATH=scripts cd src && echo x > notes.md'
+# Fifth review of lot 4: groups are folded outside quotes only (inline code keeps
+# its literal paths), and the directory stack has more names than `cd -`.
+guard BLOCK "python3 -c 'import os;os.rename(*(\"/tmp/x\",\"scripts/check.sh\"))'"
+guard BLOCK "python3 -c 'open(*(\"scripts/check.sh\",\"w\"))'"
+guard ALLOW "echo '*(D)' > src/notes.md"
+guard BLOCK 'cd /tmp; cd ~-; cp /tmp/x .babelrc'
+guard BLOCK 'pushd /tmp; pushd; cp /tmp/x .babelrc'
+guard ALLOW 'cd src && cd -P components && echo x > notes.md'
+# Sixth review of lot 4: zsh qualifiers glue to any word, through quotes too;
+# `=(cmd)` is a process substitution whose command is judged.
+guard BLOCK "cp $DROP_SRC/theme/contrast.test.ts(N) src/theme/"
+guard BLOCK "cp $DROP_SRC/theme/*''(D) src/theme/"
+guard BLOCK "cp $DROP_SRC/theme/*(\"D\") src/theme/"
+guard BLOCK 'cp /tmp/x.sh(N) scripts/'
+guard BLOCK 'diff =(rm -rf scripts) src/App.tsx'
+guard ALLOW 'f() { echo hi; }; f'
+guard ALLOW 'arr=(a b c); echo ${arr[1]}'
+guard ALLOW '(cd src && ls) && echo ok'
+guard ALLOW 'echo $((1+2))'
+# Seventh review of lot 4: a folded group may be a real subshell, glued to a
+# reserved word or to `{`; its content is judged too. Every grouping form of the
+# shell replays the destructive set and a harness write, directly and in `bash -c`.
+guard BLOCK '{(rm scripts/check.sh)}'
+guard BLOCK '{(rm -rf node_modules)}'
+guard BLOCK 'true || {(rm scripts/check.sh)}'
+guard BLOCK 'if true; then(rm scripts/check.sh); fi'
+guard BLOCK 'if true; then(git push --force origin main); fi'
+guard BLOCK 'if true; then(git reset --hard HEAD~1); fi'
+guard BLOCK 'if true; then(cp /tmp/x scripts/check.sh); fi'
+guard BLOCK 'if true; then(echo x > scripts/check.sh); fi'
+guard BLOCK 'if(rm scripts/check.sh); then :; fi'
+guard BLOCK 'if false; then :; else(rm scripts/check.sh); fi'
+guard BLOCK 'while(rm scripts/check.sh); do :; done'
+guard BLOCK 'until(rm scripts/check.sh); do :; done'
+guard BLOCK 'for i in 1; do(rm scripts/check.sh); done'
+guard BLOCK 'time(rm scripts/check.sh)'
+guard BLOCK "bash -c 'if true; then(rm scripts/check.sh); fi'"
+guard BLOCK "bash -c 'for i in 1; do(rm -rf node_modules); done'"
+guard BLOCK 'cat <=(rm scripts/check.sh)'
+guard BLOCK 'cat <=(rm -rf src)'
+guard BLOCK 'cat >=(rm scripts/check.sh)'
+guard BLOCK 'cat <(rm scripts/check.sh)'
+guard BLOCK 'cat $(rm scripts/check.sh)'
+guard BLOCK "ls *(e:'rm scripts/check.sh':)"
+guard BLOCK "ls *(e:'git push --force origin main':)"
+guard BLOCK 'ls *(+cleanup)'
+guard BLOCK 'cd /tmp; pushd +1; cp /tmp/x .babelrc'
+guard BLOCK 'pushd -n /tmp; cp /tmp/x .babelrc'
+guard BLOCK '{(cd /tmp)}; cp /tmp/x .babelrc'
+guard ALLOW 'ls src/*(.)'
+guard ALLOW 'ls src/*(Lk+3)'
+guard ALLOW 'arr+=(d e); echo ${arr[1]}'
+guard ALLOW 'files=(README.md src/App.tsx); echo $files'
+guard ALLOW 'if true; then(echo done); fi'
+# Eighth review of lot 4: a subshell with no blank is a full command, and a group
+# after `x=` is an array only in command position (as an argument, a qualifier).
+guard BLOCK '{(:>scripts/check.sh)}'
+guard BLOCK '{(:>>.babelrc)}'
+guard BLOCK 'if true; then(echo>scripts/check.sh); fi'
+guard BLOCK "touch x= && ls x=(e:'rm scripts/check.sh':)"
+guard BLOCK "ls a+=(e:'git push --force origin main':)"
+guard BLOCK "ls *=(e:'rm scripts/check.sh':)"
+guard ALLOW 'files=(README.md src/App.tsx); echo $files'
+# Ninth review of lot 4: no group is exempt from the qualifier refusal, since a
+# fake command position (`\;x=`, `{x=`) passed for an array assignment.
+guard BLOCK "ls \\;x=(e:'rm scripts/check.sh':)"
+guard BLOCK "ls {x=(e:'rm scripts/check.sh':)"
+guard BLOCK "x=(e:'rm scripts/check.sh':)"
+# Tenth review of lot 4: every group that opens no command is checked for a
+# qualifier running code, after a closed group too; subshells and arithmetic pass.
+guard BLOCK "ls (README.md|x)(e:'rm scripts/check.sh':)"
+guard BLOCK "ls (README.md)(e:'rm scripts/check.sh':)"
+guard BLOCK "ls ';'(e:'rm scripts/check.sh':)"
+guard ALLOW '(cd src/theme && ls) && echo ok'
+guard ALLOW 'true && (cd src/theme && ls)'
+guard ALLOW 'x=$((n+m)); echo $x'
+guard ALLOW '(( n+=1 )); echo $n'
+# Eleventh review of lot 4: an escaped substitution opener is a literal character
+# followed by a group, which zsh may read as qualifiers.
+guard BLOCK "ls \\\$(e:'rm scripts/check.sh':)"
+guard BLOCK "ls \\<(e:'rm scripts/check.sh':)"
+guard BLOCK "ls \\>(e:'rm scripts/check.sh':)"
+guard ALLOW "$(printf 'echo ok\n(cd src/theme/ && ls)')"
+# Closing review of lot 4: a nested group folds to a single word; its content is
+# judged all the same, at every depth.
+guard BLOCK '{({(rm -rf node_modules)})}'
+guard BLOCK '{({({(rm -rf node_modules)})})}'
+guard BLOCK '{({(:>scripts/check.sh)})}'
+guard BLOCK 'true;{({(cp /tmp/x .babelrc)})}'
+guard BLOCK '{({(git reset --hard)})}'
+guard ALLOW 'ls src/theme/*(.)'
+COPY_MSG="$(python3 -c 'import json,sys; json.dump({"tool_name":"Bash","tool_input":{"command":sys.argv[1]},"cwd":sys.argv[2]}, sys.stdout)' 'cp -R src/features src/backup/' "$REPO" |
+  CLAUDE_PROJECT_DIR="$REPO" MIVRO_HARNESS_UNLOCK='' python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc scripts/hooks/pre-bash-guard.py 2>&1 >/dev/null)"
+case "$COPY_MSG" in
+  *"one by one"*) ok "an unjudgeable copy names its way out" ;;
+  *) bad "an unjudgeable copy gets the generic message: $COPY_MSG" ;;
+esac
+guard_unlocked() { # guard_unlocked <ALLOW|BLOCK> <command>: unlocked session, clean settings
+  local code got
+  python3 -c 'import json,sys; json.dump({"tool_name":"Bash","tool_input":{"command":sys.argv[1]},"cwd":sys.argv[2]}, sys.stdout)' "$2" "$REPO" |
+    HOME="$UNLOCK_HOME" CLAUDE_PROJECT_DIR="$REPO" MIVRO_HARNESS_UNLOCK=1 \
+      python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc scripts/hooks/pre-bash-guard.py >/dev/null 2>&1
+  code=$?
+  got="ALLOW"
+  [ "$code" -eq 2 ] && got="BLOCK"
+  if [ "$got" = "$1" ]; then ok "unlocked $1  $2"; else bad "unlocked: expected $1, got $got: $2"; fi
+}
+guard_unlocked BLOCK 'echo x >> scripts/hooks/harness_paths.py'
+guard_unlocked BLOCK "sed -i '' s/a/b/ scripts/hooks/harness_paths.py"
+guard_unlocked BLOCK 'cp /tmp/x.py scripts/hooks/'
+guard_unlocked ALLOW 'git restore -- scripts/hooks/harness_paths.py'
+# Moving or removing the whole directory takes every guard with it.
+guard_unlocked BLOCK 'mv scripts/hooks scripts/hooks.old'
+guard_unlocked BLOCK 'git rm -r scripts/hooks'
+guard_unlocked BLOCK "cp -R $DROP_SRC/hooks scripts/"
+guard_unlocked BLOCK "ditto $DROP_SRC/hooks scripts/hooks"
+guard_unlocked BLOCK "cp -R $DROP_SRC/hooks/* scripts/hooks/"
+guard_unlocked BLOCK "cp $DROP_SRC/hooks/*(D) scripts/hooks/"
+guard_unlocked ALLOW "cp -R $DROP_SRC/hooks $(tmp_dir)/"
+guard_unlocked ALLOW 'echo x > scripts/check.sh'
+guard_unlocked BLOCK '{(echo x >> scripts/hooks/harness_paths.py)}'
+guard_unlocked BLOCK 'cat <=(echo x >> scripts/hooks/harness_paths.py)'
+guard_unlocked BLOCK '{(echo>scripts/hooks/harness_paths.py)}'
 (CLAUDECODE=1 bash scripts/harness-lock.sh --update </dev/null >/dev/null 2>&1)
 expect_exit 1 $? "relock refuses to run inside Claude Code"
 # J-043: every file jest loads before the tests is part of the harness.

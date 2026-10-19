@@ -2147,3 +2147,204 @@ Plutôt que de rattraper un cas de plus, la règle se simplifie : **tout** éche
 l'arbre proposé vaut panne. C'est le différentiel qui protège contre un vérificateur cassé, puisque
 le même contrôle échoue alors aussi sur l'arbre actuel. Le code 3 ne sert plus qu'à nommer la
 panne. Deux cas de plus au self-test : sortie au chargement, et `os._exit`.
+
+**Lot 4 du chantier (2026-10-15) : ce qu'une copie dépose dans un dossier.** La garde Bash ne
+jugeait que le mot de la destination d'un `cp`/`mv`/`ln`/`install`. Les commandes `cp src/x.py .`,
+`mv src/x.py ./` et `cp -R "$TMPDIR/scripts" .` passaient donc, alors qu'elles écrivent `./x.py` ou
+un arbre `./scripts/` entier. Désormais, quand la destination est un dossier, chaque source y est
+jugée sous son nom, et un dossier, ou le contenu d'un dossier (`src/.`), y est jugé comme un fichier
+inconnu : refusé partout où un tel fichier serait du harness. Le mot du dossier n'est plus jugé comme
+un fichier, ce qui corrige un faux positif plus ancien : `mv README.md docs/` était lu comme
+l'écriture d'un fichier racine `docs`. `mkfifo` et `mknod` comptent comme des écritures. En session
+déverrouillée, l'écriture Bash d'un module des gardes (`scripts/hooks/*.py`) par fichier est refusée
+(redirection, `sed -i`, `tee`, `cp`, `mv`, `ln`, `ditto`, `rsync`, `git rm`, `mkfifo`) : elle contournerait
+la simulation de l'Edit (J-056). Les écrivains indirects (`tar -C`, `unzip -d`, `curl -o`, `patch`,
+`git apply`, un interpréteur) restent ouverts en session déverrouillée : `EN-ATTENTE.md` §3. `git restore` et `git checkout` restent ouverts, c'est
+la voie de réparation. En appliquant ce lot, la simulation de l'Edit a refusé deux modifications
+couplées appliquées séparément (signature et appel), chacune cassant la voie de réparation : elles
+ont été réordonnées en étapes valides une à une. Vingt cas au self-test, qui passe à 463/0.
+
+**Revue du lot 4 : la régression du nom fictif.** La première version jugeait un arbre copié comme un
+« fichier inconnu » unique. En zone produit, ce nom fictif passe pour un fichier produit, alors que
+l'arbre peut porter `src/theme/contrast.test.ts` ou un `__mocks__/`. Le faux positif de `HEAD`, qui
+lisait `src/` comme un fichier racine, bloquait ces copies par accident ; en le retirant, la
+première version les a rouvertes. Elle ignorait aussi que `ditto` et `cp -R x/` copient le
+**contenu**. Désormais, une source dossier lisible est parcourue, et chaque fichier est jugé à son
+vrai point d'arrivée selon l'outil. Une source illisible (`$(…)`) ou trop grosse est refusée dès
+que la destination est dans le dépôt. En session déverrouillée, `scripts`, `scripts/hooks` et tout
+ce qui est dessous comptent comme le code des gardes : `mv scripts/hooks …` ou `git rm -r
+scripts/hooks` les auraient emportées, et la session avec. Seize cas de plus au self-test, qui
+passe à 477/0.
+
+**Seconde revue du lot 4.** Deux régressions en session verrouillée ont été corrigées. Une source
+avec glob (`cp -R x/* src/`) était lue comme un nom littéral : elle est désormais étendue comme le
+ferait le shell, et une source sans correspondance compte comme inconnue. `rsync -R` (`--relative`)
+dépose chaque source sous son chemin tel qu'écrit : son point d'arrivée compte comme inconnu, et
+`R` ne vaut plus « récursif » pour rsync. Le parcours d'un arbre compte aussi les dossiers dans son
+plafond. La promesse sur les modules des gardes est réduite à ce qui est couvert. Six cas de plus
+au self-test, qui passe à 483/0.
+
+**Troisième revue du lot 4 : on arrête de modéliser le shell.** Après les globs et `rsync -R`, la
+revue a trouvé les accolades (`{theme,x}`), une source créée plus tôt dans la même commande
+(`mkdir … && touch … && cp -R …`), un glob dans la destination (`src/the*/`), et un parcours d'arbre
+sans plafond global qui pouvait dépasser le délai du hook. Ces formes s'ajoutent à toutes celles
+déjà corrigées : c'est la leçon de J-042 et J-045, la sémantique du shell ne se ferme pas par
+énumération. La règle devient **conservatrice et bornée**, jamais plus faible qu'avant le lot :
+
+- une copie récursive vers le dépôt est refusée, sans parcourir l'arbre : `cp -R`, `ditto`,
+  `rsync`, ou le déplacement d'un dossier ou d'une source qui n'existe pas encore ;
+- une copie de fichiers est jugée fichier par fichier, à `<dossier>/<nom>` ;
+- tout cas incertain compte comme inconnu, donc refusé dans le dépôt : accolades, glob dans la
+  destination, glob qui peut viser des dotfiles, glob vers un dossier qui contient déjà un fichier
+  protégé, glob sans correspondance.
+
+Le prix est un faux positif assumé : l'agent ne copie plus récursivement à l'intérieur du dépôt
+(`cp -R src/features src/backup/`). Le travail produit n'en a pas besoin. Le self-test passe à 489/0.
+
+**Quatrième revue du lot 4 : le shell de l'agent est zsh.** La revue a trouvé quatre trous :
+
+- `mknod -m 600 ../.babelrc p` : la garde jugeait la valeur `600` comme cible. Elle saute désormais
+  les valeurs de `-m`, `--mode`, `-Z` et `--context`.
+- Un glob en source ne se juge pas en Python : zsh le développe autrement. Les qualificateurs
+  `*(D)` prennent les dotfiles, il y a aussi `[^a]*` et `**/`. Et un fichier créé plus tôt dans la
+  même commande ne se voit pas encore. Toute source à motif (`*`, `?`, `[`, `<`, `(`) compte donc
+  comme inconnue. De plus, un groupe collé à un caractère de glob (`*(D)`, `@(a|b)`) coupait le mot
+  au `(` : `cp x/*(D) dest` se lisait comme une copie vers le glob `x/*`. Le découpage replie
+  maintenant ce groupe en `*` avant shlex.
+- `cd -` se lisait comme `cd`, donc `$HOME`. Le dossier courant devient inconnu après `cd -`,
+  `pushd +N`/`-N`, et après un `cd` relatif quand CDPATH est posé, dans l'environnement ou dans la
+  commande.
+- Le message de refus était générique. Une copie dont l'atterrissage ne se juge pas reçoit
+  maintenant un message dédié : copier fichier par fichier avec des chemins littéraux, ou passer
+  par `git mv` ou par l'outil Edit.
+
+Nouveau faux positif assumé : une copie par glob à l'intérieur du dépôt est refusée
+(`cp src/components/atoms/Avatar/*.ts src/components/`). Au passage, le filet de J-056 a refusé une
+édition qui utilisait une constante avant de la définir : il a joué son rôle. Le self-test passe à
+501/0.
+
+**Cinquième revue du lot 4 : une réécriture du texte rouvre ce qu'elle ne vise pas.** Le repli des
+groupes `*(…)` s'appliquait à tout le texte, chaînes entre quotes comprises. Le code inline passé à
+`python3 -c` arrivait donc réécrit au juge : `os.rename(*("/tmp/x","scripts/check.sh"))` devenait
+`os.rename(**)`, sans chemin littéral, et passait alors que `HEAD` le refusait. Le repli ne touche
+plus que le texte hors quotes, puisqu'entre quotes le shell ne développe aucun motif. Le `!` sort de
+la classe : en bash, `!(cmd)` collé est un sous-shell nié. Deux autres corrections :
+
+- `cd ~-`, `~+` et `~N`, ainsi qu'un `pushd` sans argument, rendent le dossier courant inconnu ;
+- en session déverrouillée, une copie inconnue vers une destination hors du dépôt n'est plus prise
+  pour une copie vers sa racine.
+
+**Règle pour la suite** : toute réécriture du texte avant shlex se rejoue sur des cas de code inline
+au self-test. Les deux cas `guard BLOCK` de `python3 -c` posés ici l'auraient attrapée. Deux trous
+plus anciens, hors du lot, vont dans EN-ATTENTE §4 : le dossier courant n'est pas restauré après un
+sous-shell, et un nom de commande qui contient `$` ailleurs qu'en tête n'est pas jugé. Le self-test
+passe à 508/0.
+
+**Sixième revue du lot 4 : en zsh, un qualificateur se colle à n'importe quel mot.** Le repli ne
+visait qu'un groupe placé après `* ? ] @ +`. Or zsh lit aussi `fichier(N)` comme un glob, et
+`*''(D)` ou `*("D")` aussi : une quote vide ou une quote autour du qualificateur ne change rien.
+Coupée au `(`, la commande `cp /tmp/check.sh(N) scripts/` perdait sa destination et passait. La
+règle devient « collé à un mot » : tout `(…)` hors quotes qui suit un caractère de mot ou une quote
+fermante est replié en `*`. Seul `nom()`, la définition de fonction, reste tel quel. Le repli
+masquerait la commande d'un `=(cmd)` en début de mot, qui est une substitution de processus en
+zsh : elle est donc extraite et jugée comme `<(cmd)`. Un tableau `x=(a b)` est replié sans
+dommage.
+
+**Règle pour la suite** : chaque forme de glob se teste avec ses variantes de quote (quote vide
+avant le `(`, quote autour du qualificateur) et sur un mot sans caractère de glob. Le self-test
+passe à 517/0.
+
+**Septième revue du lot 4 : un groupe replié peut être un vrai sous-shell.** Le repli remplaçait
+par `*` tout `(…)` collé à un mot, sans regarder ce mot. Or un `(` collé à `{` ou à un mot réservé
+ouvre un sous-shell que zsh et bash exécutent : `{(rm scripts/check.sh)}`,
+`if true; then(git push --force origin main); fi`, `while(…)`, `do(…)`, `else(…)`, `time(…)`. La
+commande qu'il contenait n'était plus jugée, et ces formes passaient en session verrouillée alors
+que `8fd98f1` les refusait. C'est une régression du lot. De même, `=(cmd)` n'était extrait qu'après
+un blanc ou `;&|(`. `cat <=(rm -rf src)` échappait donc à l'extraction, et le repli effaçait ensuite
+le groupe. Plutôt que d'énumérer les mots réservés, les deux lectures sont désormais jugées :
+
+- le contenu de chaque groupe replié est aussi jugé comme une commande, dans sa propre portée de
+  dossier courant ; un contenu d'un seul mot (`*(.)`, `fichier(N)`) n'est pas jugé (seuil corrigé à la huitième revue) ;
+- `=(` est extrait partout, sauf derrière un nom de tableau (`x=(…)`, `x+=(…)`, `a[1]=(…)`).
+  Extraire trop est sans risque, le contenu est seulement jugé.
+
+Deux trous antérieurs au lot, que la revue a trouvés dans le même code, sont corrigés au passage.
+D'abord, en zsh, le qualificateur `*(e:'cmd':)` exécute `cmd` pour chaque fichier, et `*(+fonction)`
+appelle une fonction : un groupe qui porte l'un ou l'autre est refusé, faute de distinguer ce code
+des lettres de qualificateur. Ensuite, `pushd -n DIR` ne change pas de dossier en bash : un `pushd`
+avec une option rend désormais le dossier courant inconnu.
+
+**Règle pour la suite** : toute réécriture du texte avant shlex se rejoue aussi sur chaque forme de
+groupement du shell (`{(…)}`, `then(…)`, `do(…)`, `else(…)`, `if(…)`, `while(…)`, `until(…)`,
+`time(…)`, `<=(…)`, `>=(…)`, `=(…)`, `<(…)`, `$(…)`), avec le jeu destructeur d'origine et une
+écriture du harness, en direct et sous `bash -c`. Chaque cas reste `BLOCK`. Le self-test passe à
+551/0.
+
+**Huitième revue du lot 4 : un mot n'est pas un découpage shell.** Le seuil « un seul mot » de la
+septième revue comptait les mots avec `str.split()`. Or `{(:>scripts/check.sh)}` et
+`if true; then(echo>scripts/check.sh); fi` sont des commandes complètes sans aucun blanc : elles
+n'étaient pas jugées, et passaient alors que `8fd98f1` les refusait. Le contenu est désormais
+découpé par `tokenize`. Il n'est sauté que s'il donne un seul mot qui n'est pas un opérateur, et il
+est jugé quand il ne se découpe pas. Second trou : l'exemption « tableau » valait pour tout groupe
+placé après un `=`. Or, en argument, zsh lit `ls x=(e:'cmd':)` comme un motif à qualificateurs, et
+exécute `cmd`. Un groupe n'est donc un tableau qu'en position de commande (`x=(…)`, `x+=(…)`,
+`a[1]=(…)` en tête de commande). Le refus du qualificateur s'applique aussi à un `=(…)` collé à un
+mot (`*=(…)`), que l'extraction prend pour une substitution. Faux positif assumé, rare : un
+sous-shell collé dont le texte contient un `e` suivi d'une ponctuation, comme
+`then(npm test -- src/theme/)`, est refusé avec le message du qualificateur.
+
+**Règle pour la suite** : toute forme de sous-shell se teste aussi sans aucun blanc (`{(:>f)}`,
+`then(echo>f)`), et chaque exemption se teste en position d'argument (`ls x=(…)`). Le self-test
+passe à 560/0.
+
+**Neuvième revue du lot 4 : l'exemption « tableau » est retirée.** La position de commande se
+lisait sur le texte brut. Un opérateur échappé (`ls \;x=(…)`) ou un `{` collé (`ls {x=(…)`)
+passait donc pour un début de commande. Le groupe comptait alors comme un tableau, et le refus du
+qualificateur `e:` sautait. Plutôt que de durcir une exemption de plus (la leçon de la troisième
+revue), plus aucun groupe n'en bénéficie : le refus du qualificateur vaut aussi pour les tableaux.
+Faux positif assumé : un tableau dont un élément contient un `e` suivi d'une ponctuation
+(`files=(src/theme/a.ts)`) est refusé. Le travail produit n'utilise pas de tableaux zsh dans l'outil
+Bash.
+
+**Règle pour la suite** : chaque exemption syntaxique se teste avec un opérateur échappé (`\;`,
+`\&`, `\|`) et un `{` collé devant le mot qu'elle reconnaît. Le self-test passe à 563/0.
+
+**Dixième revue du lot 4 : on cesse d'énumérer où un qualificateur se colle.** Après `*`, une
+quote, un nom, `=`, un opérateur échappé, la revue a trouvé un qualificateur collé derrière un
+groupe fermé : `ls (README.md|x)(e:'cmd':)`. Le repli s'arrête au `)`, et le groupe suivant
+n'était pas examiné. La règle est retournée. Un `(` n'ouvre un sous-shell qu'en tête du texte ou
+juste après un `;`, `&`, `|` ou `(` non échappé : partout ailleurs, bash le refuse et zsh y lit un
+motif. Tout groupe hors quotes qui n'ouvre pas une commande est donc examiné par le refus du
+qualificateur, qu'il soit replié ou non. `$((…))` est de l'arithmétique et reste ouvert. Une
+erreur de lecture sur un début de commande ne produit qu'un faux positif
+(`! (cd src/theme && ls)`), jamais un trou.
+
+**Règle pour la suite** : une protection syntaxique se définit par ce qui est sûr (ici, les seuls
+débuts de commande), pas par la liste des formes dangereuses. Le self-test passe à 570/0.
+
+**Onzième revue du lot 4 : chaque lecteur du texte a ses propres échappements.** L'extraction des
+substitutions ignore les `\`. Dans `ls \$(e:'cmd':)`, `\<(…)` et `\>(…)`, zsh lit un caractère
+littéral suivi d'un qualificateur, mais la garde y voyait une substitution : le groupe n'arrivait
+donc jamais au refus du qualificateur. Correctif additif, pour ne rien rouvrir : un ouvreur échappé
+reste extrait et jugé comme une commande, et son contenu passe en plus par le refus du
+qualificateur. Au passage, le saut de ligne compte de nouveau comme un début de commande : un
+`rstrip()` l'effaçait. Faux positif assumé : un sous-shell après un mot réservé et un blanc
+(`if (cd src/theme/ && ls); then :; fi`) est examiné comme un motif.
+
+**Règle pour la suite** : chaque ouvreur de substitution se teste aussi échappé (`\$(`, `\<(`,
+`\>(`, `\=(`). À terme, les fonctions qui parcourent le texte devraient partager un seul lecteur
+de quotes et d'échappements. Les revues ne peuvent pas rejouer un qualificateur `e:` en Bash, car
+la garde refuse la sonde elle-même : un exécutable de sonde dédié, approuvé par Cédric, est à
+décider. Le self-test passe à 574/0.
+
+**Revue de clôture du lot 4 (bornée, sur décision de Cédric) : l'imbrication.** Le reviewer a
+rejoué 1 259 sondes différentielles contre `8fd98f1` : 42 charges sous 30 formes de groupement.
+Une seule régression : `{({(rm -rf node_modules)})}`, que zsh exécute. Le contenu du groupe
+extérieur, `{(rm -rf node_modules)}`, se découpe en un seul mot, `{*}`, parce que le groupe
+intérieur y est replié. Il était donc sauté comme un qualificateur. Il n'est désormais sauté que
+s'il ne contient aucun groupe replié, et le jugement descend alors à chaque niveau. Faux positif
+noté, conforme à la règle conservatrice de la troisième revue : `mv` d'un dossier dans le dépôt
+(`mv src/components src/renamed`) est refusé, et `git mv` reste la voie.
+
+**Règle pour la suite** : la matrice des groupements se teste aussi sur deux niveaux
+d'imbrication. Le self-test passe à 579/0.
