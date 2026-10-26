@@ -243,6 +243,11 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
 - [x] ~~**J-040 lot 1 bis**~~ → `compression` 1.8.2 mergé le 2026-10-08 (PR #2), branche du
       harness rebasée, relock fait : stage `push` entièrement vert.
 - [x] **J-040 lot 3** : capteur `audit` à avis acceptés, posé le 2026-10-05.
+- [x] ~~**J-040 lot 4**~~ : le 2026-10-26, quatre nouveaux avis « high » bloquaient le pre-push. Ils
+      sont corrigés dans les plages déclarées, par le lockfile seul : `zod` 4.6.7, `body-parser`
+      1.20.9, `launch-editor` 2.14.2, `undici` 6.29.1.
+- [ ] Session déverrouillée : retirer de `scripts/audit-accepted.json` l'avis
+      `GHSA-vfj7-8cjw-p6xm`, qui n'est plus signalé. Le capteur `audit` le marque `stale`, sans bloquer.
 - [ ] ⚠️ À SPÉCIFIER AVEC CÉDRIC : montée React Native 0.85 → 0.86+ (ferme les avis acceptés de
       J-040, expiration 2027-01-05) — ADR, rebuild natif, reanimated, worklets, maps, firebase.
 - [ ] Merger dans `develop`, puis `develop` dans `main`, puis `bash scripts/setup-branch-protection.sh`.
