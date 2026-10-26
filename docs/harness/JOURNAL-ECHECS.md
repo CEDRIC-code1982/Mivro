@@ -69,6 +69,8 @@
 | J-052 | 1re CI : identité git, `__pycache__`, cache de bytecode forgeable   | OUVERT  |
 | J-053 | Le self-test a commité dans le vrai dépôt (`scratch_repo`)          | OUVERT  |
 | J-054 | 13e revue : quatre routes vers le jeton par le trousseau            | OUVERT  |
+| J-055 | Le chantier du harness coûtait plus que le harness lui-même         | OUVERT  |
+| J-056 | L'agent a cassé les gardes en deux éditions, et s'est enfermé       | OUVERT  |
 
 ---
 
@@ -1887,7 +1889,7 @@ la fasse pas rougir. J-052 passe RÉSOLU quand `battery` est vert sur la PR #3.
 
 ## J-053 — Le self-test a commité dans le vrai dépôt
 
-**Date** : 2026-10-08 · **Statut** : OUVERT — correctif dans `EN-ATTENTE.md` §6
+**Date** : 2026-10-08 · **Statut** : OUVERT — appliqué le 2026-10-08 ; preuve : relock et CI verte
 
 **Observé.** Après la session déverrouillée du 2026-10-08, `harness/en-attente-5-8` portait deux
 commits vides « init », d'auteur `selftest <selftest@mivro>`, créés à 14:05 et 14:06, un par
@@ -1910,9 +1912,29 @@ sortie du self-test.
 **Réponse prévue** (`EN-ATTENTE.md` §6) : `scratch_repo` échoue fermé, les appelants s'arrêtent sur
 son échec, et la sortie du self-test vérifie `HEAD` et les références des branches.
 
+**Appliqué le 2026-10-08** (ancien §6 d'EN-ATTENTE), en session déverrouillée. `scratch_repo` vérifie
+que `git init` a pris dans le répertoire attendu (`rev-parse --show-toplevel`), puis commite par
+`--git-dir`/`--work-tree` explicites. Les deux pannes, rejouées sur un faux dépôt « extérieur » du
+scratchpad, rendent 1 sans commit. `cleanup()` compare en dernier `HEAD` et `refs/heads` à leur
+valeur de départ, et sort en 1 s'ils ont bougé. Les répertoires de `tmp_dir` sont enregistrés dans
+un fichier : le tableau se perdait dans le sous-shell de `$(…)`, et chaque run en laissait dans
+`$TMPDIR`. Un run n'en laisse plus aucun.
+
+La seconde forge `.pyc`, posée dans le `__pycache__/` voisin du source, a révélé un défaut du cas
+J-052. Sous le sandbox, le Python d'Apple ne peut pas écrire dans son cache par défaut
+(`~/Library/Caches/com.apple.python`). La forge échouait donc après avoir écrit `"evil"` dans le
+source, sans le restaurer. Le contrôle lisait alors `evil` dans le source et croyait la forge valide.
+Le cas ne passait que parce que l'autre lecture rendait aussi `evil` : un échec de forge pouvait
+valider un contrôle vide. Désormais la forge restaure le source dans un `finally` et vise
+explicitement le `__pycache__/` voisin. Son contrôle prend les options des hooks moins `-X` :
+`python3 -I -B` y charge bien `evil`, et seul `-X pycache_prefix` le neutralise.
+
+**Leçon ajoutée.** Le contrôle d'une sonde doit pouvoir distinguer « la forge marche » de « la
+forge a cassé l'état ». Une préparation qui échoue à moitié ne doit rien laisser derrière elle.
+
 ## J-054 — Treizième revue : le trousseau ne se ferme pas par le texte des commandes
 
-**Date** : 2026-10-08 · **Statut** : OUVERT — `EN-ATTENTE.md` §7, décision de Cédric
+**Date** : 2026-10-08 · **Statut** : OUVERT — appliqué le 2026-10-08 ; reste le jeton réduit (TODO)
 
 **Observé.** La garde du trousseau posée au §3 de J-051 refuse `gh auth token`,
 `gh auth status --show-token` et `security find-*-password -w/-g`. Quatre autres routes rendent le
@@ -1936,3 +1958,393 @@ lieu de déduire.
 **Réponse prévue** (`EN-ATTENTE.md` §7) : refuser GitHub au réseau du sandbox, et/ou un jeton à
 privilèges réduits pour les sessions Claude. La garde textuelle refuse en plus les quatre routes,
 avec une sonde réseau au self-test.
+
+**Appliqué le 2026-10-08** (ancien §7 d'EN-ATTENTE), en session déverrouillée, sur la décision de
+Cédric (« applique EN-ATTENTE §6 et §7 »). `.claude/settings.json` refuse `github.com`,
+`api.github.com`, `*.github.com` et `*.githubusercontent.com` (`sandbox.network.deniedDomains`, clé
+vérifiée dans le binaire 2.1.289). Le refus a pris effet dans la session même : la sonde
+`curl https://api.github.com` du self-test échoue, et le sandbox signale « host is on the deny
+list ». La garde refuse `security -i/-p` (options avant la commande), `gh auth git-credential`,
+`git credential fill|approve|reject`, `git credential-*` et le binaire `git-credential-*` appelé
+directement. Sans commande, `security` n'affiche que son aide : il n'a pas de mode interactif
+implicite. Le self-test vérifie aussi la clé dans la config, pour la CI et le terminal, où la sonde
+est sautée. Reste le jeton à privilèges réduits (TODO), hors du dépôt.
+
+**Vu par la 14e revue** (2026-10-08). Le code tient contre toutes les variantes essayées : options
+avant ou après la commande, `env`, `sh -c`, chemins absolus, `xargs`, `git -c credential.helper=…`,
+et le binaire `git-credential-*`. Il n'y a pas de régression sur `gh pr view`,
+`security list-keychains` ou `git credential --help`. Deux écarts, dont un dans le harness :
+
+- La sonde `curl` vers `api.github.com` passe sur **tout** échec, y compris hors ligne. Il lui faut
+  un contrôle positif, `registry.npmjs.org` joignable : `EN-ATTENTE.md` §1.
+- La TODO avait perdu l'entrée du jeton réduit et gardait un relock déjà fait. C'est corrigé avant le
+  commit.
+
+Règle à consigner pour le capteur `docrefs`, avec (a)(b)(c) de J-051 :
+
+- (d) une entrée OUVERT qui renvoie « à la TODO » doit avoir une ligne `- [ ]` ouverte dans
+  `TODO.md` qui la cite ;
+- (e) une case `harness:relock` encore ouverte alors que `scripts/harness.lock` correspond à l'arbre
+  est périmée.
+
+## J-055 — Le chantier du harness coûtait plus que le harness lui-même
+
+**Date** : 2026-10-12 · **Statut** : OUVERT — mode chantier posé ; clos au relock final de Cédric
+
+**Observé.** Du 2026-10-05 au 2026-10-12, chaque correctif du harness touchait un fichier protégé. Il
+fallait donc à chaque fois une session déverrouillée lancée par Cédric, un relock, une revue, puis un
+commit dans une autre session. Ces allers-retours ont coûté du temps et produit des erreurs de
+manipulation :
+
+- un commit est parti de la mauvaise branche, parce que des commentaires `#` collés dans zsh avaient
+  été passés en arguments ;
+- la PR #3 a été mergée avant le push de `b605577` ;
+- une session déverrouillée a été lancée sans que la variable arrive à Claude Code (lancée dans le
+  terminal, alors que la conversation continuait dans VS Code).
+
+Cédric : « Cela me fait perdre du temps et c'est source d'erreur. »
+
+**Leçon.** Le verrou protège le harness **contre l'agent pendant le travail produit**. Pendant la
+construction du harness lui-même, il protège le chantier contre son propre ouvrier. Un verrou qui
+s'ouvre et se referme à chaque modification ne protège pas mieux qu'un verrou qui reste ouvert le
+temps du chantier puis se ferme une fois, sous la CI, qui elle reste stricte du début à la fin.
+
+**Réponse : le mode chantier** (2026-10-12, décision de Cédric). Cédric lance une seule session
+déverrouillée (`MIVRO_HARNESS_UNLOCK=1`), et l'agent y modifie le harness seul, revue et commit local
+par lot, sans push.
+
+- Dans cette session seulement (`CLAUDECODE=1` et `harness_paths.unlocked()`), le capteur `lock`
+  **s'abstient** : il nomme la dérive, et elle n'est jamais comptée comme du vert. Le hook Stop ne
+  bloque plus chaque tour sur le chantier en cours.
+- Partout ailleurs, la dérive reste **rouge** : dans le terminal de Cédric et au pre-push (pas de
+  `CLAUDECODE`), et en CI (`MIVRO_NO_ABSTAIN=1` refuse toute abstention). Rien ne se merge sans le
+  relock.
+- Le relock reste à Cédric (`--update` refuse de tourner dans Claude Code), une fois, en fin de
+  chantier.
+- Le self-test juge les cas du verrou comme en session verrouillée. En chantier, il les saute en le
+  disant, et la CI les rejoue.
+
+J-055 passe RÉSOLU au relock final, quand Cédric relance une session normale.
+
+**Précision** (revues du lot 1, 2026-10-12). La condition de l'abstention n'est pas
+`harness_paths.unlocked()` appelée depuis la sonde. Quatre revues ont fait mentir une sonde qui
+importait `harness_paths` avec un fichier posé dans le dépôt : un `subprocess.py` à la racine, un
+`re.py` dans `scripts/hooks/`, un `.pyc` forgé, un paquet `harness_paths/`. La règle est donc
+réécrite dans `harness-lock.sh` (fonction `construction_unlocked`) : du shell, plus un Python isolé
+qui ne charge que la stdlib. Elle lit les settings du projet depuis la racine, et décode le JSON,
+parce qu'une clé dont le K final est écrit en échappement JSON (antislash, u, 004B) est la même clé pour Claude Code. `harness_paths.unlocked()`
+décode aussi le JSON désormais. Le self-test compare les deux copies de la règle sur les mêmes
+settings.
+
+## J-056 — L'agent a cassé les gardes en deux éditions, et s'est enfermé
+
+**Date** : 2026-10-12 · **Statut** : OUVERT — règle de méthode, cas au self-test posés au lot 2 ; clos au relock final
+
+**Observé.** En mode chantier, l'agent a modifié `harness_paths._settings_inject_unlock()` pour
+décoder le JSON (`json.loads`), puis a voulu ajouter `import json` dans une **seconde** édition.
+Entre les deux, chaque garde, qui importe `harness_paths` et appelle `unlocked()` à chaque outil,
+plantait sur `NameError`. Comme elles échouent fermé, elles refusaient tout, y compris l'édition qui
+les aurait réparées, et toute commande Bash. Cédric a dû ajouter l'import à la main, depuis un autre
+terminal.
+
+**Leçon.** L'échec fermé des gardes est voulu, et il a tenu : rien n'est passé sans jugement. Mais
+un fichier que les gardes chargent à chaque appel ne supporte aucun état intermédiaire cassé. Une
+modification de `scripts/hooks/*.py` se fait en **une seule édition**, import compris (ou par un
+`Write` du fichier entier), et sa syntaxe et son chargement se vérifient avant tout autre outil.
+
+**Réponse** (lot 2 du chantier) :
+
+- deux cas au self-test exécutent les deux gardes sur leur chemin **déverrouillé**
+  (`MIVRO_HARNESS_UNLOCK=1`). Les autres cas les lancent verrouillées, ce qui ne passait jamais
+  par le code qui a planté ;
+- `_settings_inject_unlock()` ne lève plus jamais d'exception. Toute erreur sur un fichier de
+  settings existant (illisible, pas en UTF-8, malformé) vaut refus. La revue du lot 2 avait trouvé
+  qu'un octet Latin-1 dans un settings faisait encore planter les deux gardes ;
+- le cas croisé a une 5e fixture, non UTF-8.
+
+En session, la règle de méthode reste la première protection : une garde cassée bloque avant que
+le self-test ait pu tourner.
+
+**Troisième occurrence, et réponse mécanique** (lot 3, 2026-10-12). L'agent a encore modifié
+`harness_paths.py` en deux éditions : `stat` utilisé, puis importé. Le `try/except` du lot 2 a
+rattrapé le `NameError`, donc pas de plantage cette fois. Mais `unlocked()` rendait `False`, la
+session se croyait verrouillée, et l'ajout de l'import a été refusé : Cédric l'a posé à la main. La
+règle de méthode écrite deux heures plus tôt n'avait pas suffi.
+
+La garde d'édition **simule** désormais, en session déverrouillée, toute modification de
+`scripts/hooks/*.py` sur une copie jetable du dossier. Elle vérifie que chaque module compile, que
+`harness_paths` se charge, que `unlocked()` tient toujours, et que les deux gardes répondent sans
+erreur à un appel anodin. Une édition qui casserait l'une de ces conditions est refusée **avant**
+d'atterrir, avec la raison. Un échec du vérificateur lui-même laisse passer l'édition, pour qu'il ne
+devienne jamais l'enfermement qu'il prévient. Les trois éditions fautives de cette session sont
+rejouées en payload et refusées, une édition anodine passe ; quatre cas au self-test. Les deux cas
+« chemin déverrouillé » visent maintenant un fichier du harness avec des settings propres : un
+exit 0 n'est possible que si la branche déverrouillée a vraiment été prise (contrôle négatif
+vérifié). Dernier écart de la revue du lot 2 : un fichier de settings non régulier (une FIFO
+bloquerait `open()`) est refusé avant toute ouverture, dans les deux copies de la règle.
+
+**Revue du lot 3 : le vérificateur pouvait lui-même enfermer.** Deux scénarios ont été démontrés
+sur des copies :
+
+- la sonde de la garde d'édition visait `src/`, jamais sa propre branche `scripts/hooks/`. Une
+  édition qui cassait cette branche, c'est-à-dire le chemin de réparation, passait la simulation, et
+  toutes les éditions suivantes de `scripts/hooks/` étaient refusées ;
+- tout échec du contrôle de santé valait refus. Un script de contrôle cassé (par exemple, `sys`
+  retiré de son import) refusait donc toute édition de `scripts/hooks/`, y compris celle qui le
+  réparait.
+
+Réponse :
+
+- le contrôle sonde aussi la garde d'édition sur un fichier de `scripts/hooks/`, avec un
+  `old_string` introuvable qui arrête la simulation imbriquée tout de suite ;
+- seul un code de sortie réservé (3, préfixe `BROKEN:`) signifie « l'édition casse les gardes ».
+  Toute autre erreur du vérificateur laisse passer ;
+- le refus est **différentiel** : on n'impute la panne à l'édition que si l'arbre actuel passe le
+  contrôle. Une édition sur un arbre déjà cassé, qui peut être la réparation, passe ;
+- délais alignés sur le `timeout` de 10 s du hook : 4 s par contrôle, 2 s par sonde ;
+- au self-test, deux cas rejouent les deux scénarios, et `edit_sim` exige le message de refus de la
+  simulation, puisqu'un plantage de la garde rend lui aussi 2. Le garde-temps du cas croisé ne
+  retient plus le tube de `$(…)`, ce qui coûtait 15 s par fixture.
+
+**Même session, seconde erreur du même ordre.** La fixture « clé échappée » du cas croisé a été
+écrite avec la séquence d'échappement JSON du K final. Or l'entrée des outils de l'agent est
+elle-même du JSON : la séquence a été décodée avant d'arriver dans le fichier, et la fixture était
+devenue identique à la clé en clair. Le cas passait donc sans rien prouver. C'est la leçon de J-053
+(un contrôle doit distinguer). Repérée parce que le contrat affichait un « K » seul à la place de la
+séquence. La fixture est désormais construite à l'exécution (`printf '\134'`, l'antislash en octal),
+et le cas vérifie que le texte ne contient pas la clé en clair.
+
+**Seconde revue du lot 3 : changement de principe.** La revue a encore trouvé deux trous dans le
+vérificateur lui-même. Une édition qui inversait sa logique passait, puis refusait toute édition
+suivante de `scripts/hooks/` par Edit ou Write. Et une lenteur ajoutée à `unlocked()` passait sans
+être vue, puis rendait le vérificateur aveugle. Chaque revue trouvait un niveau de plus, parce qu'on
+demandait au vérificateur de se vérifier lui-même. La réponse change donc de principe : la
+simulation est un filet contre les accidents, pas une frontière de sécurité, et son premier devoir
+est de garder **la voie de réparation** ouverte. En session déverrouillée, la garde Bash laisse
+passer `git restore -- scripts/hooks/<fichier>`, et le self-test le vérifie (refusé verrouillé). La
+simulation garantit donc d'abord que la garde Bash et `harness_paths` restent sains : chargement,
+`unlocked()` juste et rapide (1 s au plus), réponse en 1,5 s au plus. Une édition qui n'abîmerait
+que la garde d'édition se répare par ce `git restore`, que le message de refus indique. Corrigé
+aussi : le chemin est comparé sans casse (J-047), et un module créé par un Edit à `old_string` vide
+est simulé. Cinq cas de plus au self-test.
+
+**Troisième revue du lot 3.** Le principe tient. Le différentiel, le code réservé et la voie de
+réparation sont validés, et d'autres voies Bash (`git show … >`, `cp`) restent ouvertes même si
+`git restore` cassait. Un trou réel subsistait pourtant : une édition qui fait **bloquer**
+`harness_paths`, au lieu de le ralentir, dépassait le délai du contrôle, et ce dépassement comptait
+comme une panne du vérificateur, donc l'édition passait. Désormais, un dépassement sur l'arbre
+proposé vaut panne, toujours avec le différentiel (l'arbre actuel doit répondre dans son délai). Les
+délais sont resserrés : 3,5 s par contrôle, 1 s par sonde, 0,8 s pour `unlocked()`. Ils remplacent
+les valeurs des passes précédentes. La garde Bash est aussi sondée sur la commande de réparation
+elle-même. Trois cas de plus au self-test : `unlocked()` qui dort 60 s, une boucle au chargement, et
+une branche `git restore` cassée alors que `ls` reste intact.
+
+**Quatrième revue du lot 3.** Le budget de temps est validé (7,3 s au pire sur 10 s), et les faux
+refus sont improbables (marge de 6 à 8 fois). Une dernière voie restait, en un seul caractère :
+inverser le test `__main__` de `harness_paths` le fait sortir en code 2 au chargement. Ce n'est pas
+une `Exception`, le contrôle mourait sur un code autre que le code réservé, et l'édition passait.
+Plutôt que de rattraper un cas de plus, la règle se simplifie : **tout** échec du contrôle sur
+l'arbre proposé vaut panne. C'est le différentiel qui protège contre un vérificateur cassé, puisque
+le même contrôle échoue alors aussi sur l'arbre actuel. Le code 3 ne sert plus qu'à nommer la
+panne. Deux cas de plus au self-test : sortie au chargement, et `os._exit`.
+
+**Lot 4 du chantier (2026-10-15) : ce qu'une copie dépose dans un dossier.** La garde Bash ne
+jugeait que le mot de la destination d'un `cp`/`mv`/`ln`/`install`. Les commandes `cp src/x.py .`,
+`mv src/x.py ./` et `cp -R "$TMPDIR/scripts" .` passaient donc, alors qu'elles écrivent `./x.py` ou
+un arbre `./scripts/` entier. Désormais, quand la destination est un dossier, chaque source y est
+jugée sous son nom, et un dossier, ou le contenu d'un dossier (`src/.`), y est jugé comme un fichier
+inconnu : refusé partout où un tel fichier serait du harness. Le mot du dossier n'est plus jugé comme
+un fichier, ce qui corrige un faux positif plus ancien : `mv README.md docs/` était lu comme
+l'écriture d'un fichier racine `docs`. `mkfifo` et `mknod` comptent comme des écritures. En session
+déverrouillée, l'écriture Bash d'un module des gardes (`scripts/hooks/*.py`) par fichier est refusée
+(redirection, `sed -i`, `tee`, `cp`, `mv`, `ln`, `ditto`, `rsync`, `git rm`, `mkfifo`) : elle contournerait
+la simulation de l'Edit (J-056). Les écrivains indirects (`tar -C`, `unzip -d`, `curl -o`, `patch`,
+`git apply`, un interpréteur) restent ouverts en session déverrouillée : `EN-ATTENTE.md` §3. `git restore` et `git checkout` restent ouverts, c'est
+la voie de réparation. En appliquant ce lot, la simulation de l'Edit a refusé deux modifications
+couplées appliquées séparément (signature et appel), chacune cassant la voie de réparation : elles
+ont été réordonnées en étapes valides une à une. Vingt cas au self-test, qui passe à 463/0.
+
+**Revue du lot 4 : la régression du nom fictif.** La première version jugeait un arbre copié comme un
+« fichier inconnu » unique. En zone produit, ce nom fictif passe pour un fichier produit, alors que
+l'arbre peut porter `src/theme/contrast.test.ts` ou un `__mocks__/`. Le faux positif de `HEAD`, qui
+lisait `src/` comme un fichier racine, bloquait ces copies par accident ; en le retirant, la
+première version les a rouvertes. Elle ignorait aussi que `ditto` et `cp -R x/` copient le
+**contenu**. Désormais, une source dossier lisible est parcourue, et chaque fichier est jugé à son
+vrai point d'arrivée selon l'outil. Une source illisible (`$(…)`) ou trop grosse est refusée dès
+que la destination est dans le dépôt. En session déverrouillée, `scripts`, `scripts/hooks` et tout
+ce qui est dessous comptent comme le code des gardes : `mv scripts/hooks …` ou `git rm -r
+scripts/hooks` les auraient emportées, et la session avec. Seize cas de plus au self-test, qui
+passe à 477/0.
+
+**Seconde revue du lot 4.** Deux régressions en session verrouillée ont été corrigées. Une source
+avec glob (`cp -R x/* src/`) était lue comme un nom littéral : elle est désormais étendue comme le
+ferait le shell, et une source sans correspondance compte comme inconnue. `rsync -R` (`--relative`)
+dépose chaque source sous son chemin tel qu'écrit : son point d'arrivée compte comme inconnu, et
+`R` ne vaut plus « récursif » pour rsync. Le parcours d'un arbre compte aussi les dossiers dans son
+plafond. La promesse sur les modules des gardes est réduite à ce qui est couvert. Six cas de plus
+au self-test, qui passe à 483/0.
+
+**Troisième revue du lot 4 : on arrête de modéliser le shell.** Après les globs et `rsync -R`, la
+revue a trouvé les accolades (`{theme,x}`), une source créée plus tôt dans la même commande
+(`mkdir … && touch … && cp -R …`), un glob dans la destination (`src/the*/`), et un parcours d'arbre
+sans plafond global qui pouvait dépasser le délai du hook. Ces formes s'ajoutent à toutes celles
+déjà corrigées : c'est la leçon de J-042 et J-045, la sémantique du shell ne se ferme pas par
+énumération. La règle devient **conservatrice et bornée**, jamais plus faible qu'avant le lot :
+
+- une copie récursive vers le dépôt est refusée, sans parcourir l'arbre : `cp -R`, `ditto`,
+  `rsync`, ou le déplacement d'un dossier ou d'une source qui n'existe pas encore ;
+- une copie de fichiers est jugée fichier par fichier, à `<dossier>/<nom>` ;
+- tout cas incertain compte comme inconnu, donc refusé dans le dépôt : accolades, glob dans la
+  destination, glob qui peut viser des dotfiles, glob vers un dossier qui contient déjà un fichier
+  protégé, glob sans correspondance.
+
+Le prix est un faux positif assumé : l'agent ne copie plus récursivement à l'intérieur du dépôt
+(`cp -R src/features src/backup/`). Le travail produit n'en a pas besoin. Le self-test passe à 489/0.
+
+**Quatrième revue du lot 4 : le shell de l'agent est zsh.** La revue a trouvé quatre trous :
+
+- `mknod -m 600 ../.babelrc p` : la garde jugeait la valeur `600` comme cible. Elle saute désormais
+  les valeurs de `-m`, `--mode`, `-Z` et `--context`.
+- Un glob en source ne se juge pas en Python : zsh le développe autrement. Les qualificateurs
+  `*(D)` prennent les dotfiles, il y a aussi `[^a]*` et `**/`. Et un fichier créé plus tôt dans la
+  même commande ne se voit pas encore. Toute source à motif (`*`, `?`, `[`, `<`, `(`) compte donc
+  comme inconnue. De plus, un groupe collé à un caractère de glob (`*(D)`, `@(a|b)`) coupait le mot
+  au `(` : `cp x/*(D) dest` se lisait comme une copie vers le glob `x/*`. Le découpage replie
+  maintenant ce groupe en `*` avant shlex.
+- `cd -` se lisait comme `cd`, donc `$HOME`. Le dossier courant devient inconnu après `cd -`,
+  `pushd +N`/`-N`, et après un `cd` relatif quand CDPATH est posé, dans l'environnement ou dans la
+  commande.
+- Le message de refus était générique. Une copie dont l'atterrissage ne se juge pas reçoit
+  maintenant un message dédié : copier fichier par fichier avec des chemins littéraux, ou passer
+  par `git mv` ou par l'outil Edit.
+
+Nouveau faux positif assumé : une copie par glob à l'intérieur du dépôt est refusée
+(`cp src/components/atoms/Avatar/*.ts src/components/`). Au passage, le filet de J-056 a refusé une
+édition qui utilisait une constante avant de la définir : il a joué son rôle. Le self-test passe à
+501/0.
+
+**Cinquième revue du lot 4 : une réécriture du texte rouvre ce qu'elle ne vise pas.** Le repli des
+groupes `*(…)` s'appliquait à tout le texte, chaînes entre quotes comprises. Le code inline passé à
+`python3 -c` arrivait donc réécrit au juge : `os.rename(*("/tmp/x","scripts/check.sh"))` devenait
+`os.rename(**)`, sans chemin littéral, et passait alors que `HEAD` le refusait. Le repli ne touche
+plus que le texte hors quotes, puisqu'entre quotes le shell ne développe aucun motif. Le `!` sort de
+la classe : en bash, `!(cmd)` collé est un sous-shell nié. Deux autres corrections :
+
+- `cd ~-`, `~+` et `~N`, ainsi qu'un `pushd` sans argument, rendent le dossier courant inconnu ;
+- en session déverrouillée, une copie inconnue vers une destination hors du dépôt n'est plus prise
+  pour une copie vers sa racine.
+
+**Règle pour la suite** : toute réécriture du texte avant shlex se rejoue sur des cas de code inline
+au self-test. Les deux cas `guard BLOCK` de `python3 -c` posés ici l'auraient attrapée. Deux trous
+plus anciens, hors du lot, vont dans EN-ATTENTE §4 : le dossier courant n'est pas restauré après un
+sous-shell, et un nom de commande qui contient `$` ailleurs qu'en tête n'est pas jugé. Le self-test
+passe à 508/0.
+
+**Sixième revue du lot 4 : en zsh, un qualificateur se colle à n'importe quel mot.** Le repli ne
+visait qu'un groupe placé après `* ? ] @ +`. Or zsh lit aussi `fichier(N)` comme un glob, et
+`*''(D)` ou `*("D")` aussi : une quote vide ou une quote autour du qualificateur ne change rien.
+Coupée au `(`, la commande `cp /tmp/check.sh(N) scripts/` perdait sa destination et passait. La
+règle devient « collé à un mot » : tout `(…)` hors quotes qui suit un caractère de mot ou une quote
+fermante est replié en `*`. Seul `nom()`, la définition de fonction, reste tel quel. Le repli
+masquerait la commande d'un `=(cmd)` en début de mot, qui est une substitution de processus en
+zsh : elle est donc extraite et jugée comme `<(cmd)`. Un tableau `x=(a b)` est replié sans
+dommage.
+
+**Règle pour la suite** : chaque forme de glob se teste avec ses variantes de quote (quote vide
+avant le `(`, quote autour du qualificateur) et sur un mot sans caractère de glob. Le self-test
+passe à 517/0.
+
+**Septième revue du lot 4 : un groupe replié peut être un vrai sous-shell.** Le repli remplaçait
+par `*` tout `(…)` collé à un mot, sans regarder ce mot. Or un `(` collé à `{` ou à un mot réservé
+ouvre un sous-shell que zsh et bash exécutent : `{(rm scripts/check.sh)}`,
+`if true; then(git push --force origin main); fi`, `while(…)`, `do(…)`, `else(…)`, `time(…)`. La
+commande qu'il contenait n'était plus jugée, et ces formes passaient en session verrouillée alors
+que `8fd98f1` les refusait. C'est une régression du lot. De même, `=(cmd)` n'était extrait qu'après
+un blanc ou `;&|(`. `cat <=(rm -rf src)` échappait donc à l'extraction, et le repli effaçait ensuite
+le groupe. Plutôt que d'énumérer les mots réservés, les deux lectures sont désormais jugées :
+
+- le contenu de chaque groupe replié est aussi jugé comme une commande, dans sa propre portée de
+  dossier courant ; un contenu d'un seul mot (`*(.)`, `fichier(N)`) n'est pas jugé (seuil corrigé à la huitième revue) ;
+- `=(` est extrait partout, sauf derrière un nom de tableau (`x=(…)`, `x+=(…)`, `a[1]=(…)`).
+  Extraire trop est sans risque, le contenu est seulement jugé.
+
+Deux trous antérieurs au lot, que la revue a trouvés dans le même code, sont corrigés au passage.
+D'abord, en zsh, le qualificateur `*(e:'cmd':)` exécute `cmd` pour chaque fichier, et `*(+fonction)`
+appelle une fonction : un groupe qui porte l'un ou l'autre est refusé, faute de distinguer ce code
+des lettres de qualificateur. Ensuite, `pushd -n DIR` ne change pas de dossier en bash : un `pushd`
+avec une option rend désormais le dossier courant inconnu.
+
+**Règle pour la suite** : toute réécriture du texte avant shlex se rejoue aussi sur chaque forme de
+groupement du shell (`{(…)}`, `then(…)`, `do(…)`, `else(…)`, `if(…)`, `while(…)`, `until(…)`,
+`time(…)`, `<=(…)`, `>=(…)`, `=(…)`, `<(…)`, `$(…)`), avec le jeu destructeur d'origine et une
+écriture du harness, en direct et sous `bash -c`. Chaque cas reste `BLOCK`. Le self-test passe à
+551/0.
+
+**Huitième revue du lot 4 : un mot n'est pas un découpage shell.** Le seuil « un seul mot » de la
+septième revue comptait les mots avec `str.split()`. Or `{(:>scripts/check.sh)}` et
+`if true; then(echo>scripts/check.sh); fi` sont des commandes complètes sans aucun blanc : elles
+n'étaient pas jugées, et passaient alors que `8fd98f1` les refusait. Le contenu est désormais
+découpé par `tokenize`. Il n'est sauté que s'il donne un seul mot qui n'est pas un opérateur, et il
+est jugé quand il ne se découpe pas. Second trou : l'exemption « tableau » valait pour tout groupe
+placé après un `=`. Or, en argument, zsh lit `ls x=(e:'cmd':)` comme un motif à qualificateurs, et
+exécute `cmd`. Un groupe n'est donc un tableau qu'en position de commande (`x=(…)`, `x+=(…)`,
+`a[1]=(…)` en tête de commande). Le refus du qualificateur s'applique aussi à un `=(…)` collé à un
+mot (`*=(…)`), que l'extraction prend pour une substitution. Faux positif assumé, rare : un
+sous-shell collé dont le texte contient un `e` suivi d'une ponctuation, comme
+`then(npm test -- src/theme/)`, est refusé avec le message du qualificateur.
+
+**Règle pour la suite** : toute forme de sous-shell se teste aussi sans aucun blanc (`{(:>f)}`,
+`then(echo>f)`), et chaque exemption se teste en position d'argument (`ls x=(…)`). Le self-test
+passe à 560/0.
+
+**Neuvième revue du lot 4 : l'exemption « tableau » est retirée.** La position de commande se
+lisait sur le texte brut. Un opérateur échappé (`ls \;x=(…)`) ou un `{` collé (`ls {x=(…)`)
+passait donc pour un début de commande. Le groupe comptait alors comme un tableau, et le refus du
+qualificateur `e:` sautait. Plutôt que de durcir une exemption de plus (la leçon de la troisième
+revue), plus aucun groupe n'en bénéficie : le refus du qualificateur vaut aussi pour les tableaux.
+Faux positif assumé : un tableau dont un élément contient un `e` suivi d'une ponctuation
+(`files=(src/theme/a.ts)`) est refusé. Le travail produit n'utilise pas de tableaux zsh dans l'outil
+Bash.
+
+**Règle pour la suite** : chaque exemption syntaxique se teste avec un opérateur échappé (`\;`,
+`\&`, `\|`) et un `{` collé devant le mot qu'elle reconnaît. Le self-test passe à 563/0.
+
+**Dixième revue du lot 4 : on cesse d'énumérer où un qualificateur se colle.** Après `*`, une
+quote, un nom, `=`, un opérateur échappé, la revue a trouvé un qualificateur collé derrière un
+groupe fermé : `ls (README.md|x)(e:'cmd':)`. Le repli s'arrête au `)`, et le groupe suivant
+n'était pas examiné. La règle est retournée. Un `(` n'ouvre un sous-shell qu'en tête du texte ou
+juste après un `;`, `&`, `|` ou `(` non échappé : partout ailleurs, bash le refuse et zsh y lit un
+motif. Tout groupe hors quotes qui n'ouvre pas une commande est donc examiné par le refus du
+qualificateur, qu'il soit replié ou non. `$((…))` est de l'arithmétique et reste ouvert. Une
+erreur de lecture sur un début de commande ne produit qu'un faux positif
+(`! (cd src/theme && ls)`), jamais un trou.
+
+**Règle pour la suite** : une protection syntaxique se définit par ce qui est sûr (ici, les seuls
+débuts de commande), pas par la liste des formes dangereuses. Le self-test passe à 570/0.
+
+**Onzième revue du lot 4 : chaque lecteur du texte a ses propres échappements.** L'extraction des
+substitutions ignore les `\`. Dans `ls \$(e:'cmd':)`, `\<(…)` et `\>(…)`, zsh lit un caractère
+littéral suivi d'un qualificateur, mais la garde y voyait une substitution : le groupe n'arrivait
+donc jamais au refus du qualificateur. Correctif additif, pour ne rien rouvrir : un ouvreur échappé
+reste extrait et jugé comme une commande, et son contenu passe en plus par le refus du
+qualificateur. Au passage, le saut de ligne compte de nouveau comme un début de commande : un
+`rstrip()` l'effaçait. Faux positif assumé : un sous-shell après un mot réservé et un blanc
+(`if (cd src/theme/ && ls); then :; fi`) est examiné comme un motif.
+
+**Règle pour la suite** : chaque ouvreur de substitution se teste aussi échappé (`\$(`, `\<(`,
+`\>(`, `\=(`). À terme, les fonctions qui parcourent le texte devraient partager un seul lecteur
+de quotes et d'échappements. Les revues ne peuvent pas rejouer un qualificateur `e:` en Bash, car
+la garde refuse la sonde elle-même : un exécutable de sonde dédié, approuvé par Cédric, est à
+décider. Le self-test passe à 574/0.
+
+**Revue de clôture du lot 4 (bornée, sur décision de Cédric) : l'imbrication.** Le reviewer a
+rejoué 1 259 sondes différentielles contre `8fd98f1` : 42 charges sous 30 formes de groupement.
+Une seule régression : `{({(rm -rf node_modules)})}`, que zsh exécute. Le contenu du groupe
+extérieur, `{(rm -rf node_modules)}`, se découpe en un seul mot, `{*}`, parce que le groupe
+intérieur y est replié. Il était donc sauté comme un qualificateur. Il n'est désormais sauté que
+s'il ne contient aucun groupe replié, et le jugement descend alors à chaque niveau. Faux positif
+noté, conforme à la règle conservatrice de la troisième revue : `mv` d'un dossier dans le dépôt
+(`mv src/components src/renamed`) est refusé, et `git mv` reste la voie.
+
+**Règle pour la suite** : la matrice des groupements se teste aussi sur deux niveaux
+d'imbrication. Le self-test passe à 579/0.

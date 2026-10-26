@@ -31,7 +31,10 @@
     "enabled": true,
     "failIfUnavailable": true,
     "filesystem": { "denyRead": ["~/.ssh", "~/.config/gh"] },
-    "network": { "allowedDomains": ["registry.npmjs.org"] }
+    "network": {
+      "allowedDomains": ["registry.npmjs.org"],
+      "deniedDomains": ["github.com", "api.github.com", "*.github.com", "*.githubusercontent.com"]
+    }
   },
   "hooks": {
     "PreToolUse": [

@@ -101,6 +101,9 @@ WRAPPER_VALUE_OPTS = {
 FILE_WRITERS = {
     "cp", "mv", "rm", "ln", "install", "rsync", "truncate", "chmod", "chown",
     "touch", "unlink", "rmdir", "shred", "tee", "dd", "ditto", "ed", "ex",
+    # A FIFO or device node in place of a file the guards read (a settings
+    # file, a harness module) would block or fool them (EN-ATTENTE §2b).
+    "mkfifo", "mknod",
 }
 COPIERS = {"cp", "install", "rsync", "ln", "ditto"}
 # Inline code that deletes a tree: a deletion API is refused outright...
@@ -157,6 +160,8 @@ GIT_CONFIG_READS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--l
 # Values an EDITOR/PAGER may take without judging anything.
 HARMLESS_EXEC_VALUES = {"", "cat", "less", "more", "true", ":", "head", "tail", "vi", "vim", "nano"}
 GLOB_CHARS = set("*?[")
+# Marker for a copy whose landing cannot be judged (see Guard._dropped_into_dirs).
+UNKNOWN_LANDING = "UNKNOWN_COPY_LANDING"
 REBINDING_BUILTINS = {
     "printf", "read", "for", "select", "let", "declare", "typeset", "export", "local",
     "readonly", "unset", "mapfile", "readarray", "getopts", "eval", "set", "while",
@@ -172,6 +177,59 @@ class Denied(Exception):
 
 def deny(what: str, advice: str) -> None:
     raise Denied(what, advice)
+
+
+def deny_code_qualifier(content: str) -> None:
+    """Refuse a group that may carry a zsh qualifier running code.
+
+    `*(e:'cmd':)` runs `cmd` for each match and `*(+func)` calls a function. That
+    code cannot be told apart from plain qualifier letters, so any `e` followed by
+    a delimiter, or `+` followed by a name, is refused (seventh review of lot 4).
+    The price is a rare false positive on a subshell such as `then(npm test --
+    src/theme/)`.
+    """
+    if re.search(r"e[^\w\s]|\+[^\d\s]", content):
+        deny(
+            "zsh glob qualifier that may run code",
+            "`*(e:'cmd':)` and `*(+func)` run shell code for each match. Drop the "
+            "qualifier, or filter the matches in a separate, explicit command.",
+        )
+
+
+def deny_argument_qualifiers(text: str) -> None:
+    """Run deny_code_qualifier on every unquoted group that opens no command.
+
+    Listing where zsh accepts qualifiers did not close: after a glob, a quote, a
+    name, `=`, then after a closed group, `(a|b)(e:'cmd':)` (tenth review of lot
+    4). The rule is turned around: a `(` opens a subshell only at the start of the
+    text or right after an unescaped `;`, `&`, `|` or `(`. Anywhere else bash
+    refuses it and zsh reads a pattern, so its content is checked. A misread
+    command start only adds a false positive (`! (cd src/theme)`), never a gap.
+    `$((...))` is arithmetic and is skipped.
+    """
+    quote = ""
+    i = 0
+    while i < len(text):
+        char = text[i]
+        if quote:
+            if char == "\\" and quote == '"':
+                i += 1
+            elif char == quote:
+                quote = ""
+        elif char in {"'", '"'}:
+            quote = char
+        elif char == "\\":
+            i += 1
+        elif char == "(":
+            before = text[:i].rstrip(" \t")  # keep a newline: it starts a command
+            opens_command = not before or (
+                before[-1] in ";&|(\n" and not before[:-1].endswith("\\")
+            )
+            if not opens_command and not before.endswith("$"):
+                end = _group_end(text, i)
+                if end is not None:
+                    deny_code_qualifier(text[i + 1 : end])
+        i += 1
 
 
 # ---------------------------------------------------------------------------
@@ -203,7 +261,13 @@ def extract_substitutions(text: str) -> tuple[str, list[str]]:
             i += 1
             continue
         two = text[i : i + 2]
-        if two in {"$(", "<(", ">("} and not text[i : i + 3] == "$((":
+        # zsh: `=(cmd)` is a process substitution too, wherever a word may start:
+        # after a blank, an operator, but also a redirection (`cat <=(cmd)` slipped
+        # through when only `;&|(` counted, seventh review of lot 4). Only an array
+        # assignment (`name=(a b)`, `name+=(c)`, `a[1]=(x)`) is left to tokenize.
+        # Extracting too much is harmless: the inner is judged as a command.
+        array = i > 0 and (text[i - 1].isalnum() or text[i - 1] in "_]+")
+        if (two in {"$(", "<(", ">("} or (two == "=(" and not array)) and not text[i : i + 3] == "$((":
             depth, j = 1, i + 2
             while j < len(text) and depth:
                 if text[j] == "(":
@@ -215,6 +279,14 @@ def extract_substitutions(text: str) -> tuple[str, list[str]]:
                 out.append(text[i:])
                 break
             inners.append(text[i + 2 : j - 1])
+            if i > 0 and text[i - 1] == "\\" or (
+                two == "=(" and i > 0 and not text[i - 1].isspace() and text[i - 1] not in ";&|(<>"
+            ):
+                # Glued to a word (`*=(...)`) or escaped (`\$(...)`, `\<(...)`: a
+                # literal `$` or `<` then a group), zsh may read the group as
+                # qualifiers (eleventh review of lot 4). It stays extracted and
+                # judged as a command too: checking more is harmless.
+                deny_code_qualifier(inners[-1])
             out.append(SUBST)
             i = j
             continue
@@ -232,13 +304,100 @@ def extract_substitutions(text: str) -> tuple[str, list[str]]:
     return "".join(out), inners
 
 
+def fold_glob_groups(text: str, groups: list[str] | None = None) -> str:
+    """Fold every unquoted `(...)` glued to a word into `*` (see tokenize).
+
+    zsh reads a group glued to a word as glob qualifiers, whatever precedes it:
+    `file(N)` and `*''(D)` are patterns too (sixth review of lot 4), so the rule
+    is "glued to a word", not "after a glob character". Only an empty `()`
+    (a function definition) is kept. Quoted text is no pattern for the shell,
+    and inline code (`python3 -c '...'`) is judged from it: folded there,
+    `os.rename(*("/tmp/x","scripts/check.sh"))` lost its literal paths and
+    passed (fifth review of lot 4).
+
+    The fold cannot tell a qualifier from a real subshell: `{(rm x)}`,
+    `then(rm x)` or `do(rm x)` run their group (seventh review of lot 4). So
+    every folded group's content is handed back through `groups`,
+    for the caller to judge as well: both readings are judged.
+    """
+    out: list[str] = []
+    quote = ""
+    glued = False  # the last character emitted belongs to a word
+    i = 0
+    while i < len(text):
+        char = text[i]
+        if quote:
+            out.append(char)
+            if char == "\\" and quote == '"' and i + 1 < len(text):
+                out.append(text[i + 1])
+                i += 1
+            elif char == quote:
+                quote = ""
+            glued = True
+        elif char in {"'", '"'}:
+            quote = char
+            out.append(char)
+            glued = True
+        elif char == "\\" and i + 1 < len(text):
+            out.append(text[i : i + 2])
+            i += 1
+            glued = True
+        elif char == "(" and glued:
+            end = _group_end(text, i)
+            if end is None or end == i + 1:
+                out.append(char)  # `name()` or unbalanced: left to the lexer
+                glued = False
+            else:
+                if groups is not None:
+                    groups.append(text[i + 1 : end])
+                out.append("*")
+                i = end  # resume after the closing parenthesis
+        else:
+            out.append(char)
+            glued = not (char.isspace() or char in ";&|<>()!")
+        i += 1
+    return "".join(out)
+
+
+def _group_end(text: str, start: int) -> int | None:
+    """Index of the `)` closing the group opened at `start`, quotes skipped."""
+    depth = 0
+    quote = ""
+    i = start
+    while i < len(text):
+        char = text[i]
+        if quote:
+            if char == "\\" and quote == '"':
+                i += 1
+            elif char == quote:
+                quote = ""
+        elif char in {"'", '"'}:
+            quote = char
+        elif char == "\\":
+            i += 1
+        elif char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return None
+
+
 def tokenize(text: str) -> list[str]:
     """Shell-ish tokens with operators split out, even without spaces.
 
     `ls;rm -rf x` used to be read as the single word `ls;rm` (JOURNAL J-028).
     punctuation_chars makes shlex emit `;`, `&&`, `|`, `(`, `>` ... as their
     own tokens. Substitutions must have been extracted before.
+
+    A zsh glob qualifier or a bash extglob group glued to its word (`*(D)`,
+    `@(a|b)`) is folded into a plain glob first: split at `(`, the word lost its
+    pattern and `cp x/*(D) dest` read as a copy to the glob `x/*` (fourth review
+    of lot 4).
     """
+    text = fold_glob_groups(text)
     lexer = shlex.shlex(text, posix=True, punctuation_chars=True)
     lexer.whitespace_split = True
     lexer.commenters = ""
@@ -376,6 +535,8 @@ class Guard:
         )
         self.protect = not harness_paths.unlocked()
         self.depth = 0
+        # A set CDPATH makes a relative `cd` land anywhere (see _cd).
+        self.cdpath = bool(os.environ.get("CDPATH"))
 
     # -- helpers -----------------------------------------------------------
 
@@ -391,10 +552,19 @@ class Guard:
             word = home + word[1:]
         return word
 
-    def protected(self, word: str) -> bool:
-        """True when writing to `word` must be refused (harness file or unjudgeable)."""
-        if not self.protect or not word:
+    def protected(self, word: str, repair: bool = False) -> bool:
+        """True when writing to `word` must be refused (harness file or unjudgeable).
+
+        Unlocked, the harness is the agent's to edit, except the modules the
+        guards load (scripts/hooks/*.py): through Bash they would skip the Edit
+        tool's simulation, and a two-step change could lock every tool out
+        (J-056). `repair=True` (git restore/checkout of a file) stays open: it
+        is the repair path the simulation keeps alive.
+        """
+        if not word:
             return False
+        if not self.protect:
+            return not repair and self._hooks_module(word)
         value = word.split("=", 1)[1] if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", word) else word
         value = self._expand(value)
         if "$" in value or SUBST in value:
@@ -437,6 +607,99 @@ class Guard:
             return None
         return os.path.normpath(value if os.path.isabs(value) else os.path.join(self.cwd or self.root, value))
 
+    def _hooks_module(self, word: str) -> bool:
+        """True when `word` names the guards' code: scripts/hooks/ or anything in it.
+
+        `scripts` and `scripts/hooks` themselves count: moving or removing the
+        directory takes every module with it (review of lot 4).
+        """
+        path = self._resolve(word)
+        if path is None:
+            return False
+        rel = harness_paths.to_rel(path, self.root, self.cwd or self.root)
+        folded = (rel or "").casefold().rstrip("/")
+        return folded in {"scripts", "scripts/hooks"} or folded.startswith("scripts/hooks/")
+
+    def _dropped_into_dirs(self, name: str, args: list[str], pos: list[str]) -> list[str]:
+        """What a copy, move or link writes, judged without guessing (EN-ATTENTE §2b).
+
+        `cp src/x.py .` writes ./x.py, yet the destination word (".") is no
+        harness file. Modelling shell and tool semantics finely does not close
+        (four reviews of lot 4: tree contents, `ditto` and `cp -R x/` copying
+        contents, globs, braces, rsync -R, sources created earlier in the same
+        command, globs in the destination). So the rule is conservative and
+        bounded, never weaker than before this lot:
+
+        - a recursive copy (cp -R/-a, ditto, rsync, mv of a directory or of a
+          source that does not exist yet) into the repository is UNKNOWN;
+        - a file copy lands as <dir>/<basename>, judged like any target;
+        - braces and globs, in the destination or in a source, are UNKNOWN: the
+          shell (zsh qualifiers, files created earlier in the same command)
+          expands them to something the hook cannot see.
+
+        UNKNOWN is refused when the destination is in the repository (locked);
+        unlocked, it is refused when it could reach the guards' own code.
+        """
+        target_dir = option_value(args, "-t", "--target-directory")
+        if target_dir:
+            dest, sources = target_dir, pos
+        elif len(pos) >= 2:
+            dest, sources = pos[-1], pos[:-1]
+        else:
+            return []
+        resolved = self._resolve(dest)
+        dest_is_dir = dest.endswith("/") or (resolved is not None and os.path.isdir(resolved))
+        shorts, longs = short_flags(args), long_flags(args)
+        # For rsync, -R is --relative, not recursive (review of lot 4).
+        recursive_shorts = {"r", "a"} if name == "rsync" else {"r", "R", "a"}
+        recursive = (
+            name in {"ditto", "rsync"}
+            or bool(recursive_shorts & shorts)
+            or bool({"--recursive", "--archive"} & longs)
+        )
+
+        def unknown() -> list[str]:
+            if self.protect:
+                # protected() refuses any `$` target: the landing is not known.
+                return ["$" + UNKNOWN_LANDING] if self._inside_repo(resolved) else []
+            # Unlocked: only what could reach the guards' code is refused.
+            rel = harness_paths.to_rel(resolved, self.root, self.cwd or self.root) if resolved else None
+            if resolved is not None and rel is None:
+                return []  # outside the repository (fifth review: was read as the root)
+            folded = (rel or "").casefold().rstrip("/")
+            if resolved is None or folded in {"", ".", "scripts"} or self._hooks_module(dest):
+                return [os.path.join(self.root, "scripts", "hooks", UNKNOWN_LANDING)]
+            return []
+
+        if "{" in dest or "}" in dest or GLOB_CHARS & set(dest):
+            return unknown()
+        if name == "rsync" and ("R" in shorts or "--relative" in longs):
+            return unknown()
+        dropped: list[str] = []
+        for source in sources:
+            if "{" in source or "}" in source:
+                dropped += unknown()
+                continue
+            # A pattern source is unknown, whatever the tool: what the shell expands
+            # it to (zsh qualifiers `*(D)`, `[^a]*`, `**/`, `<1-9>` ranges, files
+            # created earlier in the same command) is not what Python sees at hook
+            # time (fourth review of lot 4). Copy the files one by one instead.
+            if (GLOB_CHARS | {"<", "("}) & set(source):
+                dropped += unknown()
+                continue
+            source_path = self._resolve(source)
+            if source_path is None:
+                dropped += unknown()
+                continue
+            is_tree = os.path.isdir(source_path) or not os.path.exists(source_path)
+            if (recursive or name == "mv") and is_tree and name != "ln":
+                dropped += unknown()
+                continue
+            base = os.path.basename(source.rstrip("/"))
+            if dest_is_dir and base not in {"", ".", ".."}:
+                dropped.append(os.path.join(dest, base))
+        return dropped
+
     def _inside_repo(self, path: str | None) -> bool:
         if path is None:
             return True  # unknown: assume the worst
@@ -460,6 +723,13 @@ class Guard:
             return True
 
     def deny_tamper(self, how: str) -> None:
+        if not self.protect:
+            deny(
+                f"writing a module the guards load through Bash ({how})",
+                "In an unlocked session, edit scripts/hooks/*.py with the Edit tool: it simulates "
+                "the change and refuses one that would break the guards (JOURNAL J-056). "
+                "`git restore -- <file>` stays allowed for repairs.",
+            )
         deny(
             f"write to a harness file, or to a target that cannot be judged ({how})",
             "The harness (hooks, sensors, lint/test/arch config, CI, git hooks) is out of the "
@@ -542,6 +812,7 @@ class Guard:
         line, inners = extract_substitutions(line)
         for inner in inners:
             self.check_text(inner)
+        self._check_glued_groups(line)
         try:
             tokens = tokenize(line)
         except ValueError:
@@ -564,6 +835,35 @@ class Guard:
                 for inner in extract_substitutions(body)[1]:
                     self.check_text(inner)
             # The redirection target was judged with the command.
+
+    def _check_glued_groups(self, line: str) -> None:
+        """Judge the groups tokenize folds into `*`, under their other readings.
+
+        A group after a reserved word or `{` is a subshell (`then(rm x)`), so its
+        content is judged as a command, in its own directory scope. Only a content
+        that tokenizes to one plain word (`*(.)`, `file(N)`) is skipped: judged as a
+        command, the `.` qualifier would read as `source` with no file. Blanks do not
+        count words: `{(:>f)}` is a full command with none (eighth review of lot 4).
+        A zsh qualifier may also run code: see deny_argument_qualifiers, which
+        checks every group that opens no command, folded or not. Array
+        assignments get no exemption: telling `x=(a b)` in command position from
+        the pattern `ls x=(...)` was fooled by `\\;x=(...)` and `{x=(...)` (ninth
+        review of lot 4).
+        """
+        deny_argument_qualifiers(line)
+        groups: list[str] = []
+        fold_glob_groups(line, groups)
+        for content in groups:
+            try:
+                words = tokenize(content)
+            except ValueError:
+                words = []  # not tokenizable: judged all the same
+            # A nested group folds to one word too (`{({(rm x)})}` reads `{*}`):
+            # only a content with nothing folded inside is skipped (closing review).
+            if len(words) != 1 or words[0] in _PUNCT_OPS or fold_glob_groups(content) != content:
+                saved = self.cwd
+                self.check_text(content)
+                self.cwd = saved  # a subshell's `cd` does not outlive it
 
     # -- per command -----------------------------------------------------------
 
@@ -605,7 +905,11 @@ class Guard:
             "CLAUDECODE" in w and "$CLAUDECODE" not in w and "${CLAUDECODE" not in w for w in args
         ):
             self._deny_context_hiding()
-        if name in {"cd", "pushd"}:
+        if name == "pushd" and (not positional(args) or any(a.startswith(("-", "+")) for a in args)):
+            # No argument swaps the top two stack entries; an option may leave the
+            # directory unchanged (`pushd -n DIR` in bash): unknown either way.
+            self.cwd = None
+        elif name in {"cd", "pushd"}:
             self._cd(args)
         elif name == "popd":
             self.cwd = None  # the directory stack is unknown
@@ -628,6 +932,9 @@ class Guard:
             self._check_find(args)
         elif name == "git":
             self._check_git(args)
+        elif name.startswith("git-credential-"):
+            # The helper binary itself, out of `git --exec-path` (JOURNAL J-054).
+            deny(name, "Printing a stored credential would let a raw HTTP call bypass this guard.")
         elif name in {"npm", "yarn", "pnpm"}:
             self._check_npm(args)
         elif name == "husky":
@@ -696,11 +1003,40 @@ class Guard:
                 # A copy only writes its destination; reading a harness file is fine.
                 target_dir = option_value(args, "-t", "--target-directory")
                 targets = [target_dir] if target_dir else (pos[-1:] if len(pos) >= 2 else [])
+            elif name == "mknod":
+                # mknod [-m MODE] [-Z CTX] NAME TYPE [MAJOR MINOR]: drop option
+                # values first, `-m 600` once made the guard judge "600" (review).
+                operands: list[str] = []
+                skip = False
+                for arg in args:
+                    if skip:
+                        skip = False
+                    elif arg in {"-m", "--mode", "-Z", "--context"}:
+                        skip = True
+                    elif not arg.startswith("-"):
+                        operands.append(arg)
+                targets = operands[:1]
             else:
                 targets = pos
+            if name in COPIERS or name == "mv":
+                # A destination directory: judge what lands in it (EN-ATTENTE §2b),
+                # not the directory word itself, which is no file being written
+                # (`mv README.md docs/` used to be read as a root file "docs").
+                dropped = self._dropped_into_dirs(name, args, pos)
+                if dropped:
+                    target_dir = option_value(args, "-t", "--target-directory")
+                    dest_word = target_dir if target_dir else (pos[-1] if len(pos) >= 2 else None)
+                    targets = [t for t in targets if t != dest_word]
+                targets = targets + dropped
             if name == "rm":
                 targets = [t for t in targets if not self._regenerable(t)]
             if any(self.protected(a) for a in targets):
+                if any(UNKNOWN_LANDING in t for t in targets):
+                    self.deny_tamper(
+                        f"{name} whose landing in the repository cannot be judged: recursive copy, "
+                        "glob or brace source, or a source that does not exist yet. Copy the files "
+                        "one by one with literal paths, or use `git mv` / the Edit tool"
+                    )
                 self.deny_tamper(name)
         if self.protect and any("harness-lock.sh" in a for a in [name, *args]) and "--update" in args:
             self._deny_relock()
@@ -743,6 +1079,8 @@ class Guard:
 
     def _check_assignment(self, word: str) -> None:
         key, _, value = word.partition("=")
+        if key == "CDPATH":
+            self.cdpath = True
         if key == "HUSKY" and value == "0":
             self._deny_hook_bypass("HUSKY=0")
         if key == "CLAUDECODE":
@@ -753,8 +1091,13 @@ class Guard:
             self._deny_hook_bypass(f"{key} (injects git configuration such as core.hooksPath)")
         if self.protect and key in {"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY"}:
             self._deny_hook_bypass(f"{key} (redirects git away from this repository's hooks)")
-        # Emptying it only LOCKS (what the self-test does); setting it never unlocks
-        # anything, but is refused to make the intent visible.
+        # Emptying it only LOCKS (what the self-test does). Setting it does not
+        # unlock the hooks, which read the environment Claude Code was launched
+        # with; but since J-055 the lock sensor reads the variable of the process
+        # that runs it, so an agent-set value would make the agent's own
+        # `check.sh` (and a pre-push it starts) abstain. Refused for both reasons.
+        # A value smuggled through a file is beyond this textual check; the Stop
+        # hook, the reviewer and CI do not inherit it.
         if key == harness_paths.UNLOCK_ENV and value.strip("'\"") not in {"", "0"}:
             deny(
                 f"setting {harness_paths.UNLOCK_ENV} from the agent",
@@ -802,9 +1145,20 @@ class Guard:
         return "", []
 
     def _cd(self, args: list[str]) -> None:
+        # `cd -` goes back to $OLDPWD, `pushd +N`/`-N` rotates the stack, and a
+        # relative `cd` follows CDPATH when it is set (in the environment or in
+        # the command): none is tracked, so the directory becomes unknown (review
+        # of lot 4: `cd -` used to be read as `cd`, i.e. $HOME).
+        # `~-`, `~+` and `~N` name the directory stack too (fifth review).
+        if any(arg == "-" or re.match(r"^~?[+-]\d*(/|$)|^~\d+(/|$)", arg) for arg in args):
+            self.cwd = None
+            return
         target = positional(args)
         if not target:
             self.cwd = os.path.expanduser("~")
+            return
+        if self.cdpath and not os.path.isabs(target[0]) and not target[0].startswith("."):
+            self.cwd = None
             return
         self.cwd = self._resolve(target[0])  # None when it cannot be known
 
@@ -908,6 +1262,11 @@ class Guard:
                 f"Write it as a plain top-level `git {sub} ...`, so that Cedric's confirmation applies.",
             )
 
+        # `git credential fill` and the helpers (`credential.helper osxkeychain` is
+        # global) print the GitHub token from the keychain (JOURNAL J-054).
+        if (sub == "credential" and pos[:1] in (["fill"], ["approve"], ["reject"])) or sub.startswith("credential-"):
+            deny(f"git {sub} {pos[0] if pos else ''}".rstrip(), "Printing a stored credential would let a raw HTTP call bypass this guard.")
+
         if sub == "push":
             if any(f.startswith("--force") for f in longs) or "f" in shorts:
                 deny(
@@ -1009,7 +1368,7 @@ class Guard:
                     "This discards every uncommitted change below it. Restore files one by one, "
                     "or 'git stash' to keep them.",
                 )
-            if any(self.protected(p) for p in paths):
+            if any(self.protected(p, repair=True) for p in paths):
                 self.deny_tamper(f"git {sub} <harness file>")
         elif sub in {"rm", "mv"}:
             if sub == "rm" and {"r", "f"} <= shorts:
@@ -1143,13 +1502,26 @@ class Guard:
             deny("gh auth token", "Exporting the token would let a raw HTTP call bypass this guard.")
         elif group == "auth" and action == "status" and ("--show-token" in longs or "t" in short_flags(args)):
             deny("gh auth status --show-token", "Printing the token would let a raw HTTP call bypass this guard.")
+        elif group == "auth" and action == "git-credential":
+            # The git credential helper protocol prints the same token (JOURNAL J-054).
+            deny("gh auth git-credential", "Printing the token would let a raw HTTP call bypass this guard.")
 
     def _check_security(self, args: list[str]) -> None:
         # The gh token lives in the macOS keychain, which is not a file: the Bash
         # sandbox's denyRead does not cover it (verified in-session, JOURNAL J-051).
         action = positional(args)[:1]
         shorts = short_flags(args)
-        if action in (["find-generic-password"], ["find-internet-password"]) and {"w", "g"} & shorts:
+        # Options before the command: `-i` reads commands from stdin and `-p` implies
+        # it, so `printf 'find-generic-password -w ...' | security -i` hid the
+        # action from the text (JOURNAL J-054).
+        leading: list[str] = []
+        for arg in args:
+            if not arg.startswith("-"):
+                break
+            leading.append(arg)
+        if {"i", "p"} & short_flags(leading):
+            deny("security -i/-p (interactive mode)", "Commands read from stdin cannot be judged, keychain reads included.")
+        elif action in (["find-generic-password"], ["find-internet-password"]) and {"w", "g"} & shorts:
             deny(f"security {action[0]} -w/-g", "Printing a keychain secret would let a raw HTTP call bypass this guard.")
         elif action == ["dump-keychain"] and "d" in shorts:
             deny("security dump-keychain -d", "Dumping the keychain prints every stored secret.")

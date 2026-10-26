@@ -218,18 +218,22 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
 - [x] ~~EN-ATTENTE §5 à §8 (J-048 à J-050)~~ → appliqués le 2026-10-05 ; la 9e revue rouvre
       J-048 et J-049 (J-051).
 - [x] ~~EN-ATTENTE §3, §4 et §5 (J-051 sandbox, J-052)~~ → appliqués le 2026-10-08 en session
-      déverrouillée ; self-test à 418 assertions, stage `push` vert sous sandbox, `lock` compris (relock du 2026-10-08).
+      déverrouillée ; self-test à 418 assertions (427 après §6 et §7), stage `push` vert sous sandbox, `lock` compris (relock du 2026-10-08).
 - [x] ~~Relock après §3 à §5~~ → fait le 2026-10-08.
 - [ ] **Bloque la PR #3** : revue, commit, push ; `battery` vert sur la CI ferme J-052.
 - [x] ~~Cédric : `"sandbox": { "allowUnsandboxedCommands": false }` dans `~/.claude/settings.json`~~
       → posé le 2026-10-08, constaté (`dangerouslyDisableSandbox` désactivé en session).
-- [ ] Session déverrouillée : `EN-ATTENTE.md` §6 (J-053, le self-test ne doit jamais écrire dans
-      l'historique), relock.
-- [ ] ⚠️ Décision de Cédric, `EN-ATTENTE.md` §7 (J-054) : le jeton GitHub se lit encore par le
-      trousseau (`security -i`, `gh auth git-credential`, `git credential fill`), et `api.github.com`
-      répond depuis le sandbox. Il faut refuser GitHub au réseau du sandbox, et/ou passer à un jeton à
-      privilèges réduits. Depuis l'agent, `gh` (sans sa config) et `git` en SSH ne passent plus :
-      suivre la CI et merger restent à Cédric.
+- [x] ~~EN-ATTENTE §6 et §7 (J-053, J-054)~~ → appliqués le 2026-10-08 en session déverrouillée :
+      `scratch_repo` échoue fermé, invariant `HEAD`/branches à la sortie du self-test, GitHub refusé
+      au réseau du sandbox (`deniedDomains`), quatre routes du trousseau refusées par la garde.
+      Self-test à 427/0 sous sandbox (424 en terminal ou en CI).
+- [x] ~~Cédric : `npm run harness:relock` après §6 et §7~~ → fait le 2026-10-08.
+- [ ] Cédric : jeton GitHub à privilèges réduits pour les sessions Claude, sans « Administration »
+      ni droit de merge (J-054, dernière partie ouverte). Un jeton qui fuit ne peut alors ni changer la
+      protection de branche ni merger.
+- [ ] Session déverrouillée : `EN-ATTENTE.md` §1 (contrôle positif de la sonde réseau du self-test).
+- [ ] Cédric : vérifier dans `/sandbox` qu'aucune approbation de session ne rouvre `github.com`
+      (la sonde du self-test le mesure à chaque run sous sandbox).
 - [x] ~~EN-ATTENTE §2 et §4 (J-051)~~ → appliqués le 2026-10-05 ; self-test à 395 assertions.
 - [x] ~~`npm run harness:relock` après §2 et §4~~ → **FAIT (2026-10-05)**.
 - [ ] Première CI : vérifier vert le pas `self-test counts a dead call (J-051)` (preuve Bash 5 de
@@ -239,6 +243,11 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
 - [x] ~~**J-040 lot 1 bis**~~ → `compression` 1.8.2 mergé le 2026-10-08 (PR #2), branche du
       harness rebasée, relock fait : stage `push` entièrement vert.
 - [x] **J-040 lot 3** : capteur `audit` à avis acceptés, posé le 2026-10-05.
+- [x] ~~**J-040 lot 4**~~ : le 2026-10-26, quatre nouveaux avis « high » bloquaient le pre-push. Ils
+      sont corrigés dans les plages déclarées, par le lockfile seul : `zod` 4.6.7, `body-parser`
+      1.20.9, `launch-editor` 2.14.2, `undici` 6.29.1.
+- [ ] Session déverrouillée : retirer de `scripts/audit-accepted.json` l'avis
+      `GHSA-vfj7-8cjw-p6xm`, qui n'est plus signalé. Le capteur `audit` le marque `stale`, sans bloquer.
 - [ ] ⚠️ À SPÉCIFIER AVEC CÉDRIC : montée React Native 0.85 → 0.86+ (ferme les avis acceptés de
       J-040, expiration 2027-01-05) — ADR, rebuild natif, reanimated, worklets, maps, firebase.
 - [ ] Merger dans `develop`, puis `develop` dans `main`, puis `bash scripts/setup-branch-protection.sh`.

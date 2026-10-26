@@ -35,6 +35,23 @@ fichier de la liste rend le verrou rouge, en local comme en CI, et `harness-guar
 
 À partir de là, toute PR qui touche le harness exige que tu poses le label `harness-change`.
 
+### Mode chantier (J-055) : finir le harness d'une traite
+
+Pour un chantier du harness, on ne déverrouille pas à chaque correctif : on ouvre **une** session
+déverrouillée, et l'agent y travaille seul jusqu'à la fin.
+
+1. Lance la session dans un terminal, avec la commande du paragraphe suivant, plus
+   `--permission-mode acceptEdits`. **Écris ensuite dans cette fenêtre de terminal**, pas dans le
+   panneau de VS Code : c'est une autre session, qui n'a pas la variable.
+2. L'agent applique EN-ATTENTE lot par lot. Chaque lot passe une revue `reviewer`, puis un commit
+   local, sans push. Le capteur `lock` s'abstient au lieu de rougir, mais seulement dans cette
+   session. Ton terminal et la CI restent stricts, et le pre-push aussi, **à condition de pousser
+   depuis un terminal hors Claude Code**. Un `! git push` tapé dans la session de chantier hérite
+   de son déverrouillage. La CI rattraperait la dérive, mais pousse toujours d'ailleurs.
+3. En fin de chantier, l'agent te donne une liste unique : `npm run harness:relock` (tape
+   `RELOCK`), push, PR, merge.
+4. Relance ensuite une session normale, sans la variable : le harness est reverrouillé.
+
 ### Déverrouiller une session (procédure complète)
 
 La variable doit être posée **au lancement** de Claude Code : les hooks héritent de
@@ -71,11 +88,16 @@ variable posée dans le bloc `env` des settings est ignorée exprès.
 
 - **Le shell de l'agent tourne sous sandbox** (`.claude/settings.json`, J-051) : il ne lit ni
   `~/.ssh` ni `~/.config/gh`, donc `gh` (sans sa config) et un `git push` en SSH n'y passent pas.
-  Le push et le merge restent les tiens. Le proxy refuse les domaines inconnus, mais
-  `api.github.com` et `github.com` répondent (constaté le 2026-10-08) : voir `EN-ATTENTE.md` §7.
-  Une commande refusée à tort se règle avec `/sandbox`. Depuis le 2026-10-08,
+  Le push et le merge restent les tiens. Le proxy refuse les domaines inconnus, et depuis le
+  2026-10-08 GitHub est refusé explicitement (`sandbox.network.deniedDomains`, J-054). Le
+  self-test le mesure par un `curl` vers `api.github.com`. Une commande refusée à tort se règle avec `/sandbox`. Depuis le 2026-10-08,
   `"sandbox": { "allowUnsandboxedCommands": false }` est posé dans `~/.claude/settings.json` :
   l'agent ne peut plus relancer une commande hors sandbox.
+- **Le jeton GitHub reste lisible par le trousseau** (J-054) : la garde refuse les routes connues,
+  et le réseau du sandbox refuse GitHub, mais une route inconnue reste possible. Dernière défense, à
+  ta main : un jeton à privilèges réduits pour les sessions Claude (fine-grained, sans
+  « Administration » ni droit de merge), pour qu'un jeton qui fuit ne puisse ni changer la
+  protection de branche ni merger.
 - **Un capteur est faux, ou une règle manque** : l'agent le décrit (fichier, changement exact). Tu
   lances une session `MIVRO_HARNESS_UNLOCK=1 claude` pour qu'il l'applique, puis
   `npm run harness:relock`, puis commit, PR et label `harness-change`.

@@ -29,22 +29,38 @@ cd "$(git rev-parse --show-toplevel)" || exit 1
 REPO="$PWD"
 # The self-test must leave no litter, __pycache__ included (JOURNAL J-052).
 UNTRACKED_BEFORE="$(git ls-files --others --exclude-standard)"
+# Nor touch the history: two runs left "init" commits on the working branch
+# (JOURNAL J-053). Checked last in cleanup(), whatever the cause.
+SELFTEST_HEAD="$(git rev-parse HEAD)"
+SELFTEST_REFS="$(git for-each-ref --format='%(objectname) %(refname)' refs/heads)"
 
 PASS=0
 FAIL=0
 PROBES=()
-TMP_DIRS=()
+# tmp_dir runs in $(...): an array append there is lost with the subshell, and
+# every run left its mivro.* directories behind (JOURNAL J-053). The directories
+# are recorded in a file instead, which cleanup() reads back.
+SELFTEST_TMP_LIST=""
 
-cleanup() {
+cleanup() { # cleanup [final]: final also removes the list itself, on exit
   local probe dir
   for probe in "${PROBES[@]:-}"; do
     [ -n "$probe" ] && rm -f "$probe"
   done
-  for dir in "${TMP_DIRS[@]:-}"; do
-    [ -n "$dir" ] && [ -d "$dir" ] && rm -r "$dir"
-  done
+  if [ -n "$SELFTEST_TMP_LIST" ] && [ -f "$SELFTEST_TMP_LIST" ]; then
+    while IFS= read -r dir; do
+      [ -n "$dir" ] && [ -d "$dir" ] && rm -r "$dir"
+    done <"$SELFTEST_TMP_LIST"
+    if [ "${1:-}" = final ]; then rm -f "$SELFTEST_TMP_LIST"; else : >"$SELFTEST_TMP_LIST"; fi
+  fi
+  if [ "$(git rev-parse HEAD)" != "$SELFTEST_HEAD" ] ||
+    [ "$(git for-each-ref --format='%(objectname) %(refname)' refs/heads)" != "$SELFTEST_REFS" ]; then
+    printf '\033[31m✖ the self-test changed the repository history (JOURNAL J-053)\033[0m\n' >&2
+    exit 1
+  fi
 }
-trap cleanup EXIT INT TERM
+trap 'cleanup final' EXIT
+trap cleanup INT TERM
 
 ok() { PASS=$((PASS + 1)); printf '  \033[32m/\033[0m %s\n' "$1"; }
 bad() { FAIL=$((FAIL + 1)); printf '  \033[31mX\033[0m %s\n' "$1"; }
@@ -70,14 +86,15 @@ probe_file() {
 
 tmp_dir() {
   local dir
-  dir="$(mktemp -d "${TMPDIR:-/tmp}/mivro.XXXXXX")"
-  TMP_DIRS+=("$dir")
+  dir="$(mktemp -d "${TMPDIR:-/tmp}/mivro.XXXXXX")" || return 1
+  printf '%s\n' "$dir" >>"$SELFTEST_TMP_LIST"
   printf '%s' "$dir"
 }
 # tmp_dir runs in $(...): a failure there cannot stop the run, and the cases
 # would then work on "/" (seen under the Bash sandbox, JOURNAL J-051). Fail
 # closed once, up front.
-if ! MKTEMP_PROBE="$(mktemp -d "${TMPDIR:-/tmp}/mivro.XXXXXX")"; then
+if ! MKTEMP_PROBE="$(mktemp -d "${TMPDIR:-/tmp}/mivro.XXXXXX")" ||
+  ! SELFTEST_TMP_LIST="$(mktemp "${TMPDIR:-/tmp}/mivro-dirs.XXXXXX")"; then
   echo "✖ cannot create a temporary directory under ${TMPDIR:-/tmp}" >&2
   exit 2
 fi
@@ -88,8 +105,15 @@ rmdir "$MKTEMP_PROBE"
 scratch_repo() {
   local dir
   dir="$(tmp_dir)"
-  git -C "$dir" init -q
-  git -C "$dir" -c user.email=selftest@mivro -c user.name=selftest commit -q --allow-empty -m init
+  # Never let git fall back to the repository above: an empty or broken $dir made
+  # `git -C "$dir" commit` commit into Mivro itself (JOURNAL J-053).
+  if [ -z "$dir" ] || [ ! -d "$dir" ] || ! git -C "$dir" init -q 2>/dev/null ||
+    [ "$(cd "$dir" && pwd -P)" != "$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" ]; then
+    echo "✖ cannot create a scratch repository under ${TMPDIR:-/tmp}" >&2
+    return 1
+  fi
+  git --git-dir="$dir/.git" --work-tree="$dir" -c user.email=selftest@mivro -c user.name=selftest \
+    commit -q --allow-empty -m init || return 1
   printf '%s' "$dir"
 }
 
@@ -197,6 +221,14 @@ guard BLOCK '/usr/bin/security find-internet-password -g -s github.com'
 guard BLOCK 'security dump-keychain -d'
 guard ALLOW 'gh auth status'
 guard ALLOW 'security find-generic-password -s gh:github.com'
+# J-054: four more routes to the same token.
+guard BLOCK "printf 'find-generic-password -w -s gh:github.com\n' | security -i"
+guard BLOCK "security -p 'k> ' </dev/null"
+guard BLOCK 'gh auth git-credential get'
+guard BLOCK "printf 'protocol=https\nhost=github.com\n\n' | git credential fill"
+guard BLOCK 'git credential-osxkeychain get'
+guard BLOCK '"$(git --exec-path)"/git-credential-osxkeychain get'
+guard ALLOW 'gh pr view 3'
 # J-029: harness tamper through the shell.
 guard BLOCK "sed -i '' s/2/0/ scripts/hooks/post-edit-check.sh"
 guard BLOCK 'echo x > jest.config.js'
@@ -494,7 +526,7 @@ rm -f "$BANNED_PROBE"
 
 # J-026: a brand-new feature is only untracked files. With no tracked change,
 # check-diff used to fall back to the upstream range and see nothing.
-SCRATCH="$(scratch_repo)"
+SCRATCH="$(scratch_repo)" || exit 2
 cp scripts/check-diff.sh "$SCRATCH/"
 printf 'export const x = 1 %s;\n' "$AS_ANY" >"$SCRATCH/feature.ts"
 (cd "$SCRATCH" && bash check-diff.sh >/dev/null 2>&1)
@@ -742,18 +774,466 @@ rm -f "$HOOK_PROBE"
 # ---------------------------------------------------------------------------
 section "7. Harness lock, native identity, dependency allowlist, journal refs"
 
-if bash scripts/harness-lock.sh >/dev/null 2>&1; then
+# The lock cases are judged as in a locked session (MIVRO_HARNESS_UNLOCK unset):
+# construction mode only changes how the drift is reported, never the verdict
+# that CI and Cedric's terminal will give (JOURNAL J-055).
+if MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1; then
   LOCK_PROBE="scripts/__selftest_lock_probe.sh"
   probe_file "$LOCK_PROBE" "exit 0"
-  bash scripts/harness-lock.sh >/dev/null 2>&1
+  MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1
   expect_exit 1 $? "a new file in scripts/ turns the lock red (J-029)"
+  # J-055: in an unlocked Claude Code session the same drift abstains (exit 3),
+  # and only there.
+  CLAUDECODE=1 MIVRO_HARNESS_UNLOCK=1 bash scripts/harness-lock.sh >/dev/null 2>&1
+  expect_exit 3 $? "construction mode: the drift abstains in an unlocked Claude Code session (J-055)"
+  MIVRO_HARNESS_UNLOCK=1 CLAUDECODE='' bash scripts/harness-lock.sh >/dev/null 2>&1
+  expect_exit 1 $? "construction mode: outside Claude Code the drift stays red (J-055)"
+  CLAUDECODE=1 MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1
+  expect_exit 1 $? "construction mode: a locked Claude Code session keeps the drift red (J-055)"
+  CLAUDECODE=1 MIVRO_HARNESS_UNLOCK=1 MIVRO_NO_ABSTAIN=1 bash scripts/check.sh --only lock >/dev/null 2>&1
+  expect_exit 1 $? "construction mode: CI (MIVRO_NO_ABSTAIN=1) refuses the abstention (J-055)"
+  CLAUDECODE=1 MIVRO_HARNESS_UNLOCK=1 MIVRO_NO_ABSTAIN='' bash scripts/check.sh --only lock >/dev/null 2>&1
+  expect_exit 0 $? "construction mode: locally the abstention is tolerated, named (J-055)"
+  # A module dropped at the repository root must not fake unlocked(): the probe
+  # runs with `python3 -I`, so the current directory is not on sys.path (J-055).
+  SHADOW_PROBE="subprocess.py"
+  probe_file "$SHADOW_PROBE" "import sys" "sys.exit(0)"
+  CLAUDECODE=1 MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1
+  expect_exit 1 $? "a subprocess.py at the root cannot fake the unlock (J-055)"
+  rm -f "$SHADOW_PROBE"
+  # Same for a module dropped next to harness_paths: scripts/hooks/ is appended
+  # after the stdlib, never inserted before it.
+  SHADOW_PROBE="scripts/hooks/re.py"
+  probe_file "$SHADOW_PROBE" "import sys" "sys.exit(0)"
+  CLAUDECODE=1 MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1
+  expect_exit 1 $? "a re.py in scripts/hooks/ cannot fake the unlock (J-055)"
+  rm -f "$SHADOW_PROBE"
+  # And a forged bytecode of harness_paths whose unlocked() returns True, with
+  # the size and mtime of the real source. The probe no longer imports
+  # harness_paths at all; the case stays as a regression guard should anyone
+  # bring a Python import back into it (J-052, J-055).
+  FORGED_PYC="$(python3 -I -B -c 'import importlib.util, sys; sys.pycache_prefix = None; print(importlib.util.cache_from_source("scripts/hooks/harness_paths.py"))')"
+  PROBES+=("$FORGED_PYC")
+  FORGE_SRC="$(tmp_dir)/harness_paths.py"
+  python3 -I -B - "$FORGE_SRC" "$FORGED_PYC" <<'PY'
+import os, py_compile, sys
+forge_src, target = sys.argv[1], sys.argv[2]
+real = "scripts/hooks/harness_paths.py"
+size = os.path.getsize(real)
+body = "def unlocked():\n    return True\n"
+body += "#" * (size - len(body.encode()) - 1) + "\n"
+with open(forge_src, "w", encoding="utf-8") as handle:
+    handle.write(body)
+stat = os.stat(real)
+os.utime(forge_src, (stat.st_atime, stat.st_mtime))
+os.makedirs(os.path.dirname(target), exist_ok=True)
+py_compile.compile(forge_src, cfile=target, dfile=real, doraise=True)
+PY
+  # Control: without -X the forge IS loaded, so the case below proves something.
+  FORGE_SEEN="$(python3 -I -B -c 'import sys; sys.path.append("scripts/hooks"); import harness_paths; print(harness_paths.unlocked())' 2>/dev/null)"
+  if [ "$FORGE_SEEN" = "True" ]; then
+    CLAUDECODE=1 MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1
+    expect_exit 1 $? "a forged harness_paths .pyc cannot fake the unlock (J-055)"
+  else
+    bad "forged .pyc control failed: plain python3 -I did not load it ($FORGE_SEEN), the case proves nothing"
+  fi
+  rm -f "$FORGED_PYC"
+  rmdir "$(dirname "$FORGED_PYC")" 2>/dev/null || true
+  # A harness_paths/ package wins over harness_paths.py in module lookup: the
+  # probe now imports nothing from scripts/hooks/ at all (third review, J-055).
+  SHADOW_PROBE="scripts/hooks/harness_paths/__init__.py"
+  probe_file "$SHADOW_PROBE" "def unlocked():" "    return True"
+  CLAUDECODE=1 MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1
+  expect_exit 1 $? "a harness_paths/ package cannot fake the unlock (J-055)"
+  rm -f "$SHADOW_PROBE"
+  rmdir scripts/hooks/harness_paths 2>/dev/null || true
+  # An unlock carried by a settings `env` block is refused, variable set or not.
+  SETTINGS_HOME="$(tmp_dir)"
+  mkdir -p "$SETTINGS_HOME/.claude"
+  printf '{"env": {"MIVRO_HARNESS_UNLOCK": "1"}}\n' >"$SETTINGS_HOME/.claude/settings.json"
+  HOME="$SETTINGS_HOME" CLAUDECODE=1 MIVRO_HARNESS_UNLOCK=1 bash scripts/harness-lock.sh >/dev/null 2>&1
+  expect_exit 1 $? "an unlock written in a settings env block is refused by the lock (J-055)"
+  # The unlock rule exists twice (harness_paths.unlocked() for the hooks, the
+  # lock's own probe): both must answer the same on the same settings, including
+  # a key spelled with a JSON escape and a malformed file (fail closed).
+  # bounded <seconds> <cmd...>: a settings FIFO must never hang the self-test,
+  # so a regression there turns into a named failure instead (review of lot 2).
+  bounded() {
+    local limit="$1" pid watch rc
+    shift
+    "$@" &
+    pid=$!
+    # Its own output goes to /dev/null: inherited by a `$(...)`, the sleeping
+    # watchdog would hold the pipe open until the limit (review of lot 3).
+    (sleep "$limit" && kill -9 "$pid") >/dev/null 2>&1 &
+    watch=$!
+    wait "$pid"
+    rc=$?
+    kill "$watch" 2>/dev/null
+    wait "$watch" 2>/dev/null
+    return "$rc"
+  }
+  for fixture in clean plain escaped malformed latin1 fifo; do
+    case "$fixture" in
+      clean) settings='{"permissions": {"allow": []}}' ;;
+      plain) settings='{"env": {"MIVRO_HARNESS_UNLOCK": "1"}}' ;;
+      # The key's final K spelled as a JSON unicode escape: backslash, u, 004B.
+      # Built at run time (printf octal 134 is the backslash), so no tool that
+      # decodes JSON on the way into this file can turn it back into a plain K.
+      escaped) settings="{\"env\": {\"MIVRO_HARNESS_UNLOC$(printf '\134')u004B\": \"1\"}}" ;;
+      malformed) settings='{"env": ' ;;
+      latin1 | fifo) settings='' ;;
+    esac
+    rm -f "$SETTINGS_HOME/.claude/settings.json"
+    printf '%s\n' "$settings" >"$SETTINGS_HOME/.claude/settings.json"
+    # Not a regular file: a FIFO blocks open() forever; it must be refused first.
+    if [ "$fixture" = fifo ]; then
+      rm -f "$SETTINGS_HOME/.claude/settings.json"
+      mkfifo "$SETTINGS_HOME/.claude/settings.json"
+    fi
+    # Not UTF-8 (a Latin-1 e-acute, octal 351): it must fail closed, never crash
+    # the guards, which read these files on every tool call (review of lot 2).
+    [ "$fixture" = latin1 ] && printf '{"x": "caf\351"}\n' >"$SETTINGS_HOME/.claude/settings.json"
+    # Control: the escaped fixture must not contain the plain key, and must be
+    # valid JSON that decodes to it, or the case below could pass through the
+    # malformed branch and prove nothing (J-056).
+    if [ "$fixture" = escaped ]; then
+      if grep -qF "MIVRO_HARNESS_UNLOCK" "$SETTINGS_HOME/.claude/settings.json" ||
+        ! python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc -c \
+          'import json, sys; sys.exit(0 if "MIVRO_HARNESS_UNLOCK" in json.load(open(sys.argv[1]))["env"] else 1)' \
+          "$SETTINGS_HOME/.claude/settings.json" 2>/dev/null; then
+        bad "escaped fixture is not an escaped, valid unlock key: the case proves nothing (J-056)"
+      fi
+    fi
+    bounded 15 env HOME="$SETTINGS_HOME" CLAUDECODE=1 MIVRO_HARNESS_UNLOCK=1 bash scripts/harness-lock.sh >/dev/null 2>&1
+    LOCK_SAYS=$?
+    PY_SAYS="$(bounded 15 env HOME="$SETTINGS_HOME" CLAUDE_PROJECT_DIR="$PWD" MIVRO_HARNESS_UNLOCK=1 \
+      python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc -c \
+      'import sys; sys.path.append("scripts/hooks"); import harness_paths; print(harness_paths.unlocked())' 2>/dev/null)"
+    # stdout only: with a throwaway HOME, Xcode's python3 launcher (xcrun) warns
+    # on stderr about its cache. A Python error leaves PY_SAYS empty: a mismatch.
+    case "$fixture:$LOCK_SAYS:$PY_SAYS" in
+      clean:3:True | plain:1:False | escaped:1:False | malformed:1:False | latin1:1:False | fifo:1:False)
+        ok "both unlock rules agree on $fixture settings (J-055)" ;;
+      *) bad "unlock rules disagree on $fixture settings: lock exit $LOCK_SAYS, harness_paths $PY_SAYS (J-055)" ;;
+    esac
+  done
+  rm -f "$SETTINGS_HOME/.claude/settings.json"
   rm -f "$LOCK_PROBE"
-  bash scripts/harness-lock.sh >/dev/null 2>&1
+  MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1
   expect_exit 0 $? "lock green again once the probe is gone"
+elif bash scripts/harness-lock.sh >/dev/null 2>&1; [ $? -eq 3 ]; then
+  # Same predicate as the sensor: skip only when the lock itself abstains, so an
+  # unlock it refuses (settings `env` block) is still reported as red below.
+  # Harness construction in progress: the drift is the work itself. Named, not
+  # counted; the lock cases above run again after Cedric's relock, and in CI.
+  printf '  - lock cases skipped: harness construction mode, relock pending (J-055)\n'
+  MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh 2>&1 | sed -n '2,12p' | sed 's/^/      /'
 else
   bad "harness lock is red on the current tree (relock or revert first)"
   bash scripts/harness-lock.sh 2>&1 | sed -n '1,12p' | sed 's/^/      /'
 fi
+# J-056: every guard case above runs locked (MIVRO_HARNESS_UNLOCK=''), which
+# never reaches the unlocked code path. A NameError there once made both guards
+# crash on every tool call, the repairing edit included; a later one, caught by
+# the fail-closed settings check, silently turned the session back to locked.
+# So the target is a harness file and HOME holds clean settings: exit 0 is then
+# only possible if the unlocked branch was really taken, and the locked run of
+# the same payload (control) must refuse it.
+UNLOCK_HOME="$(tmp_dir)"
+mkdir -p "$UNLOCK_HOME/.claude"
+printf '{}\n' >"$UNLOCK_HOME/.claude/settings.json"
+for guard_script in scripts/hooks/pre-bash-guard.py scripts/hooks/pre-edit-guard.py; do
+  case "$guard_script" in
+    *bash*) GUARD_PAYLOAD="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"echo x > scripts/check.sh\"},\"cwd\":\"$PWD\"}" ;;
+    *) GUARD_PAYLOAD="{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$PWD/scripts/check.sh\",\"old_string\":\"a\",\"new_string\":\"b\"},\"cwd\":\"$PWD\"}" ;;
+  esac
+  printf '%s' "$GUARD_PAYLOAD" | HOME="$UNLOCK_HOME" CLAUDE_PROJECT_DIR="$PWD" MIVRO_HARNESS_UNLOCK='' \
+    python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc "$guard_script" >/dev/null 2>&1
+  GUARD_LOCKED=$?
+  GUARD_OUT="$(printf '%s' "$GUARD_PAYLOAD" | HOME="$UNLOCK_HOME" CLAUDE_PROJECT_DIR="$PWD" MIVRO_HARNESS_UNLOCK=1 \
+    python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc "$guard_script" 2>&1)"
+  GUARD_CODE=$?
+  case "$GUARD_LOCKED:$GUARD_CODE" in
+    2:0) ok "$(basename "$guard_script") takes its unlocked branch on a harness file, refuses it locked (J-056)" ;;
+    # The guard's own ✖ line, not the xcrun cache warning a throwaway HOME adds.
+    *) bad "$(basename "$guard_script") unlocked path broken (locked exit $GUARD_LOCKED, unlocked exit $GUARD_CODE): $(printf '%s\n' "$GUARD_OUT" | grep -m1 '✖') (J-056)" ;;
+  esac
+done
+# J-056 prevention: unlocked, an edit of scripts/hooks/*.py is simulated on a
+# throwaway copy first; one that would break the guards is refused before it
+# lands, a harmless one passes. Nothing is written here: payloads only.
+edit_sim() { # edit_sim <expect exit> <label> <file> <old> <new> [guard script]
+  local out code
+  out="$(python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc -c \
+    'import json, sys; print(json.dumps({"tool_name": "Edit", "tool_input": {"file_path": sys.argv[1], "old_string": sys.argv[2], "new_string": sys.argv[3]}, "cwd": sys.argv[4]}))' \
+    "$PWD/$3" "$4" "$5" "$PWD" |
+    HOME="$UNLOCK_HOME" CLAUDE_PROJECT_DIR="$PWD" MIVRO_HARNESS_UNLOCK=1 \
+      python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc "${6:-scripts/hooks/pre-edit-guard.py}" 2>&1)"
+  code=$?
+  # A refusal must be the simulation's, not a crash of the guard (also exit 2).
+  if [ "$1" = 2 ] && [ "$code" = 2 ] && ! printf '%s' "$out" | grep -q "would break the guards"; then
+    bad "$2 — refused for another reason: $(printf '%s\n' "$out" | grep -m1 '✖')"
+    return
+  fi
+  expect_exit "$1" "$code" "$2"
+}
+edit_sim 2 "an edit leaving a syntax error in harness_paths is refused (J-056)" \
+  scripts/hooks/harness_paths.py 'def unlocked() -> bool:' 'def unlocked() -> bool'
+edit_sim 2 "an edit making unlocked() false in the unlocked session is refused (J-056)" \
+  scripts/hooks/harness_paths.py 'def unlocked() -> bool:' $'def unlocked() -> bool:\n    return False\n\n\ndef _shadowed() -> bool:'
+edit_sim 2 "an edit making the Bash guard refuse everything is refused (J-056)" \
+  scripts/hooks/pre-bash-guard.py 'import harness_paths' $'import harness_paths\nsys.exit(2)'
+edit_sim 0 "a harmless edit of harness_paths passes the simulation (J-056)" \
+  scripts/hooks/harness_paths.py 'fail closed on anything, by design' 'fail closed on anything, by design.'
+# The repair path itself: breaking the edit guard's scripts/hooks branch would
+# refuse every later hooks edit; the health check probes that branch (review of
+# lot 3).
+edit_sim 2 "an edit breaking the edit guard's own hooks branch is refused (J-056)" \
+  scripts/hooks/pre-edit-guard.py 'broken = _hooks_edit_breaks_guards(rel, root, payload)' \
+  'broken = _hooks_edit_breaks_guardz(rel, root, payload)'
+# A broken checker must never lock out: a guard whose health-check script is
+# itself broken still lets a harmless hooks edit through (review of lot 3).
+CHECKER_COPY="$(tmp_dir)"
+cp -R scripts/hooks "$CHECKER_COPY/hooks"
+python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc - "$CHECKER_COPY/hooks/pre-edit-guard.py" <<'PY'
+import sys
+path = sys.argv[1]
+with open(path, encoding="utf-8") as handle:
+    text = handle.read()
+old = "import json, os, subprocess, sys\n\ndef broken"
+if old not in text:
+    sys.exit("health-check import line not found: the case below would prove nothing")
+with open(path, "w", encoding="utf-8") as handle:
+    handle.write(text.replace(old, "import json, os, subprocess\n\ndef broken", 1))
+PY
+edit_sim 0 "a guard with a broken health check does not lock a harmless hooks edit out (J-056)" \
+  scripts/hooks/harness_paths.py 'fail closed on anything, by design' 'fail closed on anything, by design.' \
+  "$CHECKER_COPY/hooks/pre-edit-guard.py"
+# Second review of lot 3: a case variant of the path is the same file on APFS,
+# a slow unlocked() is a broken one, and a new module that does not compile
+# must not land unchecked.
+edit_sim 2 "a case variant of a hooks path is simulated too (J-056, J-047)" \
+  scripts/HOOKS/harness_paths.py 'def unlocked() -> bool:' 'def unlocked() -> bool'
+edit_sim 2 "an edit making unlocked() slow is refused (J-056)" \
+  scripts/hooks/harness_paths.py 'def unlocked() -> bool:' $'def unlocked() -> bool:\n    __import__("time").sleep(1.5)'
+# Third review of lot 3: beyond the check's time limit a blocking tree used to
+# pass as "the checker failed"; and the Bash guard is probed on the repair
+# command too, not only on `ls`.
+edit_sim 2 "an edit making unlocked() block is refused (J-056)" \
+  scripts/hooks/harness_paths.py 'def unlocked() -> bool:' $'def unlocked() -> bool:\n    __import__("time").sleep(60)'
+edit_sim 2 "an edit making harness_paths loop at import is refused (J-056)" \
+  scripts/hooks/harness_paths.py $'import json\n' $'import json\nwhile True:\n    pass\n'
+# Fourth review of lot 3: an exit at load (no Exception) used to slip through.
+edit_sim 2 "an edit making harness_paths exit at load (inverted __main__ test) is refused (J-056)" \
+  scripts/hooks/harness_paths.py 'if __name__ == "__main__":' 'if __name__ != "__main__":'
+edit_sim 2 "an edit making harness_paths call os._exit at load is refused (J-056)" \
+  scripts/hooks/harness_paths.py $'import json\n' $'import json\nimport os as _os_selftest\n_os_selftest._exit(2)\n'
+edit_sim 2 "an edit breaking the Bash guard's repair command, ls intact, is refused (J-056)" \
+  scripts/hooks/pre-bash-guard.py 'staged_only = sub == "restore" and (' \
+  'staged_only = sub == "restore" and undefined_name_selftest and ('
+edit_sim 2 "a new hooks module that does not compile is refused (J-056)" \
+  scripts/hooks/__selftest_new_module.py '' 'def broken(:'
+# The repair path the simulation keeps open: unlocked, the Bash guard lets a
+# hooks file be restored from git; locked, it refuses (J-056).
+RESTORE_CMD="git restore -- scripts/hooks/pre-edit-guard.py"
+RESTORE_PAYLOAD="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$RESTORE_CMD\"},\"cwd\":\"$PWD\"}"
+printf '%s' "$RESTORE_PAYLOAD" | HOME="$UNLOCK_HOME" CLAUDE_PROJECT_DIR="$PWD" MIVRO_HARNESS_UNLOCK=1 \
+  python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc scripts/hooks/pre-bash-guard.py >/dev/null 2>&1
+expect_exit 0 $? "unlocked, a broken hooks file can be restored through Bash (J-056 repair path)"
+printf '%s' "$RESTORE_PAYLOAD" | HOME="$UNLOCK_HOME" CLAUDE_PROJECT_DIR="$PWD" MIVRO_HARNESS_UNLOCK='' \
+  python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc scripts/hooks/pre-bash-guard.py >/dev/null 2>&1
+expect_exit 2 $? "locked, restoring a hooks file through Bash is refused (J-056 repair path)"
+
+# EN-ATTENTE §2b: what a copy, move or link drops into a destination directory
+# is judged, not the directory word; FIFOs and device nodes are writes; and,
+# unlocked, the modules the guards load are written through the Edit tool only.
+DROP_SRC="$(tmp_dir)"
+# Real files in each source tree: what is judged is what actually lands.
+mkdir -p "$DROP_SRC/scripts" "$DROP_SRC/s" "$DROP_SRC/theme" "$DROP_SRC/x/__mocks__" \
+  "$DROP_SRC/plain/sub" "$DROP_SRC/hooks"
+touch "$DROP_SRC/scripts/check.sh" "$DROP_SRC/s/.npmrc" "$DROP_SRC/theme/contrast.test.ts" \
+  "$DROP_SRC/x/__mocks__/@theme.ts" "$DROP_SRC/plain/a.ts" "$DROP_SRC/plain/sub/b.ts" \
+  "$DROP_SRC/hooks/pre-bash-guard.py"
+guard BLOCK 'cp src/x.py .'
+guard BLOCK 'mv src/subprocess.py ./'
+guard BLOCK 'mv src/x.sh scripts/'
+guard BLOCK "cp -R $DROP_SRC/scripts ."
+guard BLOCK "cp -R $DROP_SRC/s/. ."
+guard BLOCK 'cp -t scripts/hooks src/x.py'
+guard BLOCK 'cp README.md scripts/'
+guard BLOCK 'mv scripts/check.sh docs/'
+guard BLOCK 'mkfifo .claude/settings.local.json'
+guard BLOCK 'mknod scripts/x p'
+guard ALLOW 'cp src/App.tsx src/components/'
+guard BLOCK 'cp -R src/features src/backup/'
+guard ALLOW 'mv README.md docs/'
+guard ALLOW 'cp README.md docs/'
+guard ALLOW 'mknod src/x p'
+# Review of lot 4: a tree landing in a product zone may carry harness files, and
+# ditto / `cp -R x/` copy the contents, not the directory.
+guard BLOCK "cp -R $DROP_SRC/theme src/"
+guard BLOCK "mv $DROP_SRC/x src/"
+guard BLOCK "rsync -a $DROP_SRC/x/ src/"
+guard BLOCK "ditto $DROP_SRC/x src"
+guard BLOCK "cp -R $DROP_SRC/x/ src/"
+guard BLOCK "cp -R $DROP_SRC/theme/ src/theme"
+guard BLOCK "ditto $DROP_SRC/theme src/theme"
+guard BLOCK 'cp -R $(mktemp -d) src/'
+guard BLOCK "cp -R $DROP_SRC/plain src/"
+guard BLOCK "ditto $DROP_SRC/plain src/features/plain"
+# Second review of lot 4: a glob source is several sources, and rsync -R lands
+# each source under its path as written.
+guard BLOCK "cp -R $DROP_SRC/* src/"
+guard BLOCK "cp -R $DROP_SRC/the?e src/"
+guard BLOCK "cp $DROP_SRC/theme/* src/theme/"
+guard BLOCK "cd $DROP_SRC && rsync -R theme/contrast.test.ts $REPO/src/"
+# Fourth review of lot 4: any glob source is unknown (zsh expands it in ways the
+# hook cannot see), so even a product-to-product glob copy is refused.
+guard BLOCK 'cp src/components/atoms/Avatar/*.ts src/components/'
+# Third review of lot 4: braces, a source built by the same command, a glob in
+# the destination, a glob that may match dotfiles: all unknown, refused here.
+GROW_DIR="$(tmp_dir)/grow"
+guard BLOCK "cp -R $DROP_SRC/{theme,plain} src/"
+guard BLOCK "cp $DROP_SRC/theme/{contrast.test.ts,x} src/theme/"
+guard BLOCK "mkdir -p $GROW_DIR/theme && touch $GROW_DIR/theme/contrast.test.ts && cp -R $GROW_DIR/theme src/"
+guard BLOCK "cp $DROP_SRC/theme/contrast.test.ts src/the*/"
+guard BLOCK "cp $DROP_SRC/theme/contrast.test.ts src/theme/contrast.test.t?"
+guard BLOCK "cp $DROP_SRC/s/.* src/components/"
+# Fourth review of lot 4: mknod option values, zsh globs, cd - and CDPATH.
+guard BLOCK 'cd src && mknod -m 600 ../.babelrc p'
+guard BLOCK "cp $DROP_SRC/theme/*(D) src/theme/"
+guard BLOCK "cp $DROP_SRC/theme/[^a]* src/theme/"
+guard BLOCK "cp $DROP_SRC/theme/@(contrast.test.ts|x) src/theme/"
+guard BLOCK "cp $DROP_SRC/**/contrast.test.ts src/theme/"
+guard BLOCK "touch $GROW_DIR/a.json && cp $GROW_DIR/*.json src/components/"
+guard ALLOW 'cd src && echo x > notes.md'
+guard BLOCK 'cd src && cd - && echo x > notes.md'
+guard BLOCK 'export CDPATH=scripts; cd src && echo x > notes.md'
+guard BLOCK 'CDPATH=scripts cd src && echo x > notes.md'
+# Fifth review of lot 4: groups are folded outside quotes only (inline code keeps
+# its literal paths), and the directory stack has more names than `cd -`.
+guard BLOCK "python3 -c 'import os;os.rename(*(\"/tmp/x\",\"scripts/check.sh\"))'"
+guard BLOCK "python3 -c 'open(*(\"scripts/check.sh\",\"w\"))'"
+guard ALLOW "echo '*(D)' > src/notes.md"
+guard BLOCK 'cd /tmp; cd ~-; cp /tmp/x .babelrc'
+guard BLOCK 'pushd /tmp; pushd; cp /tmp/x .babelrc'
+guard ALLOW 'cd src && cd -P components && echo x > notes.md'
+# Sixth review of lot 4: zsh qualifiers glue to any word, through quotes too;
+# `=(cmd)` is a process substitution whose command is judged.
+guard BLOCK "cp $DROP_SRC/theme/contrast.test.ts(N) src/theme/"
+guard BLOCK "cp $DROP_SRC/theme/*''(D) src/theme/"
+guard BLOCK "cp $DROP_SRC/theme/*(\"D\") src/theme/"
+guard BLOCK 'cp /tmp/x.sh(N) scripts/'
+guard BLOCK 'diff =(rm -rf scripts) src/App.tsx'
+guard ALLOW 'f() { echo hi; }; f'
+guard ALLOW 'arr=(a b c); echo ${arr[1]}'
+guard ALLOW '(cd src && ls) && echo ok'
+guard ALLOW 'echo $((1+2))'
+# Seventh review of lot 4: a folded group may be a real subshell, glued to a
+# reserved word or to `{`; its content is judged too. Every grouping form of the
+# shell replays the destructive set and a harness write, directly and in `bash -c`.
+guard BLOCK '{(rm scripts/check.sh)}'
+guard BLOCK '{(rm -rf node_modules)}'
+guard BLOCK 'true || {(rm scripts/check.sh)}'
+guard BLOCK 'if true; then(rm scripts/check.sh); fi'
+guard BLOCK 'if true; then(git push --force origin main); fi'
+guard BLOCK 'if true; then(git reset --hard HEAD~1); fi'
+guard BLOCK 'if true; then(cp /tmp/x scripts/check.sh); fi'
+guard BLOCK 'if true; then(echo x > scripts/check.sh); fi'
+guard BLOCK 'if(rm scripts/check.sh); then :; fi'
+guard BLOCK 'if false; then :; else(rm scripts/check.sh); fi'
+guard BLOCK 'while(rm scripts/check.sh); do :; done'
+guard BLOCK 'until(rm scripts/check.sh); do :; done'
+guard BLOCK 'for i in 1; do(rm scripts/check.sh); done'
+guard BLOCK 'time(rm scripts/check.sh)'
+guard BLOCK "bash -c 'if true; then(rm scripts/check.sh); fi'"
+guard BLOCK "bash -c 'for i in 1; do(rm -rf node_modules); done'"
+guard BLOCK 'cat <=(rm scripts/check.sh)'
+guard BLOCK 'cat <=(rm -rf src)'
+guard BLOCK 'cat >=(rm scripts/check.sh)'
+guard BLOCK 'cat <(rm scripts/check.sh)'
+guard BLOCK 'cat $(rm scripts/check.sh)'
+guard BLOCK "ls *(e:'rm scripts/check.sh':)"
+guard BLOCK "ls *(e:'git push --force origin main':)"
+guard BLOCK 'ls *(+cleanup)'
+guard BLOCK 'cd /tmp; pushd +1; cp /tmp/x .babelrc'
+guard BLOCK 'pushd -n /tmp; cp /tmp/x .babelrc'
+guard BLOCK '{(cd /tmp)}; cp /tmp/x .babelrc'
+guard ALLOW 'ls src/*(.)'
+guard ALLOW 'ls src/*(Lk+3)'
+guard ALLOW 'arr+=(d e); echo ${arr[1]}'
+guard ALLOW 'files=(README.md src/App.tsx); echo $files'
+guard ALLOW 'if true; then(echo done); fi'
+# Eighth review of lot 4: a subshell with no blank is a full command, and a group
+# after `x=` is an array only in command position (as an argument, a qualifier).
+guard BLOCK '{(:>scripts/check.sh)}'
+guard BLOCK '{(:>>.babelrc)}'
+guard BLOCK 'if true; then(echo>scripts/check.sh); fi'
+guard BLOCK "touch x= && ls x=(e:'rm scripts/check.sh':)"
+guard BLOCK "ls a+=(e:'git push --force origin main':)"
+guard BLOCK "ls *=(e:'rm scripts/check.sh':)"
+guard ALLOW 'files=(README.md src/App.tsx); echo $files'
+# Ninth review of lot 4: no group is exempt from the qualifier refusal, since a
+# fake command position (`\;x=`, `{x=`) passed for an array assignment.
+guard BLOCK "ls \\;x=(e:'rm scripts/check.sh':)"
+guard BLOCK "ls {x=(e:'rm scripts/check.sh':)"
+guard BLOCK "x=(e:'rm scripts/check.sh':)"
+# Tenth review of lot 4: every group that opens no command is checked for a
+# qualifier running code, after a closed group too; subshells and arithmetic pass.
+guard BLOCK "ls (README.md|x)(e:'rm scripts/check.sh':)"
+guard BLOCK "ls (README.md)(e:'rm scripts/check.sh':)"
+guard BLOCK "ls ';'(e:'rm scripts/check.sh':)"
+guard ALLOW '(cd src/theme && ls) && echo ok'
+guard ALLOW 'true && (cd src/theme && ls)'
+guard ALLOW 'x=$((n+m)); echo $x'
+guard ALLOW '(( n+=1 )); echo $n'
+# Eleventh review of lot 4: an escaped substitution opener is a literal character
+# followed by a group, which zsh may read as qualifiers.
+guard BLOCK "ls \\\$(e:'rm scripts/check.sh':)"
+guard BLOCK "ls \\<(e:'rm scripts/check.sh':)"
+guard BLOCK "ls \\>(e:'rm scripts/check.sh':)"
+guard ALLOW "$(printf 'echo ok\n(cd src/theme/ && ls)')"
+# Closing review of lot 4: a nested group folds to a single word; its content is
+# judged all the same, at every depth.
+guard BLOCK '{({(rm -rf node_modules)})}'
+guard BLOCK '{({({(rm -rf node_modules)})})}'
+guard BLOCK '{({(:>scripts/check.sh)})}'
+guard BLOCK 'true;{({(cp /tmp/x .babelrc)})}'
+guard BLOCK '{({(git reset --hard)})}'
+guard ALLOW 'ls src/theme/*(.)'
+COPY_MSG="$(python3 -c 'import json,sys; json.dump({"tool_name":"Bash","tool_input":{"command":sys.argv[1]},"cwd":sys.argv[2]}, sys.stdout)' 'cp -R src/features src/backup/' "$REPO" |
+  CLAUDE_PROJECT_DIR="$REPO" MIVRO_HARNESS_UNLOCK='' python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc scripts/hooks/pre-bash-guard.py 2>&1 >/dev/null)"
+case "$COPY_MSG" in
+  *"one by one"*) ok "an unjudgeable copy names its way out" ;;
+  *) bad "an unjudgeable copy gets the generic message: $COPY_MSG" ;;
+esac
+guard_unlocked() { # guard_unlocked <ALLOW|BLOCK> <command>: unlocked session, clean settings
+  local code got
+  python3 -c 'import json,sys; json.dump({"tool_name":"Bash","tool_input":{"command":sys.argv[1]},"cwd":sys.argv[2]}, sys.stdout)' "$2" "$REPO" |
+    HOME="$UNLOCK_HOME" CLAUDE_PROJECT_DIR="$REPO" MIVRO_HARNESS_UNLOCK=1 \
+      python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc scripts/hooks/pre-bash-guard.py >/dev/null 2>&1
+  code=$?
+  got="ALLOW"
+  [ "$code" -eq 2 ] && got="BLOCK"
+  if [ "$got" = "$1" ]; then ok "unlocked $1  $2"; else bad "unlocked: expected $1, got $got: $2"; fi
+}
+guard_unlocked BLOCK 'echo x >> scripts/hooks/harness_paths.py'
+guard_unlocked BLOCK "sed -i '' s/a/b/ scripts/hooks/harness_paths.py"
+guard_unlocked BLOCK 'cp /tmp/x.py scripts/hooks/'
+guard_unlocked ALLOW 'git restore -- scripts/hooks/harness_paths.py'
+# Moving or removing the whole directory takes every guard with it.
+guard_unlocked BLOCK 'mv scripts/hooks scripts/hooks.old'
+guard_unlocked BLOCK 'git rm -r scripts/hooks'
+guard_unlocked BLOCK "cp -R $DROP_SRC/hooks scripts/"
+guard_unlocked BLOCK "ditto $DROP_SRC/hooks scripts/hooks"
+guard_unlocked BLOCK "cp -R $DROP_SRC/hooks/* scripts/hooks/"
+guard_unlocked BLOCK "cp $DROP_SRC/hooks/*(D) scripts/hooks/"
+guard_unlocked ALLOW "cp -R $DROP_SRC/hooks $(tmp_dir)/"
+guard_unlocked ALLOW 'echo x > scripts/check.sh'
+guard_unlocked BLOCK '{(echo x >> scripts/hooks/harness_paths.py)}'
+guard_unlocked BLOCK 'cat <=(echo x >> scripts/hooks/harness_paths.py)'
+guard_unlocked BLOCK '{(echo>scripts/hooks/harness_paths.py)}'
 (CLAUDECODE=1 bash scripts/harness-lock.sh --update </dev/null >/dev/null 2>&1)
 expect_exit 1 $? "relock refuses to run inside Claude Code"
 # J-043: every file jest loads before the tests is part of the harness.
@@ -859,7 +1339,7 @@ fi
 # ---------------------------------------------------------------------------
 section "8. Reviewer verdict - seal (SubagentStop) and pre-commit gate"
 
-REVIEW_REPO="$(scratch_repo)"
+REVIEW_REPO="$(scratch_repo)" || exit 2
 mkdir -p "$REVIEW_REPO/scripts/hooks"
 cp scripts/review-gate.sh "$REVIEW_REPO/scripts/"
 cp scripts/hooks/seal-review.sh scripts/hooks/reset-review.sh scripts/hooks/tree-hash.sh "$REVIEW_REPO/scripts/hooks/"
@@ -1039,30 +1519,52 @@ for script in scripts/check.sh scripts/harness-lock.sh scripts/check-audit.sh sc
   fi
 done
 # A forged .pyc in a cache the hooks do not protect must not replace the source.
-# The control run proves the forgery is valid, otherwise the case is vacuous.
-PYC_DIR="$(tmp_dir)"
-printf 'V = "real"\n' >"$PYC_DIR/mivro_probe.py"
-PYTHONPYCACHEPREFIX="$PYC_DIR/cache" python3 - "$PYC_DIR/mivro_probe.py" <<'PY'
+# Two forgeries: one in the cache PYTHONPYCACHEPREFIX names (only -I ignores
+# it), one in the __pycache__/ next to the source (only -X pycache_prefix
+# ignores it, JOURNAL J-053). The control run proves each forgery is valid,
+# otherwise its case is vacuous. The source is restored even when the forgery
+# fails: an "evil" source left behind passed for a valid forgery (J-053).
+forge_pyc() { # forge_pyc <dir> [local]: a "real" source, and an "evil" .pyc where this python3 caches it
+  printf 'V = "real"\n' >"$1/mivro_probe.py"
+  python3 - "$1/mivro_probe.py" "${2:-}" <<'PY'
 import importlib.util, os, py_compile, sys
 src = sys.argv[1]
+if sys.argv[2] == "local":
+    # Apple's python3 caches under ~/Library/Caches/com.apple.python by default.
+    sys.pycache_prefix = None
+cfile = importlib.util.cache_from_source(src)
 with open(src, "w") as f:
     f.write('V = "evil"\n')
 stat = os.stat(src)
-py_compile.compile(src, cfile=importlib.util.cache_from_source(src), invalidation_mode=py_compile.PycInvalidationMode.TIMESTAMP)
-with open(src, "w") as f:
-    f.write('V = "real"\n')
-os.utime(src, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+try:
+    py_compile.compile(src, cfile=cfile, invalidation_mode=py_compile.PycInvalidationMode.TIMESTAMP)
+finally:
+    with open(src, "w") as f:
+        f.write('V = "real"\n')
+    os.utime(src, ns=(stat.st_atime_ns, stat.st_mtime_ns))
 PY
+}
+pyc_case() { # pyc_case <where> <control output> <hooked output>
+  if [ "$2" != evil ]; then
+    bad "forged .pyc $1 not loaded by a plain python3 ($2): the J-052 case below proves nothing"
+  elif [ "$3" = real ]; then
+    ok "a forged .pyc $1 is ignored under the hooks' options (J-052)"
+  else
+    bad "a forged .pyc $1 replaces the source under the hooks' options: got '$3' (J-052)"
+  fi
+}
 PYC_IMPORT="import sys; sys.path.insert(0, sys.argv[1]); import mivro_probe; print(mivro_probe.V)"
-PYC_CONTROL="$(PYTHONPYCACHEPREFIX="$PYC_DIR/cache" python3 -c "$PYC_IMPORT" "$PYC_DIR" 2>&1)"
-PYC_HOOKED="$(PYTHONPYCACHEPREFIX="$PYC_DIR/cache" python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc -c "$PYC_IMPORT" "$PYC_DIR" 2>&1)"
-if [ "$PYC_CONTROL" != evil ]; then
-  bad "forged .pyc not loaded by a plain python3 ($PYC_CONTROL): the J-052 case below proves nothing"
-elif [ "$PYC_HOOKED" = real ]; then
-  ok "a forged .pyc is ignored under the hooks' options (J-052)"
-else
-  bad "a forged .pyc replaces the source under the hooks' options: got '$PYC_HOOKED' (J-052)"
-fi
+PYC_DIR="$(tmp_dir)"
+PYTHONPYCACHEPREFIX="$PYC_DIR/cache" forge_pyc "$PYC_DIR"
+pyc_case "in PYTHONPYCACHEPREFIX" \
+  "$(PYTHONPYCACHEPREFIX="$PYC_DIR/cache" python3 -c "$PYC_IMPORT" "$PYC_DIR" 2>&1)" \
+  "$(PYTHONPYCACHEPREFIX="$PYC_DIR/cache" python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc -c "$PYC_IMPORT" "$PYC_DIR" 2>&1)"
+PYC_LOCAL="$(tmp_dir)"
+forge_pyc "$PYC_LOCAL" local
+# The control is the hooks' options minus -X: -I alone reads that __pycache__/.
+pyc_case "in the __pycache__/ next to the source" \
+  "$(unset PYTHONPYCACHEPREFIX && python3 -I -B -c "$PYC_IMPORT" "$PYC_LOCAL" 2>&1)" \
+  "$(unset PYTHONPYCACHEPREFIX && python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc -c "$PYC_IMPORT" "$PYC_LOCAL" 2>&1)"
 
 # J-051: secrets are closed by the Bash sandbox of Claude Code, not by the guard.
 SANDBOX_CFG="$(python3 -c '
@@ -1076,6 +1578,8 @@ if box.get("failIfUnavailable") is not True: fails.append("sandbox.failIfUnavail
 for d in ("~/.ssh", "~/.config/gh"):
     if d not in box.get("filesystem", {}).get("denyRead", []): fails.append("denyRead " + d)
     if "Read(%s/**)" % d not in deny: fails.append("deny Read(%s/**)" % d)
+for host in ("github.com", "api.github.com"):
+    if host not in box.get("network", {}).get("deniedDomains", []): fails.append("deniedDomains " + host)
 print(" ".join(fails))
 ' "$SETTINGS" 2>&1)"
 if [ -z "$SANDBOX_CFG" ]; then ok "$SETTINGS enables the sandbox and denies reading the secrets (J-051)"; else bad "$SETTINGS sandbox incomplete: $SANDBOX_CFG (J-051)"; fi
@@ -1097,6 +1601,17 @@ except FileNotFoundError: print("ABSENT")
       *) bad "$secret_dir is readable inside the sandbox (J-051)" ;;
     esac
   done
+  # A token read from the keychain must have nowhere to go: any HTTP answer from
+  # GitHub, whatever its status, means the sandbox let the call out (J-054).
+  # Positive control first: the network itself works, so a failure below is the
+  # deny list and not an offline machine (lesson of J-053).
+  if ! curl -s -o /dev/null --max-time 5 https://registry.npmjs.org/-/ping 2>/dev/null; then
+    bad "network probe control failed: registry.npmjs.org unreachable, the GitHub probe proves nothing"
+  elif curl -s -o /dev/null --max-time 5 https://api.github.com 2>/dev/null; then
+    bad "the sandbox lets a call out to api.github.com (J-054)"
+  else
+    ok "the sandbox refuses api.github.com (J-054)"
+  fi
 elif [ "${CLAUDECODE:-}" = 1 ]; then
   bad "running under Claude Code outside the Bash sandbox (J-051)"
 else

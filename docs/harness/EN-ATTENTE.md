@@ -14,123 +14,96 @@ de `check-deps.js` ont été posés par Cédric le 2026-10-05, avec le premier v
 (garde `prettier --config`, J-047, capteur `audit` à avis acceptés) ont été appliqués le 2026-10-05
 en session déverrouillée. Les points 5 à 8 (J-048 à J-050) l'ont été le 2026-10-05 aussi, en
 session déverrouillée. Les points 2 et 4 (J-051 : trap `ERR` du self-test, juge `audit` sur `[]`)
-l'ont été le 2026-10-05 aussi. Le point 1 (J-040, lots 1 et 1 bis) est fait le 2026-10-08. Les points 3 (sandbox Bash, J-051)
-et 4 et 5 (J-052, première CI) ont été appliqués le 2026-10-08 en session déverrouillée, avec trois
-correctifs que le sandbox a imposés au harness (`mktemp` et `/dev/fd`, voir J-051). Il reste à Cédric
-la clé utilisateur `allowUnsandboxedCommands: false` (ancien point 3, étape 2), hors du dépôt.
+l'ont été le 2026-10-05 aussi. L'ancien point 1 (J-040, lots 1 et 1 bis) est fait le 2026-10-08. Les
+anciens points 3 (sandbox Bash, J-051), 4 et 5 (J-052, première CI) ont été appliqués le 2026-10-08
+en session déverrouillée, avec trois correctifs que le sandbox a imposés au harness (`mktemp` et
+`/dev/fd`, voir J-051). Cédric a posé la clé utilisateur `allowUnsandboxedCommands: false` le
+2026-10-08. Les anciens points 6 (J-053 : le self-test n'écrit plus l'historique) et 7 (J-054 :
+GitHub refusé au réseau du sandbox, quatre routes du trousseau refusées) ont été appliqués le
+2026-10-08 en session déverrouillée. Il reste à Cédric le jeton GitHub à privilèges réduits, hors du
+dépôt (TODO).
+
+**Depuis le 2026-10-12 : mode chantier (J-055).** Cédric a ouvert une session déverrouillée pour
+finir le harness. L'agent y applique lui-même les entrées ci-dessous, avec une revue et un commit
+local par lot. Le relock final et le push restent à Cédric.
 
 ## À appliquer en session déverrouillée
 
-Ces changements du harness sont prêts mais pas appliqués. En session déverrouillée, le classifieur du
-mode auto de Claude Code refuse à l'agent toute écriture dans ses propres contrôles. Passe en mode
-par défaut pour approuver les éditions toi-même, puis dis « applique EN-ATTENTE §N » : l'agent les
-pose, relance le self-test et retire les entrées.
+L'ancien §1 (contrôle positif de la sonde réseau) est appliqué au lot 2 du chantier, le
+2026-10-12.
 
-Voir les §6 et §7 ci-dessous.
+### 2. Isoler chaque Python du harness (revue du lot 1 de J-055) — le (a) reste à faire
 
-### 6. Le self-test ne doit jamais écrire dans l'historique du dépôt (J-053)
+**a. Ne plus jamais trouver `harness_paths` par son nom.** Les trois revues du lot 1 ont trouvé
+quatre façons de faire mentir un Python du harness qui fait `import harness_paths` :
 
-Le 2026-10-08, la session déverrouillée a lancé deux fois le self-test. Ces deux runs ont laissé deux
-commits vides « init », d'auteur `selftest <selftest@mivro>`, **sur `harness/en-attente-5-8`**.
-L'agent les a retirés (`git reset --soft c850f23`, avant tout push).
+- un module posé à la racine (`python3 -c` y met le dossier courant) ;
+- un module posé dans `scripts/hooks/` (`sys.path.insert(0, …)` le place avant la stdlib) ;
+- un `.pyc` forgé dans `scripts/hooks/__pycache__/` (`-I` ignore l'export `PYTHONPYCACHEPREFIX`) ;
+- un paquet `scripts/hooks/harness_paths/` (ou une extension `.so`), qui passe avant le `.py` dans
+  la recherche de modules.
 
-La cause est dans `scratch_repo` : `git -C "$dir" commit`. Si `$dir` est vide, `git -C ""` vise le
-répertoire courant, donc le vrai dépôt. Si `git init` a échoué dans `$dir`, git remonte
-l'arborescence et trouve un dépôt parent. Les deux cas ont été reproduits sur un faux dépôt
-« extérieur » du scratchpad : un commit y atterrit à chaque fois. Les appelants (`SCRATCH=`,
-`REVIEW_REPO=`) ne vérifient rien non plus. La ligne 518 fait d'ailleurs `cd "$SCRATCH" && git add …
-&& git commit` : avec `SCRATCH` vide, `cd ""` reste dans le dépôt.
+Le lot 1 sort la sonde du verrou de ce jeu : elle refait la règle de déverrouillage en shell pur, et
+ne charge plus rien de `scripts/hooks/`. Mais les deux gardes font encore
+`sys.path.insert(0, scripts/hooks)` puis `import harness_paths`. Un paquet `harness_paths/` posé là
+remplacerait donc aussi leur module. Correctif :
 
-Dans `scripts/harness-selftest.sh` :
+- charger `harness_paths` par chemin explicite, partout
+  (`importlib.util.spec_from_file_location("harness_paths", <chemin absolu>)`, puis
+  `module_from_spec` et `exec_module`), avec le triplet `-I -B -X pycache_prefix=…` ;
+- règle dans `scripts/check-scripts.sh` : un `import harness_paths` ou un `sys.path.insert(0,` dans
+  le harness rougit le capteur `scripts` ;
+- cas au self-test : un paquet `scripts/hooks/harness_paths/` posé, et la garde refuse toujours
+  `echo x > scripts/check.sh`.
 
-```bash
-scratch_repo() {
-  local dir
-  dir="$(tmp_dir)"
-  # Never let git fall back to the repository above: an empty or broken $dir made
-  # `git -C "$dir" commit` commit into Mivro itself (JOURNAL J-053).
-  if [ -z "$dir" ] || [ ! -d "$dir" ] || ! git -C "$dir" init -q 2>/dev/null ||
-    [ "$(cd "$dir" && pwd -P)" != "$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" ]; then
-    echo "✖ cannot create a scratch repository under ${TMPDIR:-/tmp}" >&2
-    return 1
-  fi
-  git --git-dir="$dir/.git" --work-tree="$dir" -c user.email=selftest@mivro -c user.name=selftest \
-    commit -q --allow-empty -m init || return 1
-  printf '%s' "$dir"
-}
-```
+**b.** Appliqué au lot 4 du chantier (2026-10-15) : la garde Bash juge ce qu'une copie, un
+déplacement ou un lien dépose dans un dossier, refuse `mkfifo`/`mknod` sur un chemin protégé, et,
+en session déverrouillée, l'écriture Bash par fichier d'un module des gardes (`git restore`
+excepté). Voir le §3 pour les écrivains indirects.
 
-Les appelants : `SCRATCH="$(scratch_repo)" || exit 2`, et de même pour `REVIEW_REPO`.
+### 3. En session déverrouillée, les écrivains indirects vers `scripts/hooks/` (revue du lot 4)
 
-Un invariant général, pour que toute régression future soit vue. Au début du self-test :
-`SELFTEST_HEAD="$(git rev-parse HEAD)"` et `SELFTEST_REFS="$(git for-each-ref --format='%(objectname) %(refname)' refs/heads)"`.
-Dans `cleanup()`, en dernier :
+En session déverrouillée, `tar -xf … -C scripts/`, `unzip … -d scripts/hooks`, `curl -o scripts/hooks/x.py`,
+`patch`, `git apply` et un interpréteur qui ouvre un module en écriture passent la garde Bash : ces
+chemins sont conditionnés par `self.protect`. Ce ne sont pas des voies d'édition accidentelles, et en
+session déverrouillée l'agent a de toute façon le droit de modifier le harness. Le filet de J-056
+vise les accidents, et l'Edit simulé reste la voie normale. À traiter si l'on veut un filet
+complet : appliquer `_hooks_module` à leurs cibles et dossiers d'extraction, et refuser `patch` et
+`git apply` aux cibles inconnues. Cas au self-test : un `guard_unlocked BLOCK` par écrivain.
 
-```bash
-if [ "$(git rev-parse HEAD)" != "$SELFTEST_HEAD" ] ||
-  [ "$(git for-each-ref --format='%(objectname) %(refname)' refs/heads)" != "$SELFTEST_REFS" ]; then
-  printf '\033[31m✖ the self-test changed the repository history (JOURNAL J-053)\033[0m\n' >&2
-  exit 1
-fi
-```
+### 4. Quatre trous de la garde Bash, antérieurs au chantier (cinquième, onzième et dernière revues du lot 4)
 
-Vérifié sur le faux dépôt : l'ancien code commite dans le dépôt extérieur dans les deux cas (`tmp_dir`
-vide, `git init` refusé). Le nouveau code rend 1 dans les deux cas, sans commit, et fonctionne
-normalement sinon.
+**a. Le dossier courant après un sous-shell.** `(cd /tmp); cp /tmp/x .babelrc` passe : la garde
+garde `/tmp` comme dossier courant après le `)`, alors que le shell revient au dépôt. La copie
+écrit donc `<dépôt>/.babelrc`. Correctif : sauvegarder `self.cwd` à chaque `(` et le restaurer au
+`)` correspondant, dans la boucle de `_check_line`. À défaut, passer le dossier à inconnu après un
+`)`. Cas au self-test : `guard BLOCK '(cd /tmp); cp /tmp/x .babelrc'`, plus un contrôle `ALLOW`
+avec une cible produit.
 
-En plus, dans la même passe (13e revue, mineurs) :
+**b. Un `$` au milieu d'un nom de commande.** `bash -c '(rm${IFS}scripts/check.sh)'` passe, parce
+que `${IFS}` découpe le mot à l'exécution. La garde ne juge comme variable qu'un nom de commande qui
+commence par `$`. Correctif : refuser tout nom de commande qui contient `$` ou le marqueur de
+substitution, quelle que soit sa position. Cas au self-test : la commande ci-dessus en
+`guard BLOCK`.
 
-- `tmp_dir` est appelé dans `$(…)`, donc `TMP_DIRS+=` se perd dans le sous-shell. `cleanup()` ne
-  supprime rien, et chaque run laisse ses répertoires `mivro.*` dans `$TMPDIR`. Il faut enregistrer
-  chaque répertoire dans un fichier (`printf '%s\n' "$dir" >>"$SELFTEST_TMP_LIST"`), que `cleanup()`
-  relit.
-- Le cas du `.pyc` forgé (section 10) ne prouve que `-I`. Il faut une seconde forge, posée dans le
-  `__pycache__/` voisin du source, sans préfixe : seul `-X pycache_prefix` la neutralise.
+**c. Les qualificateurs zsh qui exécutent du code.** En zsh, `*(e:'cmd':)` exécute `cmd` pour
+chaque fichier qui correspond, et `*(+fonction)` appelle une fonction. Le lot 4 a posé un filet :
+`deny_code_qualifier`, appliqué par `deny_argument_qualifiers` à tout groupe qui n'ouvre pas une
+commande, ainsi qu'aux `=(…)` collés et aux ouvreurs échappés dans `extract_substitutions`. Mais
+de la septième à la onzième revue, chaque revue a trouvé une nouvelle position d'où le qualificateur
+échappe au filet. Ce n'est donc pas une garantie, et le trou existait déjà à `8fd98f1`. Deux
+pistes :
 
-### 7. Le trousseau : refuser les quatre routes connues, et couper GitHub au réseau (J-054)
+- un seul lecteur de quotes et d'échappements, partagé par `extract_substitutions`,
+  `fold_glob_groups` et `deny_argument_qualifiers` ;
+- un exécutable de sonde dédié, approuvé par Cédric, qui lit ses cas depuis un fichier. La garde
+  refuse en effet toute sonde Bash qui contient `e:`, si bien que ni les revues ni l'agent ne
+  peuvent vérifier zsh sur ces formes.
 
-La garde du trousseau ajoutée au §3 refuse `gh auth token`, `gh auth status --show-token` et
-`security find-*-password -w/-g`. La 13e revue a trouvé quatre autres routes vers le **même** jeton
-GitHub, que l'agent a rejouées sur le hook (payload seule, rien d'exécuté, exit 0 pour chacune) :
+Cas au self-test : rejouer chaque ouvreur et chaque point d'arrêt du repli (`*`, quote, nom, `=`,
+`)`, `\;`, `\$`, `\<`) suivi d'un qualificateur `e:`, en `guard BLOCK`.
 
-- `printf 'find-generic-password -w -s gh:github.com\n' | security -i` (mode interactif) ;
-- `gh auth git-credential get` ;
-- `printf 'protocol=https\nhost=github.com\n\n' | git credential fill` ;
-- `git credential-osxkeychain get` (`credential.helper osxkeychain` est configuré en global).
-
-Le réseau ne protège pas derrière. Depuis le sandbox, `api.github.com` et `github.com` répondent 200
-(constaté le 2026-10-08), alors que `example.com` est refusé, et `.claude/settings.json` n'autorise
-que `registry.npmjs.org`. L'origine de cette autorisation n'est pas établie : défaut du sandbox, ou
-approbation donnée en session. Un jeton lu par l'une de ces routes peut donc partir dans un `curl`
-vers l'API GitHub.
-
-**Ce qui ferme vraiment, à décider par Cédric :**
-
-1. **Refuser GitHub au réseau du sandbox.** Dans `.claude/settings.json`, ajouter
-   `"deniedDomains": ["github.com", "api.github.com", "*.github.com", "*.githubusercontent.com"]`
-   sous `sandbox.network`. Vérifier ensuite dans `/sandbox` qu'aucune approbation de session ne
-   l'emporte. L'agent ne pousse et ne merge déjà plus, puisque `gh` et SSH ne passent pas : on ne
-   perd rien.
-2. **Un jeton à privilèges réduits pour les sessions Claude.** C'est l'entrée « token fine-grained
-   sans Administration » de la TODO : un jeton qui fuit ne peut alors ni changer la protection de
-   branche ni merger.
-
-**En complément, la garde textuelle**, incomplète par nature car tout binaire peut interroger le
-trousseau. Dans `scripts/hooks/pre-bash-guard.py`, refuser :
-
-- `security` avec `-i` ou `-p` (mode interactif ou invite) ;
-- `gh auth git-credential` ;
-- `git credential fill|approve|reject` et toute commande `git credential-*`.
-
-Cas au self-test :
-
-```bash
-guard BLOCK "printf 'find-generic-password -w -s gh:github.com\n' | security -i"
-guard BLOCK 'gh auth git-credential get'
-guard BLOCK "printf 'protocol=https\nhost=github.com\n\n' | git credential fill"
-guard BLOCK 'git credential-osxkeychain get'
-guard ALLOW 'gh pr view 3'
-```
-
-Et une sonde réseau sous `SANDBOX_RUNTIME=1` : `curl --max-time 5 https://api.github.com` doit
-échouer (rouge si 200). C'est le test de l'effet, pas de l'orthographe de la config.
+**d. Une commande formée par l'expansion des accolades.** `{rm,-rf,node_modules}` passe : le shell
+la développe en `rm -rf node_modules`, mais la garde lit un seul mot, sans nom de commande connu.
+`8fd98f1` l'acceptait aussi. Correctif : refuser un nom de commande qui contient `{` suivi d'une
+`,` hors quotes. Cas au self-test : la commande ci-dessus en `guard BLOCK`.

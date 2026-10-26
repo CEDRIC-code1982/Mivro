@@ -394,7 +394,7 @@ elle échoue.
 | Garde Bash (un appel)                           | ≈ 50 ms                       |
 | Stage `fast` (hook `Stop`), capteurs parallèles | ≈ 4 – 5 s                     |
 | `npm run check` (stage `check`)                 | ≈ 20 s                        |
-| `check:harness` (418 sous sandbox, 416 en CI)   | ≈ 5 min (build de doc inclus) |
+| `check:harness` (427 sous sandbox, 424 en CI)   | ≈ 5 min (build de doc inclus) |
 
 ### Protection du harness
 

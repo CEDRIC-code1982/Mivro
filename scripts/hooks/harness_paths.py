@@ -15,8 +15,10 @@ guards, the lock and harness-guard all read — they can never disagree.
 
 from __future__ import annotations
 
+import json
 import os
 import re
+import stat
 import subprocess
 
 HOOKS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -58,12 +60,30 @@ def _settings_inject_unlock() -> bool:
             os.path.join(project, ".claude", "settings.local.json"),
         ]
     for path in candidates:
-        try:
-            with open(path, encoding="utf-8") as handle:
-                if UNLOCK_ENV in handle.read():
-                    return True
-        except OSError:
+        if not os.path.exists(path):
             continue
+        # Any failure on an existing settings file (unreadable, not UTF-8,
+        # malformed, absurdly nested) counts as an injected unlock: fail closed.
+        # It must never raise: every guard calls this on every tool call, and a
+        # crash there refuses everything, the repairing edit included (J-056).
+        try:
+            # Not a regular file (a FIFO would block open() forever, a device
+            # or socket is no settings file): refused before any open().
+            if not stat.S_ISREG(os.stat(path).st_mode):
+                return True
+            with open(path, encoding="utf-8") as handle:
+                text = handle.read()
+            if UNLOCK_ENV in text:
+                return True
+            # Decoded, not only searched: a key whose final K is a JSON unicode
+            # escape (backslash, u, 004B) is the same key to Claude Code
+            # (review of J-055).
+            data = json.loads(text)
+            env = data.get("env") if isinstance(data, dict) else None
+            if isinstance(env, dict) and UNLOCK_ENV in env:
+                return True
+        except Exception:  # noqa: BLE001 - fail closed on anything, by design
+            return True
     return False
 
 
