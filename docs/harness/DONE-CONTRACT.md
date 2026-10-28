@@ -7,30 +7,30 @@
 
 ## Tâche
 
-**Titre** : GitHub au sandbox — essai, mesure, retour à J-054 (J-057)
+**Titre** : Consigner sous J-022 les volets mécanisables proposés par les revues de J-057
 
-**Demande d'origine** : « ouvre GitHub au sandbox ». Essai sur `github.com` seul. La revue a montré
-que le push de l'agent ne marchait pas, et qu'une route de push sans garde s'ouvrait par `GH_TOKEN`.
-Cédric a retenu la recommandation : refermer, et consigner.
+**Demande d'origine** : « consigne sous J-022 », après la liste des trois règles proposées par les
+revues de J-057 pour le capteur des affirmations factuelles des docs.
 
-**Branche** : `harness/ouvrir-github-au-sandbox`, depuis `develop` (`18bdb6c`).
+**Branche** : `harness/j-022-regles-affirmations-docs`, empilée sur `harness/ouvrir-github-au-sandbox`
+(`c7c92be`, PR en cours vers `develop`), car le texte cite J-057.
 
 **Hors périmètre explicite** :
 
-- Durcir la garde contre `git remote-*` et les URL à jeton : sans objet tant que GitHub est refusé.
-- Retirer `GH_TOKEN` et `GIT_ASKPASS` du shell qui lance `claude` : décision de Cédric, au TODO.
-- Le commit, le push, la PR et le merge : Cédric.
+- Écrire le capteur lui-même : il touche `scripts/`, donc le harness (session déverrouillée, relock).
+- Changer le statut de J-022 : il reste OUVERT, capteur à écrire.
+- Le push, la PR et le merge : Cédric.
 
 ---
 
 ## Conditions de fin
 
-| #   | Condition                                                                   | Comment on le vérifie                      |
-| --- | --------------------------------------------------------------------------- | ------------------------------------------ |
-| 1   | Aucun fichier du harness ne diffère de `develop`                            | `git diff --stat develop` : docs seulement |
-| 2   | `github.com` et `api.github.com` sont de nouveau refusés                    | sonde du self-test, `sandbox_violations`   |
-| 3   | J-057 consigne l'essai, les mesures, la route découverte et la décision     | relecture, capteur `docrefs`               |
-| 4   | Le TODO dit l'état réel : jeton en place, restes de J-057, ruleset consigné | relecture                                  |
+| #   | Condition                                                                                                                                                                                                                                                    | Comment on le vérifie                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
+| 1   | J-022 consigne les trois volets, plus le contrat périmé (accord de Cédric), chacun avec l'exemple réel qu'il aurait attrapé                                                                                                                                  | relecture de `JOURNAL-ECHECS.md`, section J-022 |
+| 2   | Chaque exemple est vrai : J-057 rédigé sans ligne d'index ; `setup-branch-protection.sh` prescrit à l'étape 5 du RUNBOOK de `develop` ; `harness/en-attente-5-8` mergée par la PR #3 (`7d6c33c`) mais encore ouverte dans le TODO et le RUNBOOK de `develop` | `git show develop:<fichier>`, `git log develop` |
+| 3   | Le volet « index du journal » est réellement greffable sur le capteur `docrefs`                                                                                                                                                                              | lecture du script de `docrefs` dans `scripts/`  |
+| 4   | Le statut de J-022 reste OUVERT et cohérent avec son index ; seuls `JOURNAL-ECHECS.md` et ce contrat changent                                                                                                                                                | `git diff --stat`                               |
 
 ---
 
@@ -40,12 +40,12 @@ Cédric a retenu la recommandation : refermer, et consigner.
 - [x] Les trois états rendus pour chaque écran touché : aucun écran modifié.
 - [x] Toute donnée externe validée : sans objet, aucun schéma modifié.
 - [x] Toute string affichée passe par `useTranslation()` : aucune string ajoutée.
-- [x] Docs de contexte mises à jour : `TODO.md`, `RUNBOOK.md` (protection, place du jeton), `EN-ATTENTE.md`, J-057 et son index.
-- [x] ADR : aucune, la décision reste celle de J-054.
+- [x] Docs de contexte mises à jour : sans objet, le suivi de J-022 est déjà au TODO.
+- [x] ADR : aucune.
 - [ ] Verdict `APPROVED` du subagent `reviewer` sur l'arbre final.
 
 ---
 
 ## Ce qui reste à Cédric
 
-- [ ] Commit sur demande, push de `harness/ouvrir-github-au-sandbox`, PR vers `develop`.
+- [ ] Merger la PR J-057, puis pousser cette branche et ouvrir sa PR vers `develop`.

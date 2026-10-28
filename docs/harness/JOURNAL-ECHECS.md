@@ -754,6 +754,51 @@ référence`, échouer si `test -e` répond vrai.
   `numTotalTestSuites` au tableau « Métriques actuelles » de `PROGRESS.md`. Aurait attrapé les
   compteurs figés à 85 suites / 1133 tests alors que la réalité était 86 / 1226.
 
+**Trois volets de plus, proposés par les revues de J-057** (2026-10-28). Quatre revues
+successives ont trouvé dans les docs des affirmations devenues fausses, que `npm run check`
+laissait passer. Trois d'entre elles se vérifient mécaniquement, sans juger le sens d'une phrase :
+
+- **Index du journal.** Chaque titre `## J-NNN` de `JOURNAL-ECHECS.md` doit avoir sa ligne
+  `| J-NNN |` dans l'index en tête du fichier, et inversement. Aurait attrapé J-057, rédigé sans sa
+  ligne d'index. Le plus simple des trois : à greffer sur le capteur `docrefs` existant.
+- **Script remplacé encore prescrit.** Quand un document déclare un script remplacé (« au lieu de
+  `scripts/X` »), le RUNBOOK ne doit plus le donner comme étape à suivre (ligne numérotée non
+  barrée qui le cite). Aurait attrapé un brouillon de J-057 : le TODO y disait la protection posée
+  par le ruleset `protect-develop-main` « au lieu de `scripts/setup-branch-protection.sh` », alors
+  que l'étape 5 de la mise en service du RUNBOOK prescrivait encore ce script ; la deuxième revue l'a
+  relevé en MAJEUR. Limite : la règle ne voit l'incohérence qu'une fois le remplacement écrit dans un
+  document. Sur `develop`, du 2026-10-26 au 2026-10-28, le ruleset n'existait que côté GitHub, et
+  l'étape 5 périmée n'aurait pas été attrapée.
+- **Case ouverte sur une branche mergée.** Une case `- [ ]` du TODO ou une étape non barrée du
+  RUNBOOK qui nomme une branche `harness/*` déjà mergée dans `develop` (`git branch --merged
+develop`, ou un « Merge pull request … from …/<branche> » dans `git log develop`) est rouge.
+  Aurait attrapé `harness/en-attente-5-8`, mergée par la PR #3 (`7d6c33c`) mais encore à faire
+  dans le TODO et le RUNBOOK.
+
+Deux autres affirmations fausses de ces revues restent hors de portée d'un capteur, et donc du
+jugement du reviewer : un jeton dit « à privilèges réduits » sur la foi de son préfixe, et un compte
+de self-test (579/0) cité sans avoir été remesuré.
+
+**Un quatrième volet, voisin : le contrat périmé** (2026-10-28, accord de Cédric). Il ne porte pas
+sur une affirmation des docs mais sur `DONE-CONTRACT.md`. La ligne `**Branche** :` du contrat doit
+nommer la branche courante (le premier nom entre backticks, comparé à
+`git rev-parse --abbrev-ref HEAD`), sinon le contrat est périmé. Aurait évité deux revues rendues
+`NO_CONTRACT` le 2026-10-28 : sur `harness/j-022-regles-affirmations-docs`, le contrat en place
+nommait encore `harness/ouvrir-github-au-sandbox`, celui de J-057, déjà commité.
+
+Point d'accroche : `scripts/hooks/reset-review.sh`, lancé au `SubagentStart` du reviewer
+(`.claude/settings.json`). C'est le seul qui tourne à coup sûr avant une revue, là où un contrat
+périmé coûte une revue entière. **Pas une ligne `fast` telle quelle** : elle tourne aussi au Stop
+hook, au pre-push (`.husky/pre-push`, stage `push`) et en CI (stage `push`), où elle serait rouge à
+tort. En CI sous `pull_request`, `actions/checkout` laisse HEAD détaché (`git rev-parse` renvoie
+`HEAD`) ; sous `push`, il crée la branche locale et la comparaison s'exécute. Sur `develop`, le
+contrat livré n'est pas remis à vierge (il y nomme `harness/chantier`), et le modèle vierge n'a pas
+de ligne `**Branche**`. Une ligne `fast` gardée en complément doit, dans ces cas (hors session
+agent, HEAD détaché, `develop` et `main`, modèle vierge), **sortir en vert** (exit 0, sans objet). Ce
+n'est pas une abstention au sens de `scripts/sensors.sh` (exit 3) : sous `MIVRO_NO_ABSTAIN=1`, en CI,
+une abstention fait échouer le run. Cas de self-test à écrire avec le capteur : HEAD détaché,
+`MIVRO_NO_ABSTAIN=1`, contrat de `develop`, et `check.sh --stage push` sort 0.
+
 ---
 
 ## J-023 — `check:diff` est aveugle à tout le natif
