@@ -71,6 +71,7 @@
 | J-054 | 13e revue : quatre routes vers le jeton par le trousseau            | OUVERT  |
 | J-055 | Le chantier du harness coûtait plus que le harness lui-même         | OUVERT  |
 | J-056 | L'agent a cassé les gardes en deux éditions, et s'est enfermé       | OUVERT  |
+| J-057 | GitHub ouvert au sandbox, puis refermé (jeton = route de push)      | CLOS    |
 
 ---
 
@@ -2348,3 +2349,48 @@ noté, conforme à la règle conservatrice de la troisième revue : `mv` d'un do
 
 **Règle pour la suite** : la matrice des groupements se teste aussi sur deux niveaux
 d'imbrication. Le self-test passe à 579/0.
+
+## J-057 — GitHub ouvert au sandbox, puis refermé : le jeton de la session devenait une route de push
+
+**Date** : 2026-10-28 · **Statut** : CLOS — essayé puis annulé dans la même session, aucun fichier du harness modifié au final
+
+**Demande.** « Ouvre GitHub au sandbox » : que l'agent fasse lui-même fetch et push. La condition
+posée par J-054 était un jeton fine-grained sans « Administration » ni droit de merge. `gh auth
+status` montre un `github_pat_` actif dans `GH_TOKEN` : le jeton est fine-grained, mais ses
+permissions n'ont **pas** été vérifiées (`gh` ne les affiche pas). S'il peut pousser, il a
+_Contents: write_, donc il peut merger une PR verte sous le ruleset actuel (0 approbation). Le jeton OAuth `gho_` (portée `repo`) reste dans le
+trousseau, sur le compte keyring inactif.
+
+**Essai.** `github.com` est passé de `deniedDomains` à `allowedDomains` dans `.claude/settings.json`.
+`api.github.com`, `*.github.com` et `*.githubusercontent.com` restaient refusés, et le self-test a
+été adapté (vert).
+
+**Ce que la revue a mesuré.**
+
+- **Le fetch ne prouvait rien.** `git ls-remote origin HEAD` passait parce que le dépôt est
+  **public** : `GIT_TRACE` ne montre aucun appel d'aide de credential.
+- **Le push authentifié ne marche pas sous sandbox.** `.git/config` (de ce dépôt seulement) remet à
+  zéro la liste d'aides pour `https://github.com`, puis appelle `gh auth git-credential`. Or `gh` ne
+  démarre pas sans lire `~/.config/gh/config.yml`, que le sandbox refuse. Git se rabat ensuite sur le
+  `GIT_ASKPASS` de VS Code (terminal intégré), qui bloque puis échoue.
+- **Mais une route de push échappait à la fois à la garde et à la confirmation.** `GH_TOKEN` est
+  lisible dans l'environnement du shell de l'agent (`printenv GH_TOKEN` passe la garde). Avec
+  `git remote-https` et le jeton dans l'URL, un push (y compris `+ref` ou `:ref`) part sans règle
+  `ask` (elle ne vise que `git push`), sans pre-push, et `git stash create` fabrique le commit sans
+  hook. Une injection de prompt pouvait ainsi publier un fichier local sur une branche d'un dépôt
+  public, ou réécrire et supprimer toute branche hors de `main` et `develop`.
+- **Route de credential non inventoriée** : le `GIT_ASKPASS` de VS Code, qui peut fournir la session
+  GitHub de l'éditeur. Elle échoue aujourd'hui par accident (`mktemp` hors de `$TMPDIR`).
+
+**Décision (Cédric, sur recommandation).** Refermer `github.com`. Tout jeton que l'agent peut
+utiliser depuis le sandbox est aussi un jeton qu'une injection peut détourner, et une garde par liste
+d'interdits (`git remote-*`, `send-pack`, URL à jeton, `http.*extraHeader`…) ne ferme jamais toutes
+les routes. Le refus réseau de J-054 reste la barrière. Push, PR et merge restent à Cédric, par `!`.
+
+**Leçon.** « Le réseau passe » ne prouve pas « l'opération authentifiée passe » : sur un dépôt public,
+seule une opération qui exige un credential le prouve. Et ouvrir un hôte se juge par ce qu'un
+jeton lisible depuis la session permet d'y faire, pas par l'usage prévu.
+
+**Restes, notés au TODO** : vider `GIT_ASKPASS` et retirer `GH_TOKEN` du shell qui lance `claude`
+(inutiles à l'agent tant que GitHub est refusé). Le ruleset `protect-develop-main` est consigné
+dans le TODO.

@@ -21,17 +21,18 @@ fichier de la liste rend le verrou rouge, en local comme en CI, et `harness-guar
 ### Mise en service (une fois)
 
 1. ~~**Générer le verrou**~~ : fait le 2026-10-05.
-2. **PR de `harness/en-attente-5-8` vers `develop`** (elle contient `harness/beton`). Les jobs
-   `battery` et `security` tournent sur la PR. `harness-guard`, lui, ne tourne **pas** encore : un
-   workflow `pull_request_target` s'exécute depuis la branche **de base**, et `harness-guard.yml`
-   n'existe pas encore sur `develop`.
+2. ~~**PR de `harness/en-attente-5-8` vers `develop`**~~ : mergée par la PR #3 (`7d6c33c`).
+   `harness-guard.yml` est sur `develop`, branche par défaut, donc `harness-guard` tourne sur les PR.
 3. ~~**J-040**~~ : lots 1 et 1 bis mergés le 2026-10-08 (PR #1, #2), relock fait.
-4. **Merger `harness/en-attente-5-8` dans `develop`**, puis **`develop` dans `main`** par PR. Les deux
-   branches portent alors `harness-guard.yml`.
-5. **Activer la protection** : `bash scripts/setup-branch-protection.sh`. Le script refuse
-   d'exiger `harness-guard` sur une branche qui ne porte pas encore le workflow, ce qui évite de
-   bloquer toutes les PR. Il crée aussi le label `harness-change`. Vérification :
-   `bash scripts/setup-branch-protection.sh --show`.
+4. ~~Merger `harness/en-attente-5-8` dans `develop`~~ (PR #3), puis **`develop` dans `main`** par PR.
+   Les deux branches portent alors `harness-guard.yml`.
+5. ~~**Activer la protection**~~ : posée le 2026-10-26 par le ruleset GitHub
+   `protect-develop-main`, **au lieu de** `scripts/setup-branch-protection.sh` (ne plus le lancer : il
+   empilerait une protection classique sur le ruleset). Sur `main` et `develop` : aucun bypass, PR
+   requise (0 approbation), checks `battery`, `security` et `harness-guard`, ni force-push ni
+   suppression. `develop` est la branche par défaut, car `harness-guard` tourne sur
+   `pull_request_target`, qui lit le workflow de la branche par défaut. Le label `harness-change`
+   existe (il a servi sur la PR #4).
 
 À partir de là, toute PR qui touche le harness exige que tu poses le label `harness-change`.
 
@@ -94,10 +95,9 @@ variable posée dans le bloc `env` des settings est ignorée exprès.
   `"sandbox": { "allowUnsandboxedCommands": false }` est posé dans `~/.claude/settings.json` :
   l'agent ne peut plus relancer une commande hors sandbox.
 - **Le jeton GitHub reste lisible par le trousseau** (J-054) : la garde refuse les routes connues,
-  et le réseau du sandbox refuse GitHub, mais une route inconnue reste possible. Dernière défense, à
-  ta main : un jeton à privilèges réduits pour les sessions Claude (fine-grained, sans
-  « Administration » ni droit de merge), pour qu'un jeton qui fuit ne puisse ni changer la
-  protection de branche ni merger.
+  et le réseau du sandbox refuse GitHub, mais une route inconnue reste possible. Ce refus réseau est
+  la barrière : l'ouverture de `github.com` a été essayée puis refermée le 2026-10-28 (J-057), car un
+  jeton lisible depuis la session y devenait une route de push sans garde ni confirmation.
 - **Un capteur est faux, ou une règle manque** : l'agent le décrit (fichier, changement exact). Tu
   lances une session `MIVRO_HARNESS_UNLOCK=1 claude` pour qu'il l'applique, puis
   `npm run harness:relock`, puis commit, PR et label `harness-change`.
@@ -110,11 +110,14 @@ variable posée dans le bloc `env` des settings est ignorée exprès.
 - **Fin de tour avec ⚠️ capteurs rouges** : le hook Stop a laissé passer l'agent après 3 tentatives
   infructueuses. Lis ce qu'il a écrit avant de faire confiance à l'état du dépôt.
 
-### Durcissement optionnel, recommandé
+### Durcissement optionnel
 
-Un token GitHub **fine-grained** sans la permission _Administration_ pour les sessions Claude :
-`gh auth login` avec ce token dans le shell qui lance `claude`. C'est la seule barrière contre un
-script qui lèverait la protection de branche en passant sous les gardes locaux.
+Ne pas laisser de jeton GitHub à portée de l'agent : lancer `claude` sans `GH_TOKEN` ni
+`GIT_ASKPASS` (`env -u GH_TOKEN -u GIT_ASKPASS claude`, ou hors du terminal VS Code). Tes commandes
+`!` utilisent alors le jeton du trousseau. Si un jeton reste dans l'environnement, qu'il soit
+fine-grained, limité à `Mivro`, sans _Administration_. Avec _Contents: write_, il peut encore merger
+une PR verte sous le ruleset actuel (0 approbation) : seul le refus réseau du sandbox l'en empêche
+(J-057).
 
 ---
 

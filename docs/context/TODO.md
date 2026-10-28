@@ -228,9 +228,14 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
       au réseau du sandbox (`deniedDomains`), quatre routes du trousseau refusées par la garde.
       Self-test à 427/0 sous sandbox (424 en terminal ou en CI).
 - [x] ~~Cédric : `npm run harness:relock` après §6 et §7~~ → fait le 2026-10-08.
-- [ ] Cédric : jeton GitHub à privilèges réduits pour les sessions Claude, sans « Administration »
-      ni droit de merge (J-054, dernière partie ouverte). Un jeton qui fuit ne peut alors ni changer la
-      protection de branche ni merger.
+- [ ] Cédric : relever les permissions réelles du jeton de `GH_TOKEN` (fine-grained : préfixe
+      `github_pat_` constaté le 2026-10-28, permissions **non vérifiées**). Sans « Administration »,
+      il ne peut pas lever la protection ; avec _Contents: write_, il peut merger une PR verte sous le
+      ruleset (0 approbation) : « ni droit de merge » n'est pas atteignable ainsi. GitHub reste
+      refusé au sandbox (J-057), ce qui couvre ce risque depuis la session.
+- [ ] Optionnel, Cédric (J-057) : lancer `claude` sans `GH_TOKEN` ni `GIT_ASKPASS` (lisibles par
+      l'agent, inutiles tant que GitHub est refusé), par exemple `env -u GH_TOKEN -u GIT_ASKPASS claude`,
+      ou hors du terminal VS Code. Tes commandes `!` utiliseraient alors le jeton du trousseau.
 - [ ] Session déverrouillée : `EN-ATTENTE.md` §1 (contrôle positif de la sonde réseau du self-test).
 - [ ] Cédric : vérifier dans `/sandbox` qu'aucune approbation de session ne rouvre `github.com`
       (la sonde du self-test le mesure à chaque run sous sandbox).
@@ -250,10 +255,12 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
       `GHSA-vfj7-8cjw-p6xm`, qui n'est plus signalé. Le capteur `audit` le marque `stale`, sans bloquer.
 - [ ] ⚠️ À SPÉCIFIER AVEC CÉDRIC : montée React Native 0.85 → 0.86+ (ferme les avis acceptés de
       J-040, expiration 2027-01-05) — ADR, rebuild natif, reanimated, worklets, maps, firebase.
-- [ ] Merger dans `develop`, puis `develop` dans `main`, puis `bash scripts/setup-branch-protection.sh`.
+- [ ] Merger `develop` dans `main`. La protection est posée depuis le 2026-10-26 par le ruleset
+      `protect-develop-main` (au lieu de `scripts/setup-branch-protection.sh`) : `main` et `develop`,
+      sans bypass, PR requise (0 approbation), checks `battery`, `security`, `harness-guard`, ni
+      force-push ni suppression. `develop` est la branche par défaut (requis par `harness-guard`).
 - [x] ~~Première revue réelle~~ → constaté le 2026-10-05 : `.git/mivro-review` écrit après
       l'`APPROVED`, et le pre-commit l'a accepté (commit « EN-ATTENTE §2 et §4 (J-051) », `4f7d1ba` après rebase).
-- [ ] Optionnel : token GitHub fine-grained sans « Administration » pour les sessions Claude.
 - [ ] **J-022** (ouvert) : capteur des affirmations factuelles des docs.
 - [ ] **Tests des règles RTDB** sur l'émulateur Firebase (`@firebase/rules-unit-testing`) :
       `$other` absent au niveau `sessions/$sessionId`, écriture refusée hors des trois nœuds. (P2)

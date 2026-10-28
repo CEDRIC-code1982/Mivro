@@ -20,8 +20,8 @@ en session déverrouillée, avec trois correctifs que le sandbox a imposés au h
 `/dev/fd`, voir J-051). Cédric a posé la clé utilisateur `allowUnsandboxedCommands: false` le
 2026-10-08. Les anciens points 6 (J-053 : le self-test n'écrit plus l'historique) et 7 (J-054 :
 GitHub refusé au réseau du sandbox, quatre routes du trousseau refusées) ont été appliqués le
-2026-10-08 en session déverrouillée. Il reste à Cédric le jeton GitHub à privilèges réduits, hors du
-dépôt (TODO).
+2026-10-08 en session déverrouillée. Le jeton fine-grained est dans `GH_TOKEN` ; il reste à Cédric
+à relever ses permissions réelles (TODO). GitHub reste refusé au sandbox (J-057).
 
 **Depuis le 2026-10-12 : mode chantier (J-055).** Cédric a ouvert une session déverrouillée pour
 finir le harness. L'agent y applique lui-même les entrées ci-dessous, avec une revue et un commit
