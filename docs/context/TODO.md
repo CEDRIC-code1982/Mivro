@@ -228,11 +228,13 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
       au réseau du sandbox (`deniedDomains`), quatre routes du trousseau refusées par la garde.
       Self-test à 427/0 sous sandbox (424 en terminal ou en CI).
 - [x] ~~Cédric : `npm run harness:relock` après §6 et §7~~ → fait le 2026-10-08.
-- [ ] Cédric : relever les permissions réelles du jeton de `GH_TOKEN` (fine-grained : préfixe
-      `github_pat_` constaté le 2026-10-28, permissions **non vérifiées**). Sans « Administration »,
-      il ne peut pas lever la protection ; avec _Contents: write_, il peut merger une PR verte sous le
-      ruleset (0 approbation) : « ni droit de merge » n'est pas atteignable ainsi. GitHub reste
-      refusé au sandbox (J-057), ce qui couvre ce risque depuis la session.
+- [x] ~~Cédric : relever les permissions réelles du jeton de `GH_TOKEN`~~ → relevées le 2026-10-28
+      (J-057) : `mivro-claude`, dépôt `Mivro` seul, sans _Administration_, _Contents_ et _Pull
+      requests_ en écriture, expire le 2027-01-26. Il ne peut pas lever la protection, mais peut
+      merger une PR verte sous le ruleset (0 approbation). GitHub reste refusé au sandbox (J-057),
+      ce qui couvre ce risque depuis la session.
+- [ ] Cédric, avant le 2027-01-26 : régénérer le jeton `mivro-claude` (ou le laisser expirer si
+      `GH_TOKEN` sort du shell de `claude`).
 - [ ] Optionnel, Cédric (J-057) : lancer `claude` sans `GH_TOKEN` ni `GIT_ASKPASS` (lisibles par
       l'agent, inutiles tant que GitHub est refusé), par exemple `env -u GH_TOKEN -u GIT_ASKPASS claude`,
       ou hors du terminal VS Code. Tes commandes `!` utiliseraient alors le jeton du trousseau.
@@ -243,7 +245,7 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
 - [x] ~~`npm run harness:relock` après §2 et §4~~ → **FAIT (2026-10-05)**.
 - [ ] Première CI : vérifier vert le pas `self-test counts a dead call (J-051)` (preuve Bash 5 de
       J-048), puis passer J-048 RÉSOLU.
-- [ ] Commit de `harness/en-attente-5-8`, push et PR vers `develop`.
+- [x] ~~Commit de `harness/en-attente-5-8`, push et PR vers `develop`~~ → mergée par la PR #3 (`7d6c33c`).
 - [x] ~~**J-040 lot 1**~~ → mergé dans `develop` le 2026-10-08 (PR #1, `4242ada`).
 - [x] ~~**J-040 lot 1 bis**~~ → `compression` 1.8.2 mergé le 2026-10-08 (PR #2), branche du
       harness rebasée, relock fait : stage `push` entièrement vert.

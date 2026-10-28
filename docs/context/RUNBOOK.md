@@ -115,7 +115,8 @@ variable posée dans le bloc `env` des settings est ignorée exprès.
 Ne pas laisser de jeton GitHub à portée de l'agent : lancer `claude` sans `GH_TOKEN` ni
 `GIT_ASKPASS` (`env -u GH_TOKEN -u GIT_ASKPASS claude`, ou hors du terminal VS Code). Tes commandes
 `!` utilisent alors le jeton du trousseau. Si un jeton reste dans l'environnement, qu'il soit
-fine-grained, limité à `Mivro`, sans _Administration_. Avec _Contents: write_, il peut encore merger
+fine-grained, limité à `Mivro`, sans _Administration_ : c'est le cas de `mivro-claude`, relevé le
+2026-10-28, qui expire le 2027-01-26. Avec _Contents: write_, il peut encore merger
 une PR verte sous le ruleset actuel (0 approbation) : seul le refus réseau du sandbox l'en empêche
 (J-057).
 

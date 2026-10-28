@@ -2356,10 +2356,15 @@ d'imbrication. Le self-test passe à 579/0.
 
 **Demande.** « Ouvre GitHub au sandbox » : que l'agent fasse lui-même fetch et push. La condition
 posée par J-054 était un jeton fine-grained sans « Administration » ni droit de merge. `gh auth
-status` montre un `github_pat_` actif dans `GH_TOKEN` : le jeton est fine-grained, mais ses
-permissions n'ont **pas** été vérifiées (`gh` ne les affiche pas). S'il peut pousser, il a
-_Contents: write_, donc il peut merger une PR verte sous le ruleset actuel (0 approbation). Le jeton OAuth `gho_` (portée `repo`) reste dans le
-trousseau, sur le compte keyring inactif.
+status` montre un `github_pat_` actif dans `GH_TOKEN`. `gh` n'affiche pas ses permissions : Cédric
+les a relevées dans GitHub le 2026-10-28 (capture d'écran du jeton `mivro-claude`). Le jeton est
+limité au dépôt `CEDRIC-code1982/Mivro`, n'a aucune permission utilisateur, a la lecture sur
+actions, statuts de commit et métadonnées, et la lecture-écriture sur le code (_Contents_) et les
+pull requests. Il expire le 2027-01-26. Sans _Administration_, il ne peut pas toucher au ruleset ;
+avec _Contents_ et _Pull requests_ en écriture, il peut pousser, supprimer une branche hors de
+`main` et `develop`, et merger une PR verte sous le ruleset actuel (0 approbation). La moitié
+« ni droit de merge » de la condition n'est donc pas remplie. Le jeton OAuth `gho_` (portée `repo`)
+reste dans le trousseau, sur le compte keyring inactif.
 
 **Essai.** `github.com` est passé de `deniedDomains` à `allowedDomains` dans `.claude/settings.json`.
 `api.github.com`, `*.github.com` et `*.githubusercontent.com` restaient refusés, et le self-test a
