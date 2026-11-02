@@ -1,12 +1,11 @@
 /**
  * @file POIMapView.test.tsx
- * @description Tests unitaires de la molecule POIMapView.
- *              Unit tests for the POIMapView molecule.
+ * @description Unit tests for the POIMapView molecule.
  *
  * @module features/POI/components/POIMapView/POIMapView.test
  */
 
-// [ADDED] Tests unitaires POIMapView
+// [ADDED] POIMapView unit tests
 
 import { fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
@@ -14,6 +13,18 @@ import type { Coordinates } from '@entities/Location';
 import type { Participant } from '@entities/MidpointSession';
 import type { PointOfInterest } from '@entities/PointOfInterest';
 import POIMapView from '@features/POI/components/POIMapView';
+
+// ─── Mock i18n ─────────────────────────────────────────────
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => {
+      const translations: Record<string, string> = {
+        'mapView.midpointMarker': 'Point de rencontre',
+      };
+      return translations[key] ?? key;
+    },
+  }),
+}));
 
 // ─── Mock react-native-maps ────────────────────────────────
 jest.mock('react-native-maps', () => {
@@ -93,6 +104,12 @@ describe('POIMapView', () => {
     const { getByTestId } = render(<POIMapView {...defaultProps} testID="map" />);
 
     expect(getByTestId('map-marker-midpoint')).toBeTruthy();
+  });
+
+  it('labels the midpoint marker through i18n (I18N-002)', () => {
+    const { getByTestId } = render(<POIMapView {...defaultProps} testID="map" />);
+
+    expect(getByTestId('map-marker-midpoint').props.accessibilityLabel).toBe('Point de rencontre');
   });
 
   it('renders zone circle', () => {

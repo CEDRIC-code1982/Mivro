@@ -1,12 +1,11 @@
 /**
  * @file SessionMapView.test.tsx
- * @description Tests unitaires de la molecule SessionMapView.
- *              Unit tests for the SessionMapView molecule.
+ * @description Unit tests for the SessionMapView molecule.
  *
  * @module components/molecules/SessionMapView/SessionMapView.test
  */
 
-// [ADDED] Tests unitaires SessionMapView
+// [ADDED] SessionMapView unit tests
 
 import { render } from '@testing-library/react-native';
 import React from 'react';
@@ -14,6 +13,18 @@ import SessionMapView from '@components/molecules/SessionMapView';
 import type { Coordinates } from '@entities/Location';
 import type { Participant } from '@entities/MidpointSession';
 import type { RealtimeParticipant } from '@entities/RealtimeParticipant';
+
+// ─── Mock i18n ─────────────────────────────────────────────
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => {
+      const translations: Record<string, string> = {
+        'markers.midpoint': 'Point de rencontre',
+      };
+      return translations[key] ?? key;
+    },
+  }),
+}));
 
 // ─── Mock react-native-maps ────────────────────────────────
 jest.mock('react-native-maps', () => {
@@ -107,7 +118,7 @@ describe('SessionMapView', () => {
     expect(getByText('B')).toBeTruthy();
   });
 
-  // [FIXED P1] Carte annonçable par VoiceOver (A11Y-006)
+  // [FIXED P1] Map announceable by VoiceOver (A11Y-006)
   it('exposes the map as a single accessible element when accessibilityLabel is provided', () => {
     const { getByTestId } = render(
       <SessionMapView

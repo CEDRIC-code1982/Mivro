@@ -26,6 +26,7 @@
 
 import { useTheme, type Theme } from '@theme';
 import React, { useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Platform, StyleSheet, View } from 'react-native';
 import MapView, { Circle, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Text } from '@components/atoms';
@@ -85,6 +86,7 @@ const POIMapView: React.FC<POIMapViewProps> = ({
 }) => {
   const theme = useTheme();
   const styles = createStyles(theme);
+  const { t } = useTranslation('poi');
   const mapRef = useRef<MapView>(null);
 
   // Centrage automatique sur tous les points
@@ -158,7 +160,7 @@ const POIMapView: React.FC<POIMapViewProps> = ({
         <Marker
           coordinate={midpoint}
           anchor={{ x: 0.5, y: 0.5 }}
-          accessibilityLabel="Point de rencontre"
+          accessibilityLabel={t('mapView.midpointMarker')}
           testID={testID ? `${testID}-marker-midpoint` : undefined}
         >
           <View style={[styles.markerCircle, styles.midpointMarker]}>
