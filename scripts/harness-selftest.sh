@@ -1336,6 +1336,82 @@ else
   bad "journal references are red on the current tree"
 fi
 
+# J-022: the journal index, judged on a scratch journal.
+JIDX_REPO="$(scratch_repo)" || exit 2
+mkdir -p "$JIDX_REPO/docs/harness"
+# Run from here, not copied: its own comments cite journal entries.
+DOCREFS_SH="$PWD/scripts/check-doc-refs.sh"
+journal_case() { # journal_case <expect> <label> <journal lines...>
+  local want="$1" label="$2"
+  shift 2
+  printf '%s\n' "$@" >"$JIDX_REPO/docs/harness/JOURNAL-ECHECS.md"
+  (cd "$JIDX_REPO" && bash "$DOCREFS_SH" >/dev/null 2>&1)
+  expect_exit "$want" $? "$label"
+}
+ROW1="| J-001 | first | OUVERT |"
+ROW2="| J-002 | second | OUVERT |"
+journal_case 0 "a journal index with one row per entry is green (J-022)" \
+  "$ROW1" "$ROW2" "" "## J-001 — first" "" "## J-002 — second"
+journal_case 1 "an entry without its index row is caught (J-022, as J-057)" \
+  "$ROW1" "" "## J-001 — first" "" "## J-002 — second"
+journal_case 1 "an index row without its entry is caught (J-022)" \
+  "$ROW1" "$ROW2" "" "## J-001 — first"
+# The citation rule alone would turn that red too: check the index rule spoke.
+JIDX_OUT="$(cd "$JIDX_REPO" && bash "$DOCREFS_SH" 2>&1)"
+if printf '%s' "$JIDX_OUT" | grep -q "lists J-002, which has no"; then
+  ok "the index rule names the orphan row (J-022)"
+else
+  bad "the index rule does not name the orphan row (J-022)"
+fi
+
+# J-022: replaced scripts and merged branches in open items, judged on a scratch
+# repository whose history holds the merge of harness/en-attente-5-8 (PR #3).
+if bash scripts/check-docs-facts.sh >/dev/null 2>&1; then
+  ok "doc facts are green on the current tree (J-022)"
+else
+  bad "doc facts are red on the current tree (J-022)"
+fi
+FACTS_REPO="$(scratch_repo)" || exit 2
+facts_git() {
+  git --git-dir="$FACTS_REPO/.git" --work-tree="$FACTS_REPO" -c user.email=selftest@mivro -c user.name=selftest "$@"
+}
+mkdir -p "$FACTS_REPO/scripts" "$FACTS_REPO/docs/context"
+cp scripts/check-docs-facts.sh "$FACTS_REPO/scripts/"
+if facts_git checkout -q -b harness/en-attente-5-8 && facts_git commit -q --allow-empty -m side &&
+  facts_git checkout -q - &&
+  facts_git merge -q --no-ff -m "Merge pull request #3 from someone/harness/en-attente-5-8" harness/en-attente-5-8; then
+  facts_case() { # facts_case <expect> <label> <RUNBOOK text> <TODO text>
+    printf '%s\n' "$3" >"$FACTS_REPO/docs/context/RUNBOOK.md"
+    printf '%s\n' "$4" >"$FACTS_REPO/docs/context/TODO.md"
+    (cd "$FACTS_REPO" && bash scripts/check-docs-facts.sh >/dev/null 2>&1)
+    expect_exit "$1" $? "$2"
+  }
+  # The declaration is wrapped by Prettier between "au lieu de" and the path.
+  DECLARED='- [x] Protection posée par le ruleset (au lieu de'"$NL"'      `scripts/setup-branch-protection.sh`).'
+  STEP5_OLD='5. **Activer la protection** : `bash scripts/setup-branch-protection.sh`. Le script refuse'"$NL"'   de bloquer les PR. Vérification :'"$NL"'   `bash scripts/setup-branch-protection.sh --show`.'
+  STEP5_DONE='5. ~~**Activer la protection**~~ : posée par le ruleset, **au lieu de** `scripts/setup-branch-protection.sh`.'
+  TODO_OPEN='- [ ] Commit de `harness/en-attente-5-8`, push et PR vers `develop`.'
+  facts_case 0 "struck steps, unmerged branches and longer script names are green (J-022)" \
+    "$STEP5_DONE$NL"'2. ~~**PR de `harness/en-attente-5-8`**~~ : mergée.'"$NL"'6. Lancer `scripts/setup-branch-protection-v2.sh`.' \
+    "$DECLARED$NL"'- [ ] PR de `harness/autre` vers `develop`.'"$NL"'- [ ] Suite de ~~`harness/en-attente-5-8`~~.'
+  # An open step, title not struck, whose only citation is the declaration.
+  facts_case 0 "the declaration in an open step, wrapped, is not a prescription (J-022)" \
+    '7. **Protection** : posée par le ruleset, **au lieu de**'"$NL"'   `scripts/setup-branch-protection.sh`.' \
+    "$DECLARED"
+  facts_case 1 "an open step prescribing a script declared replaced is caught (J-022, step 5 before J-057)" \
+    "$STEP5_OLD" "$DECLARED"
+  facts_case 0 "a script no document declares replaced may be prescribed (J-022)" \
+    "$STEP5_OLD" '- [x] Rien.'
+  facts_case 1 "an open TODO box naming a merged branch is caught (J-022, PR #3)" \
+    '1. Rien.' "$TODO_OPEN"
+  facts_case 1 "an open RUNBOOK step naming a merged branch on a wrapped line is caught (J-022)" \
+    '4. Merger la PR'"$NL"'   de `harness/en-attente-5-8` dans `develop`.' '- [x] Rien.'
+  facts_case 0 "a longer branch name is not the merged one (J-022)" \
+    '1. Rien.' '- [ ] PR de `harness/en-attente-5-8-bis`.'
+else
+  bad "cannot build the merge history of the doc-facts scratch repository"
+fi
+
 # ---------------------------------------------------------------------------
 section "8. Reviewer verdict - seal (SubagentStop) and pre-commit gate"
 
@@ -1476,7 +1552,7 @@ section "10. Sensor table, CI and configuration wiring"
 bash scripts/check.sh --only nope >/dev/null 2>&1
 expect_exit 2 $? "an unknown sensor id is an error, never a green"
 SENSOR_LIST="$(bash scripts/check.sh --stage push --list)"
-for id in typecheck lint format arch diff lock native deps docrefs scripts tests docs audit; do
+for id in typecheck lint format arch diff lock native deps docrefs docfacts scripts tests docs audit; do
   case "$NL$SENSOR_LIST" in
     *"$NL$id "*) ok "sensor '$id' is in the table" ;;
     *) bad "sensor '$id' missing from scripts/sensors.sh" ;;

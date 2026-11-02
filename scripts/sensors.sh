@@ -48,7 +48,8 @@ diff|fast|0|Banned patterns in the diff (check-diff)|for r in $RANGES; do bash s
 lock|fast|1|Harness lock (scripts/harness.lock)|bash scripts/harness-lock.sh
 native|fast|0|Native identity (team, bundle id, scheme)|python3 scripts/check-native.py
 deps|fast|0|Dependency allowlist|node scripts/check-deps.js
-docrefs|fast|0|Failure-journal references|bash scripts/check-doc-refs.sh
+docrefs|fast|0|Failure-journal references and index|bash scripts/check-doc-refs.sh
+docfacts|fast|0|Open doc items vs repo state (replaced scripts, merged branches)|bash scripts/check-docs-facts.sh
 scripts|fast|1|Harness scripts (shellcheck + Python syntax)|bash scripts/check-scripts.sh
 tests|check|0|Jest + coverage thresholds|npx --no-install jest --ci --coverage --silent
 audit|push|1|npm audit, runtime deps, high and above, named exceptions|bash scripts/check-audit.sh

@@ -263,7 +263,9 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
       force-push ni suppression. `develop` est la branche par défaut (requis par `harness-guard`).
 - [x] ~~Première revue réelle~~ → constaté le 2026-10-05 : `.git/mivro-review` écrit après
       l'`APPROVED`, et le pre-commit l'a accepté (commit « EN-ATTENTE §2 et §4 (J-051) », `4f7d1ba` après rebase).
-- [ ] **J-022** (ouvert) : capteur des affirmations factuelles des docs.
+- [ ] **J-022** (ouvert) : capteur des affirmations factuelles des docs. Index du journal, script
+      remplacé encore prescrit et case ouverte sur une branche mergée écrits le 2026-11-02 (`docrefs`,
+      `docfacts`) ; restent les absences démenties, les métriques de `PROGRESS.md` et le contrat périmé.
 - [ ] **Tests des règles RTDB** sur l'émulateur Firebase (`@firebase/rules-unit-testing`) :
       `$other` absent au niveau `sessions/$sessionId`, écriture refusée hors des trois nœuds. (P2)
 
