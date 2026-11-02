@@ -220,7 +220,9 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
 - [x] ~~EN-ATTENTE §3, §4 et §5 (J-051 sandbox, J-052)~~ → appliqués le 2026-10-08 en session
       déverrouillée ; self-test à 418 assertions (427 après §6 et §7), stage `push` vert sous sandbox, `lock` compris (relock du 2026-10-08).
 - [x] ~~Relock après §3 à §5~~ → fait le 2026-10-08.
-- [ ] **Bloque la PR #3** : revue, commit, push ; `battery` vert sur la CI ferme J-052.
+- [x] ~~**Bloque la PR #3** : revue, commit, push~~ → PR #3 mergée (`7d6c33c`). `battery` est
+      requise au merge par le ruleset, et les PR #4 à #7 ont été mergées sous ce ruleset. Reste à
+      passer J-052 RÉSOLU dans le journal.
 - [x] ~~Cédric : `"sandbox": { "allowUnsandboxedCommands": false }` dans `~/.claude/settings.json`~~
       → posé le 2026-10-08, constaté (`dangerouslyDisableSandbox` désactivé en session).
 - [x] ~~EN-ATTENTE §6 et §7 (J-053, J-054)~~ → appliqués le 2026-10-08 en session déverrouillée :
@@ -238,7 +240,8 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
 - [ ] Optionnel, Cédric (J-057) : lancer `claude` sans `GH_TOKEN` ni `GIT_ASKPASS` (lisibles par
       l'agent, inutiles tant que GitHub est refusé), par exemple `env -u GH_TOKEN -u GIT_ASKPASS claude`,
       ou hors du terminal VS Code. Tes commandes `!` utiliseraient alors le jeton du trousseau.
-- [ ] Session déverrouillée : `EN-ATTENTE.md` §1 (contrôle positif de la sonde réseau du self-test).
+- [x] ~~Session déverrouillée : `EN-ATTENTE.md` §1 (contrôle positif de la sonde réseau du
+      self-test)~~ → appliqué au lot 2 du chantier, le 2026-10-12 (`bfe83ba`).
 - [ ] Cédric : vérifier dans `/sandbox` qu'aucune approbation de session ne rouvre `github.com`
       (la sonde du self-test le mesure à chaque run sous sandbox).
 - [x] ~~EN-ATTENTE §2 et §4 (J-051)~~ → appliqués le 2026-10-05 ; self-test à 395 assertions.
@@ -259,7 +262,7 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
       linking `mivro://`, via `query-string` : la mise à jour de `@react-navigation/*` (core 7.24.0,
       qui n'utilise plus `query-string`) le fait disparaître, au lieu de l'accepter.
 - [x] ~~Session déverrouillée : retirer de `scripts/audit-accepted.json` l'avis
-      `GHSA-vfj7-8cjw-p6xm`~~ → retiré le 2026-11-02 (lot 5). Reste `npm run harness:relock`.
+      `GHSA-vfj7-8cjw-p6xm`~~ → retiré le 2026-11-02 (lot 5) ; verrou refait par Cédric le même jour (`33a25dd`).
 - [ ] ⚠️ À SPÉCIFIER AVEC CÉDRIC : montée React Native 0.85 → 0.86+ (ferme les avis acceptés de
       J-040, expiration 2027-01-05) — ADR, rebuild natif, reanimated, worklets, maps, firebase.
 - [ ] Merger `develop` dans `main`. La protection est posée depuis le 2026-10-26 par le ruleset

@@ -7,49 +7,51 @@
 
 ## Tâche
 
-**Titre** : J-040 lot 5 — deux nouveaux avis npm audit « high » levés, avis périmé `vfj7` retiré
+**Titre** : Ménage après le lot 5 — lignes périmées du TODO, test réel du deep linking
 
-**Demande d'origine** : le pre-push de `harness/j-022-capteurs-docs` est rouge sur `audit`
-(GHSA-4528-x5fx-h6hg `joi`, GHSA-qr28-fpjm-wq7f `decode-uri-component`). Cédric a validé : `joi`
-mis à jour, `decode-uri-component` traité, `GHSA-vfj7-8cjw-p6xm` retiré de `audit-accepted.json`.
+**Demande d'origine** : « ok fais le ménage », sur la liste proposée après la PR #7 :
 
-**Branche** : `harness/j-022-capteurs-docs`, à la suite de `fcf4ede` (un seul push pour les deux
-lots).
+- retirer du TODO les lignes périmées (« Bloque la PR #3 », « EN-ATTENTE §1 », « Reste
+  `npm run harness:relock` ») ;
+- ajouter un test `getStateFromPath` sans mock sur la config de `linking.ts`, comme l'a demandé
+  le reviewer du lot 5.
+
+**Branche** : `chore/menage-apres-lot-5`, issue de `develop` (`0325a23`).
 
 **Hors périmètre explicite** :
 
-- Le test sur device du deep linking `mivro://session/<id>` après la mise à jour de React
-  Navigation : c'est Cédric qui le fait (RUNBOOK).
-- Le push, la PR et le merge : Cédric.
+- Remettre ce fichier à son modèle vierge. Le reviewer rend `NO_CONTRACT` sur un contrat vide,
+  donc ce reset ne peut pas passer par un commit relu. C'est le volet « contrat périmé » de J-022,
+  qui reste ouvert : ce contrat-ci remplace celui du lot 5.
+- Changer le statut des entrées du journal (J-048, J-052) : le journal est un fichier du harness.
+- Les autres lignes du TODO dont l'état n'est pas prouvé : je les signale à Cédric sans y toucher.
 
 ---
 
 ## Conditions de fin
 
-| #   | Condition                                                                                                                                             | Comment on le vérifie                                |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 1   | `joi` 17.13.9 est installé, et `decode-uri-component` n'est plus dans l'arbre runtime : `@react-navigation/core` 7.24.0 n'utilise plus `query-string` | `npm ls joi decode-uri-component --omit=dev`         |
-| 2   | Seul `package-lock.json` change côté dépendances : aucune plage de `package.json` ne bouge                                                            | `git diff --stat`                                    |
-| 3   | `GHSA-vfj7-8cjw-p6xm` est retiré de `audit-accepted.json`, et le capteur `audit` est vert sans avertissement `stale`                                  | `bash scripts/check.sh --stage push -- --only audit` |
-| 4   | Aucune régression : navigation et deep linking (`src/navigations/linking.ts`) restent couverts et verts, et la batterie du stage push est verte       | `bash scripts/check.sh --stage push`                 |
-| 5   | Le verrou couvre le nouveau lockfile et le nouveau `audit-accepted.json` (relock de Cédric), et le TODO décrit le lot 5                               | capteur `lock`, relecture du TODO                    |
+| #   | Condition                                                                                                                                                                                      | Comment on le vérifie                                  |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| 1   | Les trois lignes du TODO sont barrées ou corrigées, avec leur preuve : PR #3 mergée (`7d6c33c`), EN-ATTENTE §1 appliqué au lot 2 (`EN-ATTENTE.md:32`), verrou refait le 2026-11-02 (`33a25dd`) | `git diff docs/context/TODO.md`, `git log`             |
+| 2   | `linking.test.ts` appelle le vrai `getStateFromPath` de `@react-navigation/native`, sans mock, sur la config de `linking.ts`                                                                   | lecture du test, `grep jest.mock` vide dans le fichier |
+| 3   | Le test couvre `session/abc-123` (`JoinSession`, `sessionId`), `session/a%20b` (décodé), `map` (`Tabs` › `Map`), et un `%` mal formé (`session/abc%`) qui ne lève pas d'exception              | `npx jest src/navigations/linking.test.ts`             |
+| 4   | Le test échoue si le mapping casse : vérifié en changeant le pattern `session/:sessionId`, puis restauré                                                                                       | essai manuel, décrit dans le rapport                   |
+| 5   | Tous les commentaires de `linking.test.ts` sont en anglais (règle du fichier entier) ; aucun fichier du harness ne change (`lock` vert sans relock)                                            | lecture, `npm run check`                               |
 
 ---
 
 ## Socle systématique
 
-- [x] `npm run check` vert (stage push, 14 capteurs).
+- [x] `npm run check` vert.
 - [x] Les trois états rendus pour chaque écran touché : aucun écran modifié.
 - [x] Toute donnée externe validée : sans objet, aucun schéma modifié.
 - [x] Toute string affichée passe par `useTranslation()` : aucune string ajoutée.
-- [x] Docs de contexte mises à jour : `TODO.md` (J-040 lot 5, retrait de `vfj7`).
-- [x] ADR : aucune, la procédure J-040 s'applique.
+- [x] Docs de contexte mises à jour : `TODO.md`.
+- [x] ADR : aucune.
 - [ ] Verdict `APPROVED` du subagent `reviewer` sur l'arbre final.
 
 ---
 
 ## Ce qui reste à Cédric
 
-- [ ] Tester sur device un lien `mivro://session/<id>` après la mise à jour de React Navigation.
-- [ ] Push de `harness/j-022-capteurs-docs`, PR vers `develop` avec le label `harness-change`, merge
-      si la CI est verte.
+- [ ] Push de `chore/menage-apres-lot-5`, PR vers `develop`, merge si la CI est verte.
