@@ -7,48 +7,49 @@
 
 ## Tâche
 
-**Titre** : Écrire les trois capteurs mécanisables de J-022 proposés par les revues de J-057
+**Titre** : J-040 lot 5 — deux nouveaux avis npm audit « high » levés, avis périmé `vfj7` retiré
 
-**Demande d'origine** : « fais les points 1 à 3 » — les trois volets consignés sous J-022 le
-2026-10-28 : index du journal, script remplacé encore prescrit, case ouverte sur une branche mergée.
+**Demande d'origine** : le pre-push de `harness/j-022-capteurs-docs` est rouge sur `audit`
+(GHSA-4528-x5fx-h6hg `joi`, GHSA-qr28-fpjm-wq7f `decode-uri-component`). Cédric a validé : `joi`
+mis à jour, `decode-uri-component` traité, `GHSA-vfj7-8cjw-p6xm` retiré de `audit-accepted.json`.
 
-**Branche** : `harness/j-022-capteurs-docs`, issue de `develop` (`f7f7997`), en session déverrouillée
-(mode chantier, J-055).
+**Branche** : `harness/j-022-capteurs-docs`, à la suite de `fcf4ede` (un seul push pour les deux
+lots).
 
 **Hors périmètre explicite** :
 
-- Le quatrième volet (contrat périmé, `reset-review.sh`) et les deux volets d'origine de J-022
-  (absences démenties, métriques de `PROGRESS.md`) : J-022 reste OUVERT pour eux.
-- Le relock, le commit, le push, la PR et le merge : Cédric.
+- Le test sur device du deep linking `mivro://session/<id>` après la mise à jour de React
+  Navigation : c'est Cédric qui le fait (RUNBOOK).
+- Le push, la PR et le merge : Cédric.
 
 ---
 
 ## Conditions de fin
 
-| #   | Condition                                                                                                                                                                                        | Comment on le vérifie                                |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
-| 1   | `docrefs` est rouge quand un titre `## J-NNN` n'a pas sa ligne `\| J-NNN \|` dans l'index, et inversement                                                                                        | self-test, cas positif et négatif                    |
-| 2   | Un nouveau capteur est rouge quand une étape non barrée du RUNBOOK cite un script déclaré remplacé (« au lieu de `scripts/X` ») dans un document, et vert sur la phrase de déclaration elle-même | self-test, dont l'étape 5 réelle d'avant J-057       |
-| 3   | Le même capteur est rouge quand une case `- [ ]` du TODO ou une étape non barrée du RUNBOOK cite une branche `harness/*` déjà mergée dans l'historique de HEAD                                   | self-test, dont le cas réel `harness/en-attente-5-8` |
-| 4   | Les trois règles sont vertes sur l'arbre actuel, sans faux positif, et rapides (stage `fast`)                                                                                                    | `npm run check`, temps du capteur                    |
-| 5   | Le capteur est dans la table `scripts/sensors.sh`, et le self-test vérifie sa présence                                                                                                           | `npm run check:harness`                              |
-| 6   | J-022, `INVENTAIRE.md`, `TODO.md` et `PROGRESS.md` décrivent ce qui est livré et ce qui reste ouvert, avec les limites des règles                                                                | relecture                                            |
+| #   | Condition                                                                                                                                             | Comment on le vérifie                                |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 1   | `joi` 17.13.9 est installé, et `decode-uri-component` n'est plus dans l'arbre runtime : `@react-navigation/core` 7.24.0 n'utilise plus `query-string` | `npm ls joi decode-uri-component --omit=dev`         |
+| 2   | Seul `package-lock.json` change côté dépendances : aucune plage de `package.json` ne bouge                                                            | `git diff --stat`                                    |
+| 3   | `GHSA-vfj7-8cjw-p6xm` est retiré de `audit-accepted.json`, et le capteur `audit` est vert sans avertissement `stale`                                  | `bash scripts/check.sh --stage push -- --only audit` |
+| 4   | Aucune régression : navigation et deep linking (`src/navigations/linking.ts`) restent couverts et verts, et la batterie du stage push est verte       | `bash scripts/check.sh --stage push`                 |
+| 5   | Le verrou couvre le nouveau lockfile et le nouveau `audit-accepted.json` (relock de Cédric), et le TODO décrit le lot 5                               | capteur `lock`, relecture du TODO                    |
 
 ---
 
 ## Socle systématique
 
-- [x] `npm run check` vert (`lock` s'abstient en session déverrouillée) ; `check:harness` 592/0.
+- [x] `npm run check` vert (stage push, 14 capteurs).
 - [x] Les trois états rendus pour chaque écran touché : aucun écran modifié.
 - [x] Toute donnée externe validée : sans objet, aucun schéma modifié.
 - [x] Toute string affichée passe par `useTranslation()` : aucune string ajoutée.
-- [x] Docs de contexte mises à jour : J-022, `INVENTAIRE.md`, `TODO.md`, `PROGRESS.md`.
-- [x] ADR : aucune, le capteur suit ADR-016.
+- [x] Docs de contexte mises à jour : `TODO.md` (J-040 lot 5, retrait de `vfj7`).
+- [x] ADR : aucune, la procédure J-040 s'applique.
 - [ ] Verdict `APPROVED` du subagent `reviewer` sur l'arbre final.
 
 ---
 
 ## Ce qui reste à Cédric
 
-- [ ] `npm run harness:relock` (taper `RELOCK`), commit, push, PR vers `develop` avec le label
-      `harness-change`, merge.
+- [ ] Tester sur device un lien `mivro://session/<id>` après la mise à jour de React Navigation.
+- [ ] Push de `harness/j-022-capteurs-docs`, PR vers `develop` avec le label `harness-change`, merge
+      si la CI est verte.
