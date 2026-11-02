@@ -367,21 +367,22 @@ après un clone.
 
 `npm run check -- --list` (stage `check`) ou `bash scripts/check.sh --stage push --list`.
 
-| id          | stage | Rôle                                                                               |
-| ----------- | ----- | ---------------------------------------------------------------------------------- |
-| `typecheck` | fast  | `tsc --noEmit` incrémental                                                         |
-| `lint`      | fast  | ESLint `.ts/.tsx/.js/.mjs/.cjs`, **zéro warning**, cache indexé sur les règles     |
-| `format`    | fast  | Prettier                                                                           |
-| `arch`      | fast  | dependency-cruiser                                                                 |
-| `diff`      | fast  | `check-diff.sh` : échappatoires, `any` en toute position, tests focalisés, secrets |
-| `lock`      | fast  | intégrité du harness                                                               |
-| `native`    | fast  | team Apple, bundle id, deployment target, plist Firebase, scheme Debug             |
-| `deps`      | fast  | liste blanche des dépendances npm                                                  |
-| `docrefs`   | fast  | numérotation du journal, citations `J-NNN` résolues                                |
-| `scripts`   | fast  | shellcheck + syntaxe Python du harness (peut s'abstenir sans shellcheck)           |
-| `tests`     | check | Jest + seuils de couverture                                                        |
-| `audit`     | push  | `npm audit --omit=dev`, hautes et critiques, avis acceptés par GHSA (s'abstient)   |
-| `docs`      | push  | TypeDoc + Docusaurus (peut s'abstenir sans `docs-site/node_modules`)               |
+| id          | stage | Rôle                                                                                                |
+| ----------- | ----- | --------------------------------------------------------------------------------------------------- |
+| `typecheck` | fast  | `tsc --noEmit` incrémental                                                                          |
+| `lint`      | fast  | ESLint `.ts/.tsx/.js/.mjs/.cjs`, **zéro warning**, cache indexé sur les règles                      |
+| `format`    | fast  | Prettier                                                                                            |
+| `arch`      | fast  | dependency-cruiser                                                                                  |
+| `diff`      | fast  | `check-diff.sh` : échappatoires, `any` en toute position, tests focalisés, secrets                  |
+| `lock`      | fast  | intégrité du harness                                                                                |
+| `native`    | fast  | team Apple, bundle id, deployment target, plist Firebase, scheme Debug                              |
+| `deps`      | fast  | liste blanche des dépendances npm                                                                   |
+| `docrefs`   | fast  | numérotation et index du journal, citations `J-NNN` résolues (J-022)                                |
+| `docfacts`  | fast  | RUNBOOK/TODO : script déclaré remplacé encore prescrit, case ouverte sur une branche mergée (J-022) |
+| `scripts`   | fast  | shellcheck + syntaxe Python du harness (peut s'abstenir sans shellcheck)                            |
+| `tests`     | check | Jest + seuils de couverture                                                                         |
+| `audit`     | push  | `npm audit --omit=dev`, hautes et critiques, avis acceptés par GHSA (s'abstient)                    |
+| `docs`      | push  | TypeDoc + Docusaurus (peut s'abstenir sans `docs-site/node_modules`)                                |
 
 Une abstention (exit 3) est nommée et n'est jamais comptée verte ; en CI (`MIVRO_NO_ABSTAIN=1`)
 elle échoue.

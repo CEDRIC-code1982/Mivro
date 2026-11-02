@@ -5,6 +5,9 @@
 #   1. Entries in docs/harness/JOURNAL-ECHECS.md are numbered J-001, J-002 ...
 #      with no gap and no duplicate.
 #   2. Every "J-NNN" cited anywhere in the tracked files resolves to an entry.
+#   3. The index table at the top of the journal has one "| J-NNN |" row per
+#      entry, and no row without an entry (J-022: J-057 was written without
+#      its row, and nothing noticed).
 #
 # The journal is where each defect that slipped past the harness is tied to the
 # rule that now catches it. A citation to an entry that does not exist is a
@@ -39,6 +42,46 @@ while IFS= read -r entry; do
   expected=$((expected + 1))
 done <<EOF
 $ENTRIES
+EOF
+
+# Index rows: "| J-NNN | subject | status |", in the table at the top.
+INDEX="$(grep -oE '^\| J-[0-9]{3} \|' "$JOURNAL" | cut -c3-7)"
+DUPES="$(printf '%s\n' "$INDEX" | sort | uniq -d)"
+if [ -n "$DUPES" ]; then
+  echo "✖ duplicate rows in the journal index: $(echo "$DUPES" | tr '\n' ' ')"
+  FAIL=1
+fi
+while IFS= read -r entry; do
+  [ -n "$entry" ] || continue
+  case "
+$INDEX
+" in
+    *"
+$entry
+"*) ;;
+    *)
+      echo "✖ $entry has no row in the index of $JOURNAL (| $entry | subject | status |)"
+      FAIL=1
+      ;;
+  esac
+done <<EOF
+$ENTRIES
+EOF
+while IFS= read -r row; do
+  [ -n "$row" ] || continue
+  case "
+$ENTRIES
+" in
+    *"
+$row
+"*) ;;
+    *)
+      echo "✖ the index of $JOURNAL lists $row, which has no \"## $row —\" entry"
+      FAIL=1
+      ;;
+  esac
+done <<EOF
+$INDEX
 EOF
 
 # Citations: tracked files plus untracked ones not ignored (work in progress).

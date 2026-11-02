@@ -715,7 +715,8 @@ absorber silencieusement un défaut antérieur dans le correctif d'un autre.
 
 ## J-022 — Le harness ne vérifie aucune affirmation factuelle des docs
 
-**Date** : 2026-08-24 · **Statut** : OUVERT — capteur à écrire. Requalifié le 2026-09-26 : hors du
+**Date** : 2026-08-24 · **Statut** : OUVERT — trois volets écrits le 2026-11-02, les autres restent
+à écrire (voir « Volets 1 à 3 écrits » plus bas). Requalifié le 2026-09-26 : hors du
 lot harness v2, qui porte sur les contournements du code et des gates. Le reviewer y a d'ailleurs
 trouvé trois affirmations fausses dans les docs du harness v2, corrigées à la main : la leçon tient
 toujours. Suivi : `TODO.md > Harness v2`.
@@ -778,6 +779,44 @@ develop`, ou un « Merge pull request … from …/<branche> » dans `git log de
 Deux autres affirmations fausses de ces revues restent hors de portée d'un capteur, et donc du
 jugement du reviewer : un jeton dit « à privilèges réduits » sur la foi de son préfixe, et un compte
 de self-test (579/0) cité sans avoir été remesuré.
+
+**Volets 1 à 3 écrits** (2026-11-02, branche `harness/j-022-capteurs-docs`, session déverrouillée).
+
+- **Index du journal** : greffé sur `scripts/check-doc-refs.sh` (capteur `docrefs`), dans les deux
+  sens. Le sens « ligne d'index sans section » doublonne la règle des citations, qui voit déjà le
+  `J-NNN` de la ligne ; il est gardé pour son message.
+- **Script remplacé encore prescrit** et **case ouverte sur une branche mergée** : nouveau capteur
+  `docfacts`, `scripts/check-docs-facts.sh`, stage `fast` (0,2 s). Une déclaration « au lieu de »
+  suivie d'un chemin `scripts/…` est cherchée dans tous les `.md` du dépôt, retours à la ligne
+  repliés (Prettier coupe parfois entre les deux). Une étape lue est la ligne numérotée ou la case
+  `- [ ]` et les lignes indentées qui la suivent. Une étape dont le titre commence par `~~` est
+  faite ; ailleurs, le texte barré et la phrase de déclaration elle-même sont ignorés. Le nom doit
+  être cité entier : `harness/x-bis` n'est pas `harness/x`.
+- **Branche mergée = dans l'historique de HEAD**, et non de `develop` : sous un `pull_request` de la
+  CI, il n'y a pas de `develop` local, et HEAD est le merge de la PR dans `develop`. Sujets reconnus :
+  « Merge pull request #N from owner/harness/… » (GitHub) et « Merge branch 'harness/…' » (local).
+  Une PR mergée en squash ou en rebase ne laisse aucun de ces sujets : elle n'est pas vue.
+- **Rejoué sur les vrais cas** : le RUNBOOK d'avant `507b275` donne trois rouges (étape 5 qui
+  prescrit `setup-branch-protection.sh`, étapes 2 et 4 qui nomment `harness/en-attente-5-8`), le
+  TODO d'avant `507b275` un rouge (la case du commit de cette branche). L'arbre actuel est vert.
+- **Limites** : une étape au titre barré mais au reste encore ouvert est sautée entière (l'étape 4
+  du RUNBOOK actuel : « ~~Merger …~~, puis `develop` dans `main` ») ; une branche mergée après le
+  départ de HEAD n'est pas encore dans son historique ; un remplacement fait seulement côté GitHub
+  reste invisible, comme prévu plus haut.
+- **Rouge différé** (relevé par la revue) : une branche qui se nomme elle-même dans une case ouverte
+  est verte sur sa propre PR, car le HEAD de la CI y est « Merge <sha> into <sha> ». Elle ne rougit
+  qu'une fois mergée, sur `develop` puis sur toutes les branches qui en partent : c'est exactement
+  le cas de `harness/en-attente-5-8`. La parade est de ne pas nommer sa propre branche dans le TODO
+  ou le RUNBOOK ; « Ce qui reste à Cédric » vit dans `DONE-CONTRACT.md`, que le capteur ne lit pas.
+- **Découpage par l'indentation seule** (relevé par la revue) : une sous-case `- [x]` cochée sous une
+  étape ouverte est rattachée à son parent (faux positif) ; toute liste numérotée du RUNBOOK est lue
+  comme des étapes, même sous un titre historique (faux positif) ; une clôture de code non indentée
+  ferme l'étape, et la commande qu'elle contient n'est pas lue (faux négatif) ; un titre
+  `**~~…~~**`, gras autour du barré, n'est pas vu comme fait (faux positif). L'arbre actuel n'en
+  déclenche aucun. Pour un faux positif, la sortie est de barrer le texte.
+
+Restent ouverts sous J-022 : les absences démenties (« absent », « n'existe pas »), les métriques de
+`PROGRESS.md` comparées au `coverage-summary.json`, et le contrat périmé ci-dessous.
 
 **Un quatrième volet, voisin : le contrat périmé** (2026-10-28, accord de Cédric). Il ne porte pas
 sur une affirmation des docs mais sur `DONE-CONTRACT.md`. La ligne `**Branche** :` du contrat doit

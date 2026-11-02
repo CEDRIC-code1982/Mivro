@@ -41,6 +41,12 @@ harness défini par zones produit, comparées sans casse). Le verrou est génér
 `audit`) sont appliquées. Le stage `push` est entièrement vert depuis le 2026-10-08 (J-040 : lots 1 et 1 bis
 mergés, PR #1 et #2) ; 4 avis restent acceptés nommément jusqu'au 2027-01-05. Mise en service : RUNBOOK > « Harness ».
 
+**2026-11-02, J-022 en partie.** Trois règles des docs deviennent des capteurs `fast` : l'index du
+journal suit ses sections (`docrefs`) ; le RUNBOOK ne prescrit plus un script qu'un document
+déclare remplacé, et aucune case ouverte du TODO ou du RUNBOOK ne nomme une branche `harness/*`
+déjà mergée (`docfacts`, `scripts/check-docs-facts.sh`). Rejouées sur les docs d'avant `507b275`,
+elles attrapent les quatre cas réels relevés par les revues de J-057.
+
 ## ADR rattrapage — série ADR-001→014 complète (2026-07-14)
 
 Documentation rétroactive des décisions d'architecture manquantes, au format imposé

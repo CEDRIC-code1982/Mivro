@@ -253,8 +253,13 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
 - [x] ~~**J-040 lot 4**~~ : le 2026-10-26, quatre nouveaux avis « high » bloquaient le pre-push. Ils
       sont corrigés dans les plages déclarées, par le lockfile seul : `zod` 4.6.7, `body-parser`
       1.20.9, `launch-editor` 2.14.2, `undici` 6.29.1.
-- [ ] Session déverrouillée : retirer de `scripts/audit-accepted.json` l'avis
-      `GHSA-vfj7-8cjw-p6xm`, qui n'est plus signalé. Le capteur `audit` le marque `stale`, sans bloquer.
+- [x] ~~**J-040 lot 5**~~ : le 2026-11-02, deux nouveaux avis « high » bloquaient le pre-push. Ils
+      sont corrigés dans les plages déclarées, par le lockfile seul. `joi` passe en 17.13.9
+      (GHSA-4528-x5fx-h6hg). `decode-uri-component` (GHSA-qr28-fpjm-wq7f) était atteint par le deep
+      linking `mivro://`, via `query-string` : la mise à jour de `@react-navigation/*` (core 7.24.0,
+      qui n'utilise plus `query-string`) le fait disparaître, au lieu de l'accepter.
+- [x] ~~Session déverrouillée : retirer de `scripts/audit-accepted.json` l'avis
+      `GHSA-vfj7-8cjw-p6xm`~~ → retiré le 2026-11-02 (lot 5). Reste `npm run harness:relock`.
 - [ ] ⚠️ À SPÉCIFIER AVEC CÉDRIC : montée React Native 0.85 → 0.86+ (ferme les avis acceptés de
       J-040, expiration 2027-01-05) — ADR, rebuild natif, reanimated, worklets, maps, firebase.
 - [ ] Merger `develop` dans `main`. La protection est posée depuis le 2026-10-26 par le ruleset
@@ -263,7 +268,9 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
       force-push ni suppression. `develop` est la branche par défaut (requis par `harness-guard`).
 - [x] ~~Première revue réelle~~ → constaté le 2026-10-05 : `.git/mivro-review` écrit après
       l'`APPROVED`, et le pre-commit l'a accepté (commit « EN-ATTENTE §2 et §4 (J-051) », `4f7d1ba` après rebase).
-- [ ] **J-022** (ouvert) : capteur des affirmations factuelles des docs.
+- [ ] **J-022** (ouvert) : capteur des affirmations factuelles des docs. Index du journal, script
+      remplacé encore prescrit et case ouverte sur une branche mergée écrits le 2026-11-02 (`docrefs`,
+      `docfacts`) ; restent les absences démenties, les métriques de `PROGRESS.md` et le contrat périmé.
 - [ ] **Tests des règles RTDB** sur l'émulateur Firebase (`@firebase/rules-unit-testing`) :
       `$other` absent au niveau `sessions/$sessionId`, écriture refusée hors des trois nœuds. (P2)
 

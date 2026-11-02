@@ -7,45 +7,49 @@
 
 ## Tâche
 
-**Titre** : Consigner sous J-022 les volets mécanisables proposés par les revues de J-057
+**Titre** : J-040 lot 5 — deux nouveaux avis npm audit « high » levés, avis périmé `vfj7` retiré
 
-**Demande d'origine** : « consigne sous J-022 », après la liste des trois règles proposées par les
-revues de J-057 pour le capteur des affirmations factuelles des docs.
+**Demande d'origine** : le pre-push de `harness/j-022-capteurs-docs` est rouge sur `audit`
+(GHSA-4528-x5fx-h6hg `joi`, GHSA-qr28-fpjm-wq7f `decode-uri-component`). Cédric a validé : `joi`
+mis à jour, `decode-uri-component` traité, `GHSA-vfj7-8cjw-p6xm` retiré de `audit-accepted.json`.
 
-**Branche** : `harness/j-022-regles-affirmations-docs`, empilée sur `harness/ouvrir-github-au-sandbox`
-(`c7c92be`, PR en cours vers `develop`), car le texte cite J-057.
+**Branche** : `harness/j-022-capteurs-docs`, à la suite de `fcf4ede` (un seul push pour les deux
+lots).
 
 **Hors périmètre explicite** :
 
-- Écrire le capteur lui-même : il touche `scripts/`, donc le harness (session déverrouillée, relock).
-- Changer le statut de J-022 : il reste OUVERT, capteur à écrire.
+- Le test sur device du deep linking `mivro://session/<id>` après la mise à jour de React
+  Navigation : c'est Cédric qui le fait (RUNBOOK).
 - Le push, la PR et le merge : Cédric.
 
 ---
 
 ## Conditions de fin
 
-| #   | Condition                                                                                                                                                                                                                                                    | Comment on le vérifie                           |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
-| 1   | J-022 consigne les trois volets, plus le contrat périmé (accord de Cédric), chacun avec l'exemple réel qu'il aurait attrapé                                                                                                                                  | relecture de `JOURNAL-ECHECS.md`, section J-022 |
-| 2   | Chaque exemple est vrai : J-057 rédigé sans ligne d'index ; `setup-branch-protection.sh` prescrit à l'étape 5 du RUNBOOK de `develop` ; `harness/en-attente-5-8` mergée par la PR #3 (`7d6c33c`) mais encore ouverte dans le TODO et le RUNBOOK de `develop` | `git show develop:<fichier>`, `git log develop` |
-| 3   | Le volet « index du journal » est réellement greffable sur le capteur `docrefs`                                                                                                                                                                              | lecture du script de `docrefs` dans `scripts/`  |
-| 4   | Le statut de J-022 reste OUVERT et cohérent avec son index ; seuls `JOURNAL-ECHECS.md` et ce contrat changent                                                                                                                                                | `git diff --stat`                               |
+| #   | Condition                                                                                                                                             | Comment on le vérifie                                |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 1   | `joi` 17.13.9 est installé, et `decode-uri-component` n'est plus dans l'arbre runtime : `@react-navigation/core` 7.24.0 n'utilise plus `query-string` | `npm ls joi decode-uri-component --omit=dev`         |
+| 2   | Seul `package-lock.json` change côté dépendances : aucune plage de `package.json` ne bouge                                                            | `git diff --stat`                                    |
+| 3   | `GHSA-vfj7-8cjw-p6xm` est retiré de `audit-accepted.json`, et le capteur `audit` est vert sans avertissement `stale`                                  | `bash scripts/check.sh --stage push -- --only audit` |
+| 4   | Aucune régression : navigation et deep linking (`src/navigations/linking.ts`) restent couverts et verts, et la batterie du stage push est verte       | `bash scripts/check.sh --stage push`                 |
+| 5   | Le verrou couvre le nouveau lockfile et le nouveau `audit-accepted.json` (relock de Cédric), et le TODO décrit le lot 5                               | capteur `lock`, relecture du TODO                    |
 
 ---
 
 ## Socle systématique
 
-- [x] `npm run check` vert.
+- [x] `npm run check` vert (stage push, 14 capteurs).
 - [x] Les trois états rendus pour chaque écran touché : aucun écran modifié.
 - [x] Toute donnée externe validée : sans objet, aucun schéma modifié.
 - [x] Toute string affichée passe par `useTranslation()` : aucune string ajoutée.
-- [x] Docs de contexte mises à jour : sans objet, le suivi de J-022 est déjà au TODO.
-- [x] ADR : aucune.
+- [x] Docs de contexte mises à jour : `TODO.md` (J-040 lot 5, retrait de `vfj7`).
+- [x] ADR : aucune, la procédure J-040 s'applique.
 - [ ] Verdict `APPROVED` du subagent `reviewer` sur l'arbre final.
 
 ---
 
 ## Ce qui reste à Cédric
 
-- [ ] Merger la PR J-057, puis pousser cette branche et ouvrir sa PR vers `develop`.
+- [ ] Tester sur device un lien `mivro://session/<id>` après la mise à jour de React Navigation.
+- [ ] Push de `harness/j-022-capteurs-docs`, PR vers `develop` avec le label `harness-change`, merge
+      si la CI est verte.
