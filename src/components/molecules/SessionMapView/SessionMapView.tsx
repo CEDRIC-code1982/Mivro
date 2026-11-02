@@ -28,6 +28,7 @@
 // [ADDED] Molecule SessionMapView — carte interactive session
 import { useTheme, type Theme } from '@theme';
 import React, { useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Platform, StyleSheet, View } from 'react-native';
 import MapView, { Circle, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Text } from '@components/atoms';
@@ -94,6 +95,7 @@ const SessionMapView: React.FC<SessionMapViewProps> = ({
 }) => {
   const theme = useTheme();
   const styles = createStyles(theme);
+  const { t } = useTranslation('map');
   const mapRef = useRef<MapView>(null);
 
   // Centrage automatique sur tous les points + midpoint
@@ -172,7 +174,7 @@ const SessionMapView: React.FC<SessionMapViewProps> = ({
         <Marker
           coordinate={midpoint}
           anchor={{ x: 0.5, y: 0.5 }}
-          accessibilityLabel="Point de rencontre"
+          accessibilityLabel={t('markers.midpoint')}
           testID={testID ? `${testID}-marker-midpoint` : undefined}
         >
           <View style={[styles.markerCircle, styles.midpointMarker]}>

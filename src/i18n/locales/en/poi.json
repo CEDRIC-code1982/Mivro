@@ -48,5 +48,8 @@
     "query_timeout": "Search took too long. Reduce the area or categories.",
     "parse_error": "Invalid server response.",
     "unknown": "Unexpected error."
+  },
+  "mapView": {
+    "midpointMarker": "Meeting point"
   }
 }

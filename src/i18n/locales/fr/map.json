@@ -33,5 +33,8 @@
   "errors": {
     "mapLoadFailed": "Impossible de charger la carte. Vérifie ta connexion.",
     "unknown": "Erreur inattendue."
+  },
+  "markers": {
+    "midpoint": "Point de rencontre"
   }
 }

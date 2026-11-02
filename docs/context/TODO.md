@@ -180,7 +180,9 @@ _Estimation : L. Dépendances : comptes stores._
 
 - [ ] Clé API Google Maps Android (release)
 - [ ] Build signing iOS + Android
-- [ ] Coverage global ≥ 70 % (seuil CI)
+- [ ] Couverture tenue aux seuils par couche de `jest.config.js` (`coverageThreshold`, CI) : 90 %
+      (`entities`, `services/domain`, `services/utils`, `theme`), 70 % (`services/infra`), 50 %
+      (`features`, `components`, `state`, `hooks`, `navigations`), et 70 % en global.
 - [ ] Upload TestFlight + Play Console (piste interne)
 
 ---
@@ -193,7 +195,7 @@ _Estimation : L. Dépendances : comptes stores._
 - [ ] **Re-vérif device** : confirmer sur iPhone que (a) le champ fantôme F1 a disparu, (b) le footer carte tient en Dynamic Type 200 %. Vérifier aussi qu'aucun autre écran ne casse en 200 %.
 - [x] ~~**Coverage non mesurée**~~ → **FAIT (2026-08-21, harness)** : mesurée à chaque `npm run check`. Global **95,5 % stmts / 85,6 % branches / 93,3 % funcs**, 1177 tests, 86 suites.
 - [ ] **Atoms manquants** : `Button`, `Input`, `IconButton`, `Card`, `Spinner` n'existent pas — à créer via skill `create-atom` quand une feature les requiert.
-- [ ] **Ports placeholders** : dossiers `infrastructure/{eta,analytics}` encore vides — à remplir (V1 OSRM / PostHog). `realtime/` rempli par F4.
+- [ ] **Ports placeholders** : dossiers `src/services/infra/{eta,analytics}` encore vides — à remplir (V1 OSRM / PostHog). `realtime/` rempli par F4.
 - [ ] **`SessionsScreen`** : squelette 72 l. — historique sessions à implémenter (AsyncStorage, cf. STORAGE).
 - [ ] **react-native-maps shim** : `skipLibCheck` désactive le check des `.d.ts` libs — surveiller les régressions de types externes.
 - [x] ~~**`borderWidth: 1` en dur**~~ → **FAIT (2026-08-21, harness)** : tokens `theme.borderWidth` (`none`/`hairline`/`thin`/`thick`) et `theme.size.marker` ajoutés ; la règle ESLint `local-rules/no-magic-style-values` interdit désormais tout nouveau magic number dans un `StyleSheet.create()`.
@@ -201,7 +203,10 @@ _Estimation : L. Dépendances : comptes stores._
 - [ ] **`normalizePath` (F7 p2)** : `ImagePickerProfilePhotoService.normalizePath` fait `uri.replace('file://', '')` ; utiliser plutôt `decodeURIComponent(uri.replace(/^file:\/\//, ''))` pour gérer les chemins avec caractères encodés (espaces, accents). Relevé par la review F7 — durcissement. (P3)
 - [ ] **Contrat `IProfilePhotoService.deletePhoto` (F7 p2)** : renforcer la TSDoc pour stipuler que la méthode **ne doit JAMAIS rejeter** (best-effort : un fichier absent / non supprimable ne casse pas la mise à jour du profil). Relevé par la review F7. (P3)
 - [ ] **`cameraType: 'front'` (F7 p2)** : choix de la caméra frontale par défaut dans `ImagePickerProfilePhotoService` = décision produit implicite → à confirmer avec Cédric. (P3)
-- [ ] **Label midpoint hardcodé (I18N-001, pré-existant — pas F4)** : le marker midpoint dans `SessionMapView.tsx` (`accessibilityLabel="Point de rencontre"`) est une string en dur → passer par `useTranslation()`. Relevé pendant la review F4 mais antérieur à F4. (P3)
+- [x] ~~**Label midpoint hardcodé (I18N-002)**~~ → corrigé le 2026-11-02 : le marker midpoint de
+      `POIMapView.tsx` passe par `t('mapView.midpointMarker')` (namespace `poi`, FR + EN), avec un
+      test. Même correction pour `src/components/molecules/SessionMapView/SessionMapView.tsx`
+      (`t('markers.midpoint')`, namespace `map`), où le libellé était toujours en dur.
 - [ ] **Rules : `sessions/$sessionId` sans `$other: false` (F5, review — résiduel)** : le niveau `sessions/$sessionId` n'a pas de `"$other": { ".validate": false }` → un client qui connaît l'UUID pourrait écrire un **sous-nœud frère arbitraire** (au-delà de `meta`/`members`/`participants`). Risque **MVP-sans-auth assumé** (protection = UUID non devinable, capability URL ; cf. `database.rules.README.md`). À corriger avec le durcissement **Firebase Anonymous Auth**. (P2/P3)
 - [ ] **`expiresAt` sans purge automatique (F5, RGPD)** : `meta.expiresAt` est **vérifié à l'ouverture** (join refusé si expiré) mais **n'efface aucune donnée** côté serveur → les nœuds de sessions expirées **persistent** dans RTDB. Nécessite une **Cloud Function cron / TTL serveur** pour supprimer les sessions expirées. À planifier. (P2)
 - [x] ~~**`test:ci` ne passe pas `--coverage`**~~ → **FAIT (2026-08-21, harness)** : `test:ci` = `jest --ci --coverage`, les `coverageThreshold` sont donc réellement bloquants dans `npm run check`. A nécessité de couvrir les 4 callbacks `tabBarIcon` de `BottomTabsNavigator` (seul seuil qui échouait : `src/navigations/` functions 42,85 % < 50 %).
