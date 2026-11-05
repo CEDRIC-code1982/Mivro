@@ -346,13 +346,13 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 
 ---
 
-## Métriques actuelles (mesurées le 2026-09-26)
+## Métriques actuelles (mesurées le 2026-11-05 pour les tests, le 2026-09-26 pour le reste)
 
 | Métrique                           | Valeur                                                            |
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
-| Suites de tests                    | 87                                                                |
-| Tests (cas) — `npm run check`      | 1257                                                              |
+| Suites de tests                    | 88                                                                |
+| Tests (cas) — `npm run check`      | 1264                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |

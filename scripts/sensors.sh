@@ -50,8 +50,11 @@ native|fast|0|Native identity (team, bundle id, scheme)|python3 scripts/check-na
 deps|fast|0|Dependency allowlist|node scripts/check-deps.js
 docrefs|fast|0|Failure-journal references and index|bash scripts/check-doc-refs.sh
 docfacts|fast|0|Open doc items vs repo state (replaced scripts, merged branches)|bash scripts/check-docs-facts.sh
+docclaims|fast|0|Current-state docs: absences denied by the repo, dead src/ paths|python3 -I -B scripts/check-docs-claims.py
+contract|fast|0|DONE-CONTRACT names the current branch (agent sessions only)|bash scripts/check-contract.sh
 scripts|fast|1|Harness scripts (shellcheck + Python syntax)|bash scripts/check-scripts.sh
-tests|check|0|Jest + coverage thresholds|npx --no-install jest --ci --coverage --silent
+tests|check|0|Jest + coverage thresholds|npx --no-install jest --ci --coverage --silent --json --outputFile="$MIVRO_JEST_REPORT"
+docmetrics|check|1|PROGRESS.md test counts vs the Jest report of this run|python3 -I -B scripts/check-docs-metrics.py
 audit|push|1|npm audit, runtime deps, high and above, named exceptions|bash scripts/check-audit.sh
 docs|push|1|Documentation build (TypeDoc + Docusaurus)|[ -d docs-site/node_modules ] || { echo "docs-site dependencies missing: npm --prefix docs-site ci"; exit 3; }; npx --no-install typedoc --options typedoc.config.mjs >/dev/null && (cd docs-site && npx --no-install docusaurus build >/dev/null)
 '

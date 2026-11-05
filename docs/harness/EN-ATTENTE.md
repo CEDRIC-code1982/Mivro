@@ -84,13 +84,16 @@ Fermeture peu coûteuse, si on la veut : ajouter `[rb]*\+`, `File\.write` et `op
 `pre-bash-guard.py`. Chaque famille d'écrivain doit alors avoir son cas `guard BLOCK`.
 
 **Faux positifs acceptés** (refusés à tort, par prudence). Ce sont des ALLOW de HEAD (`6739939`)
-devenus BLOCK avec le lot C :
+devenus BLOCK avec le lot C, dans au moins un des deux modes :
 
-- point 4, en session déverrouillée comme verrouillée : toute cible faite d'une variable
+- toute cible faite d'une variable, refusée dans les deux modes ; déjà refusée en session
+  verrouillée à HEAD, elle ne l'est nouvellement qu'en session déverrouillée
   (`for f in a b; do echo x > "$f.txt"; done`, `npm test | tee "$LOG"`, `S=/abs; mkdir -p $S/x`) ;
-- `git am --abort` et `git am --show-current-patch`, refusés avec tout `git am` ;
-- `gzip -r src` (et tout outil récursif ou qui supprime un arbre dans le repo) en session
-  verrouillée : le harness est aussi sous `src/` ;
+- `git am --abort` et `git am --show-current-patch`, refusés avec tout `git am` : nouveau en
+  session déverrouillée seulement, déjà refusés en verrouillée à HEAD ;
+- `gzip -r src`, et tout compresseur récursif dans le repo, en session verrouillée : le harness
+  est aussi sous `src/` (les autres outils récursifs, `cp -r` ou `zip -r` vers `/tmp`, sont
+  inchangés) ;
 - une valeur collée qui contient `r`, `m`, `p`, `x` ou `i` après `wget -O` ou `-o` (`-Ox.html`) :
   lue comme un téléchargement récursif, donc refusée dans le repo. De même, `wget -np` et `-nd`
   sont lus lettre à lettre (`-p`) : `wget -nd -np https://e.x/a.tgz` est refusé dans le repo ;

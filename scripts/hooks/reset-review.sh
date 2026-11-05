@@ -11,6 +11,8 @@
 #    tree at its end is the same AND no file changed in between (ctime): two
 #    parallel reviews used to share one pending file, and a change reverted
 #    before the end (ABA) used to look like no change (JOURNAL J-043).
+# 3. A stale DONE-CONTRACT (scripts/check-contract.sh) is told to the reviewer
+#    as additional context, so that it answers NO_CONTRACT at once (J-022).
 # Everything lives under .git/, which the guards protect.
 # ---------------------------------------------------------------------------
 set -uo pipefail
@@ -38,4 +40,15 @@ cd "$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)" || exit 0
 rm -f "$(git rev-parse --git-path mivro-review)"
 PENDING="$(git rev-parse --git-path "mivro-review.pending.${AGENT_ID:-unknown}")"
 printf 'start_tree=%s\nstarted=%s\n' "$(bash "$HOOKS/tree-hash.sh")" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$PENDING"
+
+# 3. A stale contract (it names another branch) costs a whole review: tell the
+#    reviewer before its first prompt. A SubagentStart hook cannot block; it
+#    can only add context to the subagent (JOURNAL J-022).
+CONTRACT_CHECK="$HOOKS/../check-contract.sh"
+[ -f "$CONTRACT_CHECK" ] && ! STALE="$(bash "$CONTRACT_CHECK" 2>&1)" && MIVRO_STALE="$STALE" python3 -I -B -c '
+import json, os
+note = ("HARNESS: " + os.environ["MIVRO_STALE"] + "\nThe contract in place is not the one of this "
+        "branch: answer VERDICT: NO_CONTRACT (step 0).")
+print(json.dumps({"hookSpecificOutput": {"hookEventName": "SubagentStart", "additionalContext": note}}))
+'
 exit 0

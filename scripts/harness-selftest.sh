@@ -2178,6 +2178,118 @@ expect_exit 0 $? "an APPROVED delivered by hand-back is sealed (J-045)"
 (cd "$REVIEW_REPO" && git add -A && CLAUDECODE='' bash scripts/review-gate.sh >/dev/null 2>&1)
 expect_exit 0 $? "Cedric's own commits (no CLAUDECODE) are not gated"
 
+# Lot D (end of J-022): the docs sensors. Every sensor below is new, so each
+# red case also fails on HEAD, where the sensor does not exist.
+# docclaims: an absence the repo denies, a dead src/ path, in current-state docs.
+CLAIMS_DIR="$(tmp_dir)"
+mkdir -p "$CLAIMS_DIR/docs/context" "$CLAIMS_DIR/docs/harness" "$CLAIMS_DIR/src/services/infra/realtime"
+: >"$CLAIMS_DIR/.env"
+: >"$CLAIMS_DIR/CLAUDE.md"
+claims_case() { # claims_case <expect> <label> <doc path> <text>
+  find "$CLAIMS_DIR/docs" -name '*.md' -delete
+  printf '%s\n' "$4" >"$CLAIMS_DIR/$3"
+  MIVRO_DOCS_ROOT="$CLAIMS_DIR" python3 -I -B scripts/check-docs-claims.py >/dev/null 2>&1
+  expect_exit "$1" $? "$2"
+}
+claims_case 1 "an existing file said absent is caught (J-022, RUNBOOK of c15b8e1)" \
+  docs/context/RUNBOOK.md '- Aucune config native : `.env` n'"'"'existe pas.'
+claims_case 1 "an absence claim wrapped by Prettier is caught (J-022)" \
+  docs/context/RUNBOOK.md '- Le fichier `.env`'"$NL"'  **est absent** du dépôt.'
+claims_case 0 "an absence about something else than the quoted file is green (INVENTAIRE.md:40)" \
+  docs/harness/INVENTAIRE.md '### Scripts référencés par `CLAUDE.md` mais **absents**'
+claims_case 0 "a true absence is green, and its dead path is not counted twice (J-022)" \
+  docs/harness/INVENTAIRE.md '`src/__tests__/` n'"'"'existe plus depuis le refactor.'
+claims_case 0 "a struck absence claim is green (J-022)" \
+  docs/context/TODO.md '- [ ] Suite : ~~`.env` n'"'"'existe pas~~, créé depuis.'
+claims_case 0 "the failure journal is not read: it quotes the wrong claims (J-022)" \
+  docs/harness/JOURNAL-ECHECS.md '« `.env` n'"'"'existe pas »'
+claims_case 1 "a dead src/ path is caught (POLICIES.md:359 before lot D)" \
+  docs/context/POLICIES.md '- infrastructure (`FirebaseRealtimeService` → `src/infrastructure/realtime/`)'
+claims_case 0 "a live src/ path is green (J-022)" \
+  docs/context/POLICIES.md '- infrastructure (`FirebaseRealtimeService` → `src/services/infra/realtime/`)'
+claims_case 0 "a file to create, a template and a checked item are not dead paths (J-022)" \
+  docs/context/RUNBOOK.md '- Créer `src/services/domain/auth/IAuthService.ts`.'"$NL"'- Voir `src/features/<X>/components/`.'"$NL"'- [x] Adapter → `src/infrastructure/realtime/`'"$NL"'      (puis `src/infrastructure/x.ts`)'
+claims_case 0 "PROGRESS.md, a dated log, is not read (J-022)" \
+  docs/context/PROGRESS.md '- Fichiers : `src/core/entities/SharedSession.ts`'
+claims_case 1 "a dead src/ path after a closed checked item is caught (J-022)" \
+  docs/context/TODO.md '- [x] Fait.'"$NL"'- [ ] Voir `src/infrastructure/realtime/`.'
+
+# docmetrics: the test counts of PROGRESS.md against the Jest report of the run.
+METRICS_DIR="$(tmp_dir)"
+mkdir -p "$METRICS_DIR/docs/context"
+METRICS_TABLE='| Suites de tests                    | 87   |'"$NL"'| Tests (cas) — `npm run check`      | 1261 |'
+metrics_case() { # metrics_case <expect> <label> <table> <report JSON, or "" for none>
+  printf '## Métriques actuelles\n\n%s\n' "$3" >"$METRICS_DIR/docs/context/PROGRESS.md"
+  rm -f "$METRICS_DIR/report.json"
+  [ -z "$4" ] || printf '%s\n' "$4" >"$METRICS_DIR/report.json"
+  MIVRO_DOCS_ROOT="$METRICS_DIR" MIVRO_JEST_REPORT="$METRICS_DIR/report.json" \
+    python3 -I -B scripts/check-docs-metrics.py >/dev/null 2>&1
+  expect_exit "$1" $? "$2"
+}
+metrics_case 0 "test counts equal to the Jest report are green (J-022)" \
+  "$METRICS_TABLE" '{"numTotalTestSuites": 87, "numTotalTests": 1261}'
+metrics_case 1 "a stale test count is caught (J-022: 1133 written, 1226 measured)" \
+  "$METRICS_TABLE" '{"numTotalTestSuites": 87, "numTotalTests": 1265}'
+metrics_case 1 "a stale suite count is caught (J-022)" \
+  "$METRICS_TABLE" '{"numTotalTestSuites": 88, "numTotalTests": 1261}'
+metrics_case 1 "a metrics table without its test row is caught (J-022)" \
+  '| Suites de tests | 87 |' '{"numTotalTestSuites": 87, "numTotalTests": 1261}'
+metrics_case 3 "no Jest report from this run is an abstention, never a green (J-022)" "$METRICS_TABLE" ''
+metrics_case 3 "an unreadable Jest report is an abstention, never a green (J-022)" "$METRICS_TABLE" '{"numTotal'
+case "$(grep '^tests|' scripts/sensors.sh)" in
+  *'--json --outputFile="$MIVRO_JEST_REPORT"'*) ok "the tests sensor writes the Jest report that docmetrics reads (J-022)" ;;
+  *) bad "the tests sensor must write its Jest report to \$MIVRO_JEST_REPORT (J-022)" ;;
+esac
+case "$(cat scripts/check.sh)" in
+  *'export MIVRO_JEST_REPORT="$WORK/'*'tests | docmetrics | docs) run_sensor'*) ok "docmetrics runs after tests, on the report of the same run (J-022)" ;;
+  *) bad "check.sh must run docmetrics after tests, on a report in its own work directory (J-022)" ;;
+esac
+
+# contract: the DONE-CONTRACT names the current branch, in agent sessions only.
+CONTRACT_REPO="$(scratch_repo)" || exit 2
+mkdir -p "$CONTRACT_REPO/scripts" "$CONTRACT_REPO/docs/harness"
+cp scripts/check-contract.sh "$CONTRACT_REPO/scripts/"
+contract_case() { # contract_case <expect> <label> <branch> <contract text, or "" for none> [env -u ...]
+  rm -f "$CONTRACT_REPO/docs/harness/DONE-CONTRACT.md"
+  [ -z "$4" ] || printf '%s\n' "$4" >"$CONTRACT_REPO/docs/harness/DONE-CONTRACT.md"
+  (cd "$CONTRACT_REPO" && env "${@:5}" CLAUDECODE="${CONTRACT_CC-1}" MIVRO_CONTRACT_BRANCH="$3" \
+    bash scripts/check-contract.sh >/dev/null 2>&1)
+  expect_exit "$1" $? "$2"
+}
+OWN='**Branche** : `harness/x`, issue de `develop`.'
+contract_case 0 "a contract naming the current branch is green (J-022)" harness/x "$OWN"
+contract_case 1 "a contract naming another branch is stale (J-022, 2026-10-28)" harness/y "$OWN"
+contract_case 1 "the branch name wrapped by Prettier is still read (J-022)" harness/y '**Branche** :'"$NL"'`harness/x`, issue de `develop`.'
+contract_case 0 "a detached HEAD (CI pull_request) is without object (J-022)" HEAD "$OWN"
+contract_case 0 "develop and main are without object (J-022)" develop "$OWN"
+contract_case 0 "no contract is without object (J-022)" harness/y ''
+contract_case 0 "the blank template (no Branche line) is without object (J-022)" harness/y '**Titre** :'
+contract_case 0 "a Branche line left to fill is the blank template (J-022)" harness/y '**Branche** : `<branche>`'
+CONTRACT_CC='' contract_case 0 "outside an agent session (pre-push, CI) a stale contract is without object (J-022)" \
+  harness/y "$OWN" -u CLAUDE_PROJECT_DIR
+# reset-review.sh tells the reviewer (a SubagentStart hook cannot block).
+cp scripts/check-contract.sh "$REVIEW_REPO/scripts/"
+mkdir -p "$REVIEW_REPO/docs/harness"
+printf '%s\n' "$OWN" >"$REVIEW_REPO/docs/harness/DONE-CONTRACT.md"
+NOTE="$(CLAUDECODE=1 MIVRO_CONTRACT_BRANCH=harness/y reset_review r9 2>/dev/null)"
+case "$NOTE" in
+  *'"hookEventName": "SubagentStart"'*'"additionalContext"'*'NO_CONTRACT'*) ok "a stale contract is told to the reviewer before its first prompt (J-022)" ;;
+  *) bad "reset-review.sh must tell the reviewer that the contract is stale (J-022): got '$NOTE'" ;;
+esac
+NOTE="$(CLAUDECODE=1 MIVRO_CONTRACT_BRANCH=harness/x reset_review r9 2>/dev/null)"
+if [ -z "$NOTE" ]; then ok "a contract of this branch adds nothing to the review (J-022)"; else bad "reset-review.sh printed '$NOTE' for a valid contract"; fi
+rm -rf "$REVIEW_REPO/docs" "$REVIEW_REPO/scripts/check-contract.sh"
+if grep -q 'git show HEAD:docs/harness/DONE-CONTRACT.md' .claude/agents/reviewer.md; then
+  ok "the reviewer reads the contract of HEAD when the diff resets it to its template (J-022)"
+else
+  bad "reviewer.md must read the contract of HEAD when the diff resets it (J-022)"
+fi
+if grep -qx 'src/i18n/locales.keys.test.ts' scripts/harness-protected.txt; then
+  ok "the t() keys sensor test is a protected harness file (J-022)"
+else
+  bad "src/i18n/locales.keys.test.ts must be listed in scripts/harness-protected.txt (J-022)"
+fi
+
 # ---------------------------------------------------------------------------
 section "9. Stop hook - the agent cannot end its turn on a red tree"
 
@@ -2220,7 +2332,7 @@ section "10. Sensor table, CI and configuration wiring"
 bash scripts/check.sh --only nope >/dev/null 2>&1
 expect_exit 2 $? "an unknown sensor id is an error, never a green"
 SENSOR_LIST="$(bash scripts/check.sh --stage push --list)"
-for id in typecheck lint format arch diff lock native deps docrefs docfacts scripts tests docs audit; do
+for id in typecheck lint format arch diff lock native deps docrefs docfacts docclaims contract scripts tests docmetrics docs audit; do
   case "$NL$SENSOR_LIST" in
     *"$NL$id "*) ok "sensor '$id' is in the table" ;;
     *) bad "sensor '$id' missing from scripts/sensors.sh" ;;
