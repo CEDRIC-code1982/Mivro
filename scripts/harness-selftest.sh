@@ -1803,6 +1803,105 @@ guard_unlocked ALLOW 'echo x > scripts/check.sh'
 guard_unlocked BLOCK '{(echo x >> scripts/hooks/harness_paths.py)}'
 guard_unlocked BLOCK 'cat <=(echo x >> scripts/hooks/harness_paths.py)'
 guard_unlocked BLOCK '{(echo>scripts/hooks/harness_paths.py)}'
+
+# Lot C (EN-ATTENTE §3 and the probing of 2026-11-05, nine points validated by
+# Cedric): the indirect writers are judged locked AND unlocked. Unlocked, what
+# may reach scripts/hooks/ is refused, and so is any target known at run time
+# only; an extraction or a download whose names the archive or the server
+# picks is refused anywhere in the repository.
+# 1. Downloads.
+for cmd in 'curl -o scripts/hooks/x.py https://e.x/a' 'curl -sSLo scripts/hooks/x.py https://e.x/a' \
+  'curl -O --output-dir scripts/hooks https://e.x/pre-bash-guard.py' 'curl -D scripts/hooks/h.txt https://e.x/a' \
+  'curl -K cfg https://e.x/a' 'wget -O scripts/hooks/x.py https://e.x/a' 'wget -P scripts/hooks https://e.x/a.py' \
+  'wget -r -nH https://e.x/src/' 'wget -o scripts/hooks/log.py https://e.x/a' \
+  'wget -e output_document=scripts/hooks/x.py https://e.x/a' 'curl -o $F https://e.x/a'; do
+  guard BLOCK "$cmd"
+  guard_unlocked BLOCK "$cmd"
+done
+guard_unlocked ALLOW 'curl -o /tmp/x https://e.x/a'
+guard_unlocked ALLOW 'curl -O --output-dir /tmp https://e.x/a.py'
+guard_unlocked ALLOW 'wget -q -O - https://e.x/a'
+guard_unlocked ALLOW 'wget -r -e robots=off -P /tmp/m https://e.x/'
+guard ALLOW 'curl -sSL https://e.x/a | head'
+# 2, 7, 8. Archivers: extraction into the repository, archives written, the
+# other extractors; absolute member names (-P, -spf, cpio, pax) land anywhere.
+for cmd in 'tar -xf a.tar -C scripts/' 'tar -xf a.tar' 'tar -xPf a.tar -C /tmp/x' 'unzip a.zip -d scripts/hooks' \
+  'tar -cf scripts/hooks/x.py src' 'tar cf scripts/hooks/x.py src' 'zip scripts/hooks/x.py src/App.tsx' \
+  'zip -m /tmp/x.zip scripts/hooks/harness_paths.py' '7z a scripts/hooks/x.py src' '7z x a.7z' \
+  '7z x a.7z -spf -o/tmp/x' 'unar a.rar' 'jar xf a.jar' 'jar cf scripts/hooks/x.py src' 'ar x a.a' \
+  'ar rcs scripts/hooks/x.py o.o' 'cpio -id < a.cpio' 'pax -r -f a.pax'; do
+  guard BLOCK "$cmd"
+  guard_unlocked BLOCK "$cmd"
+done
+guard BLOCK 'tar -cf scripts/check.sh src'
+guard BLOCK 'zip scripts/check.sh src/App.tsx'
+for cmd in 'tar -xf a.tar -C /tmp/x' 'tar -tf a.tar' 'tar -czf /tmp/x.tgz scripts src' 'tar czf /tmp/x.tgz src' \
+  'unzip -l a.zip' 'unzip a.zip -d /tmp/x' 'zip -r /tmp/x.zip src' '7z l a.7z' '7z x a.7z -o/tmp/x'; do
+  guard ALLOW "$cmd"
+  guard_unlocked ALLOW "$cmd"
+done
+# 3. patch, git apply, git am: their targets are only in the diff.
+for cmd in 'patch -p1 < x.diff' 'git apply x.diff' 'git am x.mbox'; do
+  guard_unlocked BLOCK "$cmd"
+done
+guard_unlocked ALLOW 'git apply --check x.diff'
+guard_unlocked ALLOW 'patch --dry-run -p1 < x.diff'
+# 4. A target known at run time only, unlocked as locked.
+guard_unlocked BLOCK 'X=scripts/hooks && echo x > "$X/y.py"'
+guard_unlocked BLOCK 'cd $D && echo x > y'
+guard_unlocked ALLOW 'echo x > /tmp/y'
+# 5. Inline code writing under scripts/hooks, the path assembled or not, and
+# the very form that rewrote a guard module through Bash during lot C.
+for cmd in "python3 -c \"open('scripts/hooks/x.py','w').write('')\"" \
+  "python3 -c \"import os; open(os.path.join('scripts','hooks','x.py'),'w')\"" \
+  "node -e \"require('fs').writeFileSync(['scripts','hooks','x.py'].join('/'),'')\"" \
+  "$(printf '%s\n' "python3 - <<'PY'" 'p = "scripts/hooks/pre-bash-guard.py"' 'open(p, "w").write("")' 'PY')"; do
+  guard BLOCK "$cmd"
+  guard_unlocked BLOCK "$cmd"
+done
+guard_unlocked ALLOW "python3 -c \"print(open('scripts/check.sh').read())\""
+guard_unlocked ALLOW "python3 -c \"open('/tmp/x','w').write('a')\""
+# 6. Compressors replace their operands.
+for cmd in 'gzip scripts/hooks/harness_paths.py' 'gunzip scripts/hooks/x.py.gz' 'bzip2 scripts/hooks/harness_paths.py' \
+  'xz scripts/hooks/harness_paths.py' 'zstd --rm scripts/hooks/harness_paths.py' 'zstd -o scripts/hooks/x.py /tmp/a' \
+  'xz --files=list.txt'; do
+  guard BLOCK "$cmd"
+  guard_unlocked BLOCK "$cmd"
+done
+guard BLOCK 'gzip scripts/check.sh'
+# Review of lot C: glued values read as letters of the mode, curl --output-dir
+# with -o and its `#1` template, URL globs, long-option prefixes, repeated or
+# grouped -C, case-blind 7-Zip switches, trees removed or walked, and options
+# handed over through the environment.
+for cmd in 'unzip -dtools /tmp/a.zip' 'unzip /tmp/a.zip -dscripts' 'unzip -qd scripts/hooks /tmp/a.zip' \
+  'gzip -S.ct scripts/hooks/pre-bash-guard.py' 'zstd -Ddict.ct scripts/hooks/harness_paths.py' \
+  'gzip -q scripts/hooks/harness_paths.py' \
+  'curl --output-dir scripts/hooks -o evil.py https://e.x/a' \
+  "curl -o '#1' --create-dirs 'https://e.x/{scripts/hooks/pre-bash-guard.py}'" \
+  "curl -O 'https://e.x/{a,b}.py'" 'wget --output-doc=scripts/hooks/x.py https://e.x/a' \
+  'wget --directory-pref=scripts/hooks https://e.x/a.py' 'wget --exec=output_document=scripts/hooks/x.py https://e.x/a' \
+  "tar -xf /tmp/a.tar -C /tmp -C $REPO/scripts/hooks" "cd /tmp && tar -xC $REPO/scripts/hooks -f /tmp/a.tar" \
+  "cd /tmp && tar xCf $REPO/scripts/hooks a.tar" "cd /tmp && bsdtar -x --cd $REPO/scripts/hooks -f a.tar" \
+  "cd /tmp && 7z x a.7z -O$REPO/scripts/hooks" 'gzip -r .' 'zstd -r --rm .' 'zip -rm /tmp/x.zip .' \
+  '7z a -sdel /tmp/x.7z .' 'tar --remove-files -cf /tmp/x.tar scripts/hooks' "cd $REPO/.. && gzip -r Mivro" \
+  'WGETRC=/tmp/rc wget https://e.x/a' 'CURL_HOME=/tmp curl https://e.x/a' \
+  "cd /tmp && UNZIP=-d$REPO/scripts/hooks unzip a.zip" 'TAR_OPTIONS=-C/x gtar -xf a.tar' 'export WGETRC=/tmp/rc' \
+  "python3 -c \"import os; open(os.path.join(os.getcwd(),'scripts','hooks','x.py'),'w')\"" \
+  "python3 -c \"import os; fd = os.open('scripts/hooks/x.py', os.O_WRONLY)\""; do
+  guard BLOCK "$cmd"
+  guard_unlocked BLOCK "$cmd"
+done
+for cmd in 'unzip -qd /tmp/out a.zip' 'gzip -q /tmp/x' 'xz -T0 /tmp/x' 'zstd -T4 -19 /tmp/x' 'cd /tmp && tar xf a.tar' \
+  'gzip -r /tmp/dir' 'curl --output-dir /tmp -o x.py https://e.x/a' 'wget --output-document=/tmp/x https://e.x/a' \
+  "python3 -c \"import json; print(json.load(open('package.json'))['name'])\""; do
+  guard ALLOW "$cmd"
+  guard_unlocked ALLOW "$cmd"
+done
+for cmd in 'gzip -c scripts/check.sh > /tmp/x' 'gzip -dc a.gz > /tmp/x' 'gzip /tmp/x' 'zstd -d /tmp/x.zst' \
+  'gzip -l /tmp/x.gz' 'xz -t /tmp/x.xz'; do
+  guard ALLOW "$cmd"
+  guard_unlocked ALLOW "$cmd"
+done
 (CLAUDECODE=1 bash scripts/harness-lock.sh --update </dev/null >/dev/null 2>&1)
 expect_exit 1 $? "relock refuses to run inside Claude Code"
 # J-043: every file jest loads before the tests is part of the harness.

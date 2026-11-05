@@ -36,6 +36,13 @@ npx -c, in inline interpreter code, even split over several lines):
     * a write target or cd target that cannot be judged ($VAR, $(...), backticks)
     * refreshing the harness lock (scripts/harness-lock.sh --update)
 
+  unlocked session (lot C): the harness is the agent's to edit, except the
+  modules the guards load (scripts/hooks/), which go through the Edit tool's
+  simulation (J-056). Whatever the lock, these are judged: downloads (curl,
+  wget), archivers (extraction into the repo, archive written), compressors,
+  patch / git apply / git am, inline code that writes, and any write target
+  known at run time only.
+
 Long options are matched by prefix too: git accepts `--no-verif`, `--har`,
 `--forc` as the full option (JOURNAL J-038).
 
@@ -195,6 +202,51 @@ FILE_WRITERS = {
     "mkdir",
 }
 COPIERS = {"cp", "install", "rsync", "ln", "ditto"}
+# Archivers (lot C): what they extract lands in a directory whose member names
+# only the archive knows, what they create or update is a file. Both are judged,
+# locked and unlocked: an archive may well carry `scripts/hooks/x.py`.
+ARCHIVERS = {
+    "tar", "bsdtar", "gtar", "unzip", "zip", "7z", "7za", "7zr", "7zz",
+    "unar", "unrar", "jar", "ar", "cpio", "bsdcpio", "pax",
+}
+# Compressors (lot C): `gzip x` replaces x by x.gz, `gunzip x.gz` does the
+# reverse; each operand is a file written or removed, unless the output goes to
+# stdout or the run only tests or lists.
+COMPRESSORS = {
+    "gzip", "gunzip", "pigz", "unpigz", "bzip2", "bunzip2", "pbzip2", "lbzip2",
+    "xz", "unxz", "lzma", "unlzma", "lzip", "plzip", "compress", "uncompress",
+    "zstd", "unzstd", "pzstd", "lz4", "unlz4", "brotli", "lzop", "zopfli",
+}
+# Long options of a compressor that take a value which is no input file.
+COMPRESSOR_LONG_VALUES = frozenset({
+    "--suffix", "--blocksize", "--processes", "--threads", "--memlimit", "--quality",
+    "--lgwin", "--format", "--check", "--level", "--block-size",
+})
+# Long options naming an output file or directory: judged as targets.
+COMPRESSOR_OUTPUTS = ("--output", "--output-dir-flat", "--output-dir-mirror")
+# Per tool, the one-letter options that take a value: the value is the rest of
+# the group or the next word (`gzip -S.ct x`: `.ct` is a suffix, not -c -t).
+# Per tool, never shared: `-q` is quiet for gzip, a value for brotli, and a
+# flag read as a value letter would swallow the operand after it. `o` (and
+# lzop's `p`, a directory) name outputs, judged as targets.
+COMPRESSOR_VALUE_LETTERS = {
+    "gzip": "S", "gunzip": "S", "pigz": "Sbp", "unpigz": "Sbp",
+    "xz": "SCFTM", "unxz": "SCFTM", "lzma": "SCFTM", "unlzma": "SCFTM",
+    "lzip": "bmnSs", "plzip": "bmnSs", "compress": "b", "uncompress": "b",
+    "zstd": "oDTM", "unzstd": "oDTM", "pzstd": "oDTMp", "brotli": "oqwS", "lzop": "oSp",
+}
+# Environment variables that hand options or a configuration file to those
+# tools (review of lot C): `UNZIP=-d<dir> unzip a.zip`, `WGETRC=<file> wget`.
+OPTION_ENV_VARS = {
+    "WGETRC", "CURL_HOME", "UNZIP", "UNZIPOPT", "ZIP", "ZIPOPT", "TAR_OPTIONS", "GZIP",
+    "BZIP", "BZIP2", "XZ_OPT", "XZ_DEFAULTS", "ZSTD_CLEVEL", "LZ4", "SEVENZIP",
+}
+# Options that name the inputs in a file: what is written is then unknown.
+COMPRESSOR_LISTS = {"--files", "--files0", "--filelist"}
+# Name segments of the guards' own code: in code that writes files, either one
+# is refused, locked or not (lot C). Unlocked, the rest of the harness is the
+# agent's to edit; these modules are not, through Bash (J-056).
+HOOKS_SEGMENTS = {"hooks", "harness_paths", "harness_paths.py"}
 # Inline code that deletes a tree: a deletion API is refused outright...
 TREE_DELETE_RE = re.compile(
     r"rmtree|rmSync|rmdirSync|removedirs|rm_rf|remove_dir_all|remove_tree|FileUtils\.rm|rimraf"
@@ -209,8 +261,16 @@ PROTECTED_SEGMENTS = {"scripts", ".husky", ".github", "eslint-rules", ".claude",
 CMD_DELETE_RE = re.compile(r"rm\s+-\w*[rR]|['\"]rm['\"]\s*,\s*['\"]-\w*[rR]")
 EXEC_RE = re.compile(r"os\.system|subprocess|execSync|spawnSync|child_process|\bsystem\s*\(|\bexec\s*\(|popen|Popen")
 # Inline code that writes files. A bare open() is a read: only a write mode counts.
+# One level of nested parentheses is followed: `open(os.path.join('scripts',
+# 'check.sh'), 'w')` used to end the match at join's `)` (lot C). The first
+# form stays: it alone sees `open(*("x", "w"))`. The third takes a write mode
+# anywhere after an `open(` on the same line, whatever the nesting
+# (`open(os.path.join(os.getcwd(), ...), 'w')`, review of lot C). Accepted
+# false positive: a later `, 'a'`-like literal in reading code.
 CODE_WRITE_RE = re.compile(
-    r"open\s*\([^)]*['\"][rb]*[wax]\+?b?['\"]|write_text|write_bytes|writeFile|appendFile"
+    r"open\s*\([^)]*['\"][rb]*[wax]\+?b?['\"]"
+    r"|open\s*\((?:[^()]|\([^()]*\))*['\"][rb]*[wax]\+?b?['\"]"
+    r"|open\s*\(.*?,\s*(?:mode\s*=\s*)?['\"][rb]*[wax]\+?b?['\"]|\bos\.open\b|\bos\.write\b|write_text|write_bytes|writeFile|appendFile"
     r"|createWriteStream|os\.rename|os\.replace|os\.remove|os\.unlink|unlink|shutil|truncate"
     r"|chmod|symlink|copyFile|\bfs\.(?:rm|cp|copy|mv|rename|write|append|truncate)"
 )
@@ -1137,6 +1197,85 @@ def rewrite_targets(args: list[str], name: str) -> tuple[list[str], list[str]]:
     return targets, outputs
 
 
+def option_values(args: list[str], *names: str) -> list[str]:
+    """Every value of the options named: `-o X`, `-oX`, `--output X`,
+    `--output=X`, and a one-letter option at the end of a bundle (`curl -sSLo
+    X`) or inside it (`-sSLoX`), which option_value() does not see (lot C)."""
+    values: list[str] = []
+    for i, arg in enumerate(args):
+        nxt = args[i + 1] if i + 1 < len(args) else None
+        for name in names:
+            if arg == name:
+                if nxt is not None:
+                    values.append(nxt)
+            elif name.startswith("--"):
+                # getopt_long takes any unambiguous prefix (`wget --output-doc=`,
+                # J-038): every prefix counts here, an ambiguous one included.
+                given, eq, value = arg.partition("=")
+                if len(given) > 2 and given.startswith("--") and name.startswith(given):
+                    if eq:
+                        values.append(value)
+                    elif nxt is not None:
+                        values.append(nxt)
+            elif arg.startswith("-") and not arg.startswith("--") and len(name) == 2 and name[1] in arg[1:]:
+                rest = arg[arg.index(name[1], 1) + 1 :]
+                if rest:
+                    values.append(rest)
+                elif nxt is not None:
+                    values.append(nxt)
+    return values
+
+
+def has_long(args: list[str], *names: str) -> bool:
+    """True when one of the long options named is given, in full or by any
+    prefix (getopt_long, J-038), with or without `=value`."""
+    for arg in args:
+        given = arg.partition("=")[0]
+        if len(given) > 2 and given.startswith("--") and any(name.startswith(given) for name in names):
+            return True
+    return False
+
+
+def short_groups(
+    args: list[str], value_letters: str, long_values: frozenset[str] = frozenset()
+) -> tuple[set[str], dict[str, list[str]], list[str]]:
+    """One-letter options of a getopt-style tool, read the way getopt reads
+    them: a letter that takes a value consumes the rest of its group, or the
+    next word (`unzip -dtools`: d with value `tools`, not -d -t -o -o -l -s).
+    Returns the letters seen, the values of the value letters, and the
+    operands: the other words, a lone `-` included, minus the values of the
+    long options in `long_values` given without `=` (review of lot C:
+    short_flags() read the letters of glued values as options)."""
+    letters: set[str] = set()
+    values: dict[str, list[str]] = {}
+    operands: list[str] = []
+    skip = False
+    for i, arg in enumerate(args):
+        if skip:
+            skip = False
+            continue
+        if arg == "--":
+            operands += args[i + 1 :]
+            break
+        if arg.startswith("--"):
+            skip = arg in long_values and i + 1 < len(args)
+            continue
+        if not arg.startswith("-") or len(arg) < 2:
+            operands.append(arg)
+            continue
+        for j, letter in enumerate(arg[1:], start=1):
+            letters.add(letter)
+            if letter in value_letters:
+                rest = arg[j + 1 :]
+                if rest:
+                    values.setdefault(letter, []).append(rest)
+                elif i + 1 < len(args):
+                    values.setdefault(letter, []).append(args[i + 1])
+                    skip = True
+                break
+    return letters, values, operands
+
+
 def option_value(args: list[str], *names: str) -> str | None:
     """Value of `-o X`, `-oX`, `--output X` or `--output=X`."""
     for i, arg in enumerate(args):
@@ -1207,7 +1346,10 @@ class Guard:
         if not word:
             return False
         if not self.protect:
-            return not repair and self._hooks_module(word)
+            # A target known at run time only (`X=scripts/hooks && echo x >
+            # "$X/y.py"`, `cd $D && ...`) may be one of those modules: refused
+            # as when locked (lot C).
+            return not repair and (self._resolve(word) is None or self._hooks_module(word))
         value = word.split("=", 1)[1] if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", word) else word
         value = self._expand(value)
         if "$" in value or SUBST in value or value.startswith("~"):
@@ -1813,9 +1955,13 @@ class Guard:
             self._check_security(args)
         elif name in {"curl", "wget"}:
             self._check_download(name, args)
-        elif name in {"tar", "unzip", "bsdtar", "ditto"} and self.protect:
-            self._check_extract(name, args)
-        elif name == "patch" and self.protect and "--dry-run" not in long_flags(args):
+        elif name in ARCHIVERS:
+            self._check_archive(name, args)
+        elif name in COMPRESSORS:
+            self._check_compressor(name, args)
+        elif name == "patch" and "--dry-run" not in long_flags(args):
+            # Locked and unlocked (lot C): unlocked, a patch may touch the
+            # guards' modules without the Edit tool's simulation (J-056).
             self.deny_tamper("patch — its targets are only known from the diff")
         elif name == "pod" and positional(args)[:1] and positional(args)[0] in {"install", "update", "deintegrate", "repo", "cache"}:
             deny(
@@ -1968,6 +2114,11 @@ class Guard:
             self._deny_hook_bypass(f"{key} (injects git configuration such as core.hooksPath)")
         if self.protect and key in {"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY"}:
             self._deny_hook_bypass(f"{key} (redirects git away from this repository's hooks)")
+        # Options or a configuration file handed to a downloader, an archiver or
+        # a compressor through the environment: what it writes is then unknown
+        # (`UNZIP=-d<dir>`, `WGETRC=<file>`), locked or not (review of lot C).
+        if key in OPTION_ENV_VARS:
+            self.deny_tamper(f"{key}: options from the environment, what the tool writes cannot be judged")
         # Emptying it only LOCKS (what the self-test does). Setting it does not
         # unlock the hooks, which read the environment Claude Code was launched
         # with; but since J-055 the lock sensor reads the variable of the process
@@ -2270,10 +2421,11 @@ class Guard:
             exec_cmd = option_value(rest, "-x", "--exec") if sub == "rebase" else None
             if exec_cmd is not None:
                 self.check_text(exec_cmd)
-            if sub == "am" and self.protect:
+            # Locked and unlocked (lot C), like patch.
+            if sub == "am":
                 self.deny_tamper("git am — its targets are only known from the patch")
         elif sub == "apply":
-            if self.protect and not ({"--check", "--stat", "--numstat", "--summary"} & set(rest)):
+            if not ({"--check", "--stat", "--numstat", "--summary"} & set(rest)):
                 self.deny_tamper("git apply — its targets are only known from the patch")
         elif sub == "reset":
             if "--hard" in longs:
@@ -2499,43 +2651,271 @@ class Guard:
             unknown_url = any("$" in a or SUBST in a for a in positional(args))
             if writes and ("api.github.com" in joined or unknown_url):
                 deny("GitHub API write through curl", "Repository settings are Cedric's to change.")
-        if not self.protect:
-            return
+        # Judged locked and unlocked (lot C): unlocked, protected() still refuses
+        # the guards' own modules and any target known at run time only.
+        shorts, longs = short_flags(args), long_flags(args)
         if name == "curl":
-            target = option_value(args, "-o", "--output")
-            remote_name = "O" in short_flags(args) or "--remote-name" in long_flags(args)
+            document = option_values(args, "-o", "--output")
+            # Other files curl writes when asked: headers, cookies, traces.
+            side_files = option_values(
+                args, "-D", "--dump-header", "-c", "--cookie-jar", "--trace", "--trace-ascii",
+                "--stderr", "--libcurl", "--etag-save", "--hsts", "--alt-svc",
+            )
+            remote_name = "O" in shorts or has_long(args, "--remote-name", "--remote-name-all")
+            # The server names the file (-J): what lands is unknown.
+            names_unknown = "J" in shorts or has_long(args, "--remote-header-name")
+            # A file of options (-K) may set any output at all.
+            if "K" in shorts or has_long(args, "--config"):
+                self.deny_tamper(f"{name} reading its options from a file: its output cannot be judged")
+            # --output-dir applies to -o as well as to -O (review of lot C).
+            landings = option_values(args, "--output-dir")
         else:
-            target = option_value(args, "-O", "--output-document")
-            remote_name = target is None and "-" not in args
-            prefix = option_value(args, "-P", "--directory-prefix")
-            if remote_name and prefix is not None:
-                if self._inside_repo(self._resolve(prefix)):
-                    self.deny_tamper(f"{name} -P into the repository")
-                return
-        if target is not None and target != "-" and self.protected(target):
-            self.deny_tamper(f"{name} -o")
-        if remote_name:
-            for url in positional(args):
-                if "://" in url:
+            document = option_values(args, "-O", "--output-document")
+            side_files = option_values(
+                args, "-o", "--output-file", "-a", "--append-output", "--save-cookies", "--warc-file",
+            )
+            remote_name = not document and "-" not in args
+            names_unknown = bool({"r", "m", "p", "x", "i"} & shorts) or has_long(
+                args, "--recursive", "--mirror", "--page-requisites", "--force-directories",
+                "--input-file", "--content-disposition", "--trust-server-names",
+            )
+            # `-e` runs a wgetrc command (output_document, dir_prefix...): only the
+            # robots switch is let through; a wgetrc file may set anything.
+            for command in option_values(args, "-e", "--execute"):
+                if not re.fullmatch(r"robots\s*=\s*(?:on|off)", command.strip(), re.I):
+                    self.deny_tamper(f"{name} -e {command}: its output cannot be judged")
+            if has_long(args, "--config"):
+                self.deny_tamper(f"{name} reading its options from a file: its output cannot be judged")
+            landings = option_values(args, "-P", "--directory-prefix")
+            # wget -P: the names under the prefix are the server's (lot 4 rule).
+            names_unknown = names_unknown or bool(landings)
+        for target in document + side_files:
+            if target == "-":
+                continue
+            # curl's `#1` takes its text from the URL glob: unknown (review of lot C).
+            if re.search(r"#\d", target):
+                self.deny_tamper(f"{name} -o {target}: the name comes from the URL glob")
+            # A relative -o lands under each --output-dir, not here.
+            relative_to = landings if target in document and landings and not os.path.isabs(target) else [""]
+            for landing in relative_to:
+                if self.protected(os.path.join(landing, target) if landing else target):
+                    self.deny_tamper(f"{name} writing {target}")
+        for landing in landings or [None]:
+            if names_unknown:
+                self._unknown_names_land(f"{name} saving files the server names", landing)
+            elif remote_name:
+                for url in positional(args):
+                    if "://" not in url:
+                        continue
                     base = url.split("?", 1)[0].rstrip("/").rsplit("/", 1)[-1]
-                    if base and self.protected(base):
+                    if set("{}[]") & set(base):
+                        # A URL glob: the names are unknown.
+                        self._unknown_names_land(f"{name} -O on a URL glob", landing)
+                    elif base and self.protected(os.path.join(landing, base) if landing else base):
                         self.deny_tamper(f"{name} -O")
 
-    def _check_extract(self, name: str, args: list[str]) -> None:
-        if name in {"tar", "bsdtar"}:
-            extracting = "x" in short_flags(args[:1] + [a for a in args if a.startswith("-")]) or (
-                args[:1] and not args[0].startswith("-") and "x" in args[0]
-            ) or "--extract" in long_flags(args)
-            if not extracting:
-                return
-            directory = option_value(args, "-C", "--directory")
+    def _in_repository(self, where: str | None) -> bool:
+        """True when `where` is in the repository, or unknown (None)."""
+        if where is None or self._inside_repo(where):
+            return True
+        # Whatever the case of the path (J-047): to_rel knows it.
+        return harness_paths.to_rel(where, self.root, self.cwd or self.root) is not None
+
+    def _unknown_names_land(self, how: str, word: str | None) -> None:
+        """Files whose names only an archive or a server knows land under `word`
+        (None: the current directory). Refused when that is in the repository,
+        locked or unlocked (lot C): a name such as `scripts/hooks/x.py` would
+        land there. A word known at run time only is in the repository."""
+        where = self._resolve(word) if word is not None else self.cwd
+        if self._in_repository(where):
+            self.deny_tamper(how)
+
+    def _check_archive(self, name: str, args: list[str]) -> None:
+        """Archivers, locked and unlocked (lot C): the archive a run creates or
+        updates is a file written; what it extracts lands under a directory,
+        with names only the archive knows. Per tool, the modes that write; the
+        others (list, test, print to stdout) are let through."""
+        # Glued values are read as getopt reads them (short_groups), never as
+        # letters of the mode (review of lot C: `unzip -dtools` read as -t).
+        shorts, longs = short_flags(args), long_flags(args)
+        operands = [a for a in args if not a.startswith("-") or a == "-"]
+        written: list[str] = []
+        trees: list[str] = []  # operands a run deletes as whole trees
+        landings: list[str | None] = []
+        unknown = "$" + UNKNOWN_LANDING  # resolves to nothing: in the repository
+
+        def one(dirs: list[str]) -> str | None:
+            # No directory: the current one. Several: they chain or override,
+            # depending on the tool: unknown.
+            return None if not dirs else dirs[0] if len(dirs) == 1 else unknown
+
+        if name in {"tar", "bsdtar", "gtar"}:
+            letters, values, rest = short_groups(
+                args, "fCbTXgKNVHLIF", frozenset({"--file", "--directory", "--cd"})
+            )
+            dirs = values.get("C", []) + option_values(args, "--directory", "--cd")
+            files = values.get("f", []) + option_values(args, "--file")
+            if args and not args[0].startswith("-"):
+                # Old style, `tar xCf dir a.tar`: each value letter of the first
+                # word takes the next words, in order.
+                letters |= set(args[0])
+                takers = [c for c in args[0] if c in "fCbTXgKNVHLIF"]
+                for k, letter in enumerate(takers, start=1):
+                    if k < len(args) and letter == "C":
+                        dirs.append(args[k])
+                    if k < len(args) and letter == "f":
+                        files.append(args[k])
+                rest = rest[1 + len(takers) :]
+            writing = bool({"c", "r", "u", "A"} & letters) or has_long(
+                args, "--create", "--append", "--update", "--catenate", "--concatenate", "--delete"
+            )
+            if writing:
+                written += [f for f in files if f != "-"]
+            if has_long(args, "--remove-files"):
+                trees += rest
+            if "x" in letters or has_long(args, "--extract", "--get"):
+                # -P keeps absolute member names: they land anywhere.
+                absolute = "P" in letters or has_long(args, "--absolute-names")
+                landings.append(unknown if absolute else one(dirs))
         elif name == "unzip":
-            directory = option_value(args, "-d")
-        else:  # ditto: copier handled in FILE_WRITERS
+            letters, values, _ = short_groups(args, "dP")
+            # -l, -t, -v, -z, -Z list or test; -p prints to stdout.
+            if not {"l", "t", "v", "z", "Z", "p"} & letters:
+                # `-:` keeps `../` in member names: they land anywhere.
+                landings.append(unknown if ":" in letters else one(values.get("d", [])))
+        elif name == "zip":
+            letters, values, rest = short_groups(
+                args, "bntPZsO", frozenset({"--temp-path", "--suffixes", "--from-date", "--before-date",
+                                            "--password", "--compression-method", "--split-size",
+                                            "--output-file", "--out"})
+            )
+            if rest and rest[0] != "-":
+                written.append(rest[0])
+            written += values.get("O", []) + option_values(args, "--output-file", "--out")
+            # -m moves the files into the archive: they are removed, trees with -r.
+            if "m" in letters or has_long(args, "--move"):
+                trees += rest[1:]
+        elif name in {"7z", "7za", "7zr", "7zz"}:
+            # 7-Zip switches ignore case: -o and -O, -sdel and -SDEL.
+            command = operands[0].lower() if operands else ""
+            archive = operands[1] if len(operands) > 1 else None
+            switches = [a.lower() for a in args if a.startswith("-")]
+            if command in {"a", "u", "d", "rn"} and archive is not None:
+                written.append(archive)
+                # -sdel deletes the files once compressed: whole trees.
+                if any(s.startswith("-sdel") for s in switches):
+                    trees += operands[2:]
+            if command in {"e", "x"} and "-so" not in switches:
+                # -spf keeps absolute paths: they land anywhere.
+                absolute = any(s.startswith("-spf") for s in switches)
+                dirs = [a[2:] for a in args if a[:2].lower() == "-o"]
+                landings.append(unknown if absolute else one(dirs))
+        elif name == "unrar":
+            command = operands[0].lower() if operands else ""
+            if command in {"e", "x"}:
+                dirs = [a[3:] for a in args if a.lower().startswith("-op") and len(a) > 3]
+                if len(operands) > 2 and operands[-1].endswith("/"):
+                    dirs.append(operands[-1])
+                landings.append(one(dirs))
+        elif name == "unar":
+            # One-dash long options: read word by word, never as a letter group.
+            dirs = [
+                args[i + 1] for i, a in enumerate(args)
+                if a in {"-o", "-output-directory", "--output-directory"} and i + 1 < len(args)
+            ]
+            landings.append(one(dirs))
+        elif name == "jar":
+            bundle = args[0].lstrip("-") if args and not args[0].startswith("--") else ""
+            letters = set(bundle)
+            archive = option_value(args, "--file")
+            if archive is None and "f" in bundle:
+                takers = [c for c in bundle if c in "fme"]
+                index = 1 + takers.index("f")
+                archive = args[index] if index < len(args) else None
+            if ({"c", "u"} & letters or {"--create", "--update"} & longs) and archive is not None:
+                written.append(archive)
+            if "x" in letters or "--extract" in longs:
+                landings.append(option_value(args, "--dir", "-C"))
+        elif name == "ar":
+            index = next((i for i, a in enumerate(args) if not a.startswith("--")), None)
+            if index is not None:
+                bundle = args[index].lstrip("-")
+                members = [a for a in args[index + 1 :] if not a.startswith("-")]
+                # a/b/i take a member name first, N a count.
+                skip = (1 if set("abi") & set(bundle) else 0) + (1 if "N" in bundle else 0)
+                if set("dmqrs") & set(bundle) and len(members) > skip:
+                    written.append(members[skip])
+                if "x" in bundle:
+                    landings.append(option_value(args, "--output"))
+        elif name in {"cpio", "bsdcpio"}:
+            letters, values, _ = short_groups(args, "FOIDHERMC")
+            listing = "t" in letters or has_long(args, "--list")
+            if "o" in letters or has_long(args, "--create"):
+                files = values.get("O", []) + values.get("F", []) + option_values(args, "--file")
+                written += [f for f in files if f != "-"]
+            elif ({"i", "p"} & letters or has_long(args, "--extract", "--pass-through")) and not listing:
+                # Member names may be absolute (kept by default): they land anywhere.
+                self.deny_tamper(f"{name} extracting: member names may be absolute and land anywhere")
+        elif name == "pax":
+            letters, values, _ = short_groups(args, "fsbopx")
+            if "r" in letters:
+                # Absolute member names are kept, and -s rewrites them: anywhere.
+                self.deny_tamper(f"{name} -r: member names may be absolute and land anywhere")
+            if "w" in letters:
+                written += [f for f in values.get("f", []) if f != "-"]
+        for archive in written:
+            if self.protected(archive):
+                self.deny_tamper(f"{name} writing {archive}")
+        for tree in trees:
+            if self.protected(tree) or self._tree_reaches(tree):
+                self.deny_tamper(f"{name} removing {tree}")
+        for word in landings:
+            self._unknown_names_land(f"{name} extracting into the repository", word)
+
+    def _tree_reaches(self, word: str) -> bool:
+        """For an operand a tool walks recursively or deletes as a tree (`gzip
+        -r .`, `zip -rm x.zip .`, `tar --remove-files`): True when that tree may
+        hold what this session must not touch. Anything at or above the
+        repository root does; then, locked, anything in the repository (the
+        harness lies everywhere, src/ included), unlocked, scripts/ and
+        scripts/hooks/ (review of lot C). Unknown at hook time: True."""
+        path = self._resolve(word)
+        if path is None:
+            return True
+        tree = os.path.realpath(path).casefold().rstrip(os.sep)
+        root = os.path.realpath(self.root).casefold()
+        if root == tree or root.startswith(tree + os.sep):
+            return True
+        if self.protect:
+            return self._in_repository(path)
+        return self._hooks_module(word)
+
+    def _check_compressor(self, name: str, args: list[str]) -> None:
+        """`gzip x` replaces x by x.gz (lot C): each operand is a file written or
+        removed, judged as a target, locked and unlocked; so is an output named
+        by -o or an output directory. Writing to stdout, testing or listing
+        writes nothing (lz4 -l is a format, not a listing)."""
+        # Glued values are read as getopt reads them, per tool (review of lot
+        # C: `gzip -S.ct x` was read as -c -t, stdout and test).
+        letters, values, operands = short_groups(
+            args, COMPRESSOR_VALUE_LETTERS.get(name, ""), COMPRESSOR_LONG_VALUES | set(COMPRESSOR_OUTPUTS)
+        )
+        quiet = {"c", "t"} | (set() if name in {"lz4", "unlz4"} else {"l"})
+        if quiet & letters or has_long(args, "--stdout", "--to-stdout", "--test", "--list"):
             return
-        where = self._resolve(directory) if directory is not None else self.cwd
-        if self._inside_repo(where):
-            self.deny_tamper(f"{name} extracting into the repository")
+        if has_long(args, *COMPRESSOR_LISTS):
+            self.deny_tamper(f"{name} reading its inputs from a list: what it writes cannot be judged")
+        outputs = values.get("o", []) + option_values(args, *COMPRESSOR_OUTPUTS)
+        if name == "lzop":
+            outputs += values.get("p", [])  # lzop -p: the output directory
+        for target in operands + outputs:
+            if self.protected(target):
+                self.deny_tamper(f"{name} replacing {target}")
+        # -r walks each operand: a whole tree is replaced (review of lot C).
+        if "r" in letters or has_long(args, "--recursive"):
+            for tree in operands:
+                if self._tree_reaches(tree):
+                    self.deny_tamper(f"{name} -r on {tree}")
 
     def _check_shell(self, args: list[str], piped: bool) -> None:
         # The shell's own options stop at the first operand (the script, or -c's string).
@@ -2588,15 +2968,20 @@ class Guard:
                 words = re.findall(r"[\"']([^\"']*)[\"']", group)
                 if words:
                     self.check_text(" ".join(shlex.quote(w) for w in words))
-        if self.protect and CODE_WRITE_RE.search(code):
+        # Judged locked and unlocked (lot C): unlocked, protected() answers for
+        # the guards' own modules and for targets known at run time only.
+        if CODE_WRITE_RE.search(code):
             for literal in re.findall(r"[\"']([^\"'\s]+)[\"']", code):
                 if "/" in literal or "." in literal:
                     if self.protected(literal) and "$" not in literal:
                         self.deny_tamper("inline interpreter code")
                 # A path assembled at run time (['scripts', 'check.sh'].join('/')):
                 # a bare harness directory name in writing code is enough (J-042).
-                if literal in PROTECTED_SEGMENTS:
+                if self.protect and literal in PROTECTED_SEGMENTS:
                     self.deny_tamper("inline code writing under a harness directory")
+                # The guards' own code, whatever the lock (lot C).
+                if literal.casefold() in HOOKS_SEGMENTS:
+                    self.deny_tamper("inline code writing under scripts/hooks")
 
     # -- messages ---------------------------------------------------------------
 

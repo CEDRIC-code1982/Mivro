@@ -40,15 +40,12 @@ L'ancien §2 (isoler chaque Python du harness) est appliqué : le (b) au lot 4 d
 partout (gardes, health check, workflow `harness-guard`, self-test), et `check-scripts` refuse un
 import par nom ou un changement de `sys.path` dans le code du harness.
 
-### 3. En session déverrouillée, les écrivains indirects vers `scripts/hooks/` (revue du lot 4)
-
-En session déverrouillée, `tar -xf … -C scripts/`, `unzip … -d scripts/hooks`, `curl -o scripts/hooks/x.py`,
-`patch`, `git apply` et un interpréteur qui ouvre un module en écriture passent la garde Bash : ces
-chemins sont conditionnés par `self.protect`. Ce ne sont pas des voies d'édition accidentelles, et en
-session déverrouillée l'agent a de toute façon le droit de modifier le harness. Le filet de J-056
-vise les accidents, et l'Edit simulé reste la voie normale. À traiter si l'on veut un filet
-complet : appliquer `_hooks_module` à leurs cibles et dossiers d'extraction, et refuser `patch` et
-`git apply` aux cibles inconnues. Cas au self-test : un `guard_unlocked BLOCK` par écrivain.
+L'ancien §3 (les écrivains indirects vers `scripts/hooks/` en session déverrouillée) est appliqué au
+lot C de la finition, le 2026-11-05, avec les trous voisins trouvés en sondant (neuf points validés
+par Cédric). Téléchargeurs, archiveurs (extraction et archive écrite), compresseurs, `patch`,
+`git apply`, `git am` et code inline qui écrit sont jugés verrouillé comme déverrouillé ; une cible
+connue seulement à l'exécution est refusée dans les deux modes. Faux positif hérité et laissé :
+`tar -xOf` (vers stdout) reste refusé dans le repo.
 
 ### 5. Garde Bash : trois limites connues laissées par le lot A (J-058, septième revue)
 
@@ -66,3 +63,45 @@ garde l'accepte :
   caractère précédent n'est pas lui-même échappé.
 
 Chaque correctif entre au self-test par `shell_diff`, avec la forme citée.
+
+### 6. Garde Bash : limites et faux positifs connus du lot C (revues du 2026-11-05)
+
+**Limites** (la garde laisse passer). Toutes existaient avant le lot C, qui ne les aggrave pas :
+
+- un nom assemblé par concaténation dans du code inline (`'ho' + 'oks'`) ;
+- un interpréteur qui lance un fichier (`python3 /tmp/x.py`, `python3 - < /tmp/x.py`) : son contenu
+  n'est pas lu ;
+- un `~/.curlrc` ou un `~/.wgetrc` déjà présent, lu sans option ni variable ;
+- du code inline qui écrit sans mode `w`, `a` ou `x` : mode `'r+'` en Python, `fileinput` avec
+  `inplace=True`, `File.write` en Ruby, `open(my $f, '>', …)` en Perl. Le mode `'r+'` passe même en
+  session verrouillée (`open('scripts/check.sh','r+')`) ;
+- les options de curl et de wget qui écrivent un fichier annexe au contenu choisi :
+  `curl -w '%output{…}…'`, `SSLKEYLOGFILE=… curl`, et `wget --hsts-file=…` en session déverrouillée ;
+- `gtar --one-top-level=<dossier>` qui extrait ailleurs que dans le dossier courant.
+
+Fermeture peu coûteuse, si on la veut : ajouter `[rb]*\+`, `File\.write` et `open(…, '>'` à
+`CODE_WRITE_RE`, et `-w`/`--write-out` contenant `%output{` à `side_files` dans
+`pre-bash-guard.py`. Chaque famille d'écrivain doit alors avoir son cas `guard BLOCK`.
+
+**Faux positifs acceptés** (refusés à tort, par prudence). Ce sont des ALLOW de HEAD (`6739939`)
+devenus BLOCK avec le lot C :
+
+- point 4, en session déverrouillée comme verrouillée : toute cible faite d'une variable
+  (`for f in a b; do echo x > "$f.txt"; done`, `npm test | tee "$LOG"`, `S=/abs; mkdir -p $S/x`) ;
+- `git am --abort` et `git am --show-current-patch`, refusés avec tout `git am` ;
+- `gzip -r src` (et tout outil récursif ou qui supprime un arbre dans le repo) en session
+  verrouillée : le harness est aussi sous `src/` ;
+- une valeur collée qui contient `r`, `m`, `p`, `x` ou `i` après `wget -O` ou `-o` (`-Ox.html`) :
+  lue comme un téléchargement récursif, donc refusée dans le repo. De même, `wget -np` et `-nd`
+  sont lus lettre à lettre (`-p`) : `wget -nd -np https://e.x/a.tgz` est refusé dans le repo ;
+- du code inline qui lit un fichier du harness et cite plus loin, sur la même ligne, un littéral de
+  mode (`, 'a'`, `, 'x'`) ;
+- du code inline qui écrit, même vers `/tmp`, et contient un littéral `hooks` ou `harness_paths` :
+  `python3 -c "import json; d={'hooks': {}}; open('/tmp/s.json','w').write(json.dumps(d))"` ;
+- une variable d'environnement qui porte des options d'un compresseur, posée quelle que soit sa
+  valeur et sa cible : `XZ_OPT=-T0 tar -cJf /tmp/x.txz src`, `GZIP=-9 tar -czf /tmp/x.tgz src`,
+  `ZSTD_CLEVEL=19 zstd /tmp/x` (cette dernière ne prend qu'un nombre) ;
+- une extraction qui garde les noms absolus ou les `../`, refusée partout, `/tmp` compris :
+  `cpio -i` et `cpio -p`, `pax -r`, `tar -P`, `unzip -:`, `7z x -spf` ;
+- le gabarit `#N` de curl dans un nom de sortie, refusé partout :
+  `curl -o '/tmp/out_#1.html' 'https://e.x/page[1-3].html'`.
