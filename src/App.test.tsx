@@ -1,13 +1,12 @@
 /**
  * @file App.test.tsx
- * @description Smoke test de l'App racine.
- *              Root App smoke test.
+ * @description Root App smoke test.
  *
  * @format
  */
 
 // [MODIFIED] Updated to use RNTL + navigation mocks after template removal
-import { render, screen, waitFor } from '@testing-library/react-native';
+import { render, screen } from '@testing-library/react-native';
 import React from 'react';
 import App from '../src/App';
 
@@ -98,7 +97,7 @@ jest.mock('@services/serviceContainer', () => {
   };
 });
 
-// [MODIFIED] Mock lucide-react-native — Proxy pour supporter toutes les icônes
+// [MODIFIED] Mock lucide-react-native — a Proxy, to support every icon
 jest.mock('lucide-react-native', () => {
   const ReactMock = require('react');
   const { View } = require('react-native');
@@ -116,13 +115,24 @@ jest.mock('lucide-react-native', () => {
   );
 });
 
-// [MODIFIED] Test is now async — waits for DI container bootstrap
-test('renders without crashing', async () => {
-  render(<App />);
+// Mounting the whole app (DI bootstrap, navigation, every tab) took more than the
+// default 1 s of waitFor under a loaded full run with coverage: the test failed
+// once in two full runs on 2026-11-05 (JOURNAL J-060). The wait is long, not the test.
+const BOOTSTRAP_TIMEOUT_MS = 10_000;
+// Jest's own 5 s per test would cut the wait short: the test gets a margin above it.
+const TEST_TIMEOUT_MS = 15_000;
 
-  // [MODIFIED] Attend que le bootstrap async se termine
-  // MapScreen affiche EmptyState (session draft from CreateSessionScreen mount)
-  await waitFor(() => {
-    expect(screen.getByText('Calcul en attente')).toBeOnTheScreen();
-  });
-});
+// [MODIFIED] Test is now async — waits for DI container bootstrap
+test(
+  'renders without crashing',
+  async () => {
+    render(<App />);
+
+    // [MODIFIED] Waits for the async bootstrap to finish.
+    // MapScreen shows its EmptyState (session draft from the CreateSessionScreen mount)
+    expect(
+      await screen.findByText('Calcul en attente', {}, { timeout: BOOTSTRAP_TIMEOUT_MS }),
+    ).toBeOnTheScreen();
+  },
+  TEST_TIMEOUT_MS,
+);

@@ -66,6 +66,9 @@ src/theme/contrast.test.ts
 src/i18n/locales.parity.test.ts
 src/i18n/locales.keys.test.ts
 
+# The blank contract: check-contract.sh and the reviewer's step 0 trust it.
+docs/harness/DONE-CONTRACT.modele.md
+
 # Git internals: hooks, config, refs and objects written by hand make commits
 # without the hooks, and the review seal lives here (JOURNAL J-042). git itself
 # writes .git/ freely; only the agent's own writes are refused.

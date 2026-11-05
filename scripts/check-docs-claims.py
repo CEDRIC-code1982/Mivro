@@ -26,9 +26,16 @@ with its indented continuation lines, a path announced as a file to create
 claim on a missing path is true, and green), and templates: a path holding
 "<", "{", "*", "…", "..." or a one-letter capital segment ("src/features/X/").
 
+A line suffix (`src/App.tsx:42`, `src/App.tsx#L42`) is dropped before the
+existence test.
+
 Limits: a claim phrased otherwise ("aucun fichier `x`", "`x` a disparu") is
 not seen; only `src/` paths are checked for existence; a dead path in a
-skipped item stays invisible until the item is reopened.
+skipped item stays invisible until the item is reopened. A path is looked up
+from the root of the repository, whatever folder the sentence speaks of:
+"`App.tsx` n'existe plus à la racine, il est dans `src/app/`" is red if a
+root `App.tsx` exists, and green otherwise, even when `src/app/App.tsx` is
+missing (review of lot D).
 
 MIVRO_DOCS_ROOT points the sensor at another tree (self-test).
 Exit 0 = every claim holds, 1 = at least one finding (each one listed).
@@ -116,6 +123,8 @@ def unstruck(lines: list[tuple[int, str]]) -> tuple[str, list[int]]:
 
 
 def exists(path: str) -> bool:
+    # `src/App.tsx:42` and `src/App.tsx#L42` cite a line of the file (lot E).
+    path = re.sub(r"(?::\d+(?:[-:]\d+)?|#L\d+(?:-L?\d+)?)$", "", path)
     return (ROOT / path.rstrip("/")).exists()
 
 

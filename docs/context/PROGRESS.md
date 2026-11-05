@@ -352,7 +352,7 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
 | Suites de tests                    | 88                                                                |
-| Tests (cas) — `npm run check`      | 1264                                                              |
+| Tests (cas) — `npm run check`      | 1267                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |

@@ -36,7 +36,7 @@
 | J-019 | `npm run clear` de Docusaurus bloqué par homonymie                  | ACCEPTÉ |
 | J-020 | Le cliquet de contraste a validé sa propre régression               | RÉSOLU  |
 | J-021 | Deux rôles hors modèle : tuile de carte et état désactivé           | RÉSOLU  |
-| J-022 | Le harness ne verifie aucune affirmation des docs                   | OUVERT  |
+| J-022 | Le harness ne verifie aucune affirmation des docs                   | RÉSOLU  |
 | J-023 | `check:diff` aveugle a tout le natif                                | RÉSOLU  |
 | J-024 | Veto natif : bloque un fichier source (`.gradle`)                   | RÉSOLU  |
 | J-025 | Test sans marge de temps, vert seulement au repos                   | RÉSOLU  |
@@ -66,14 +66,18 @@
 | J-049 | Jeton `gh` : `home_secret` jamais appelée, Read non gardé           | RÉSOLU  |
 | J-050 | 8e revue : `-c` de Prettier, sorties d'ESLint, rapport `audit` vide | RÉSOLU  |
 | J-051 | 9e revue : J-048 inopérant sous Bash 5, lecture des secrets         | OUVERT  |
-| J-052 | 1re CI : identité git, `__pycache__`, cache de bytecode forgeable   | OUVERT  |
-| J-053 | Le self-test a commité dans le vrai dépôt (`scratch_repo`)          | OUVERT  |
+| J-052 | 1re CI : identité git, `__pycache__`, cache de bytecode forgeable   | RÉSOLU  |
+| J-053 | Le self-test a commité dans le vrai dépôt (`scratch_repo`)          | RÉSOLU  |
 | J-054 | 13e revue : quatre routes vers le jeton par le trousseau            | OUVERT  |
 | J-055 | Le chantier du harness coûtait plus que le harness lui-même         | OUVERT  |
 | J-056 | L'agent a cassé les gardes en deux éditions, et s'est enfermé       | OUVERT  |
 | J-057 | GitHub ouvert au sandbox, puis refermé (jeton = route de push)      | CLOS    |
 | J-058 | Garde Bash : `then rm -rf x` passait, le dossier courant mentait    | RÉSOLU  |
 | J-059 | Un cas du self-test ne prouvait plus rien, et passait en silence    | RÉSOLU  |
+| J-060 | Un test instable rougissait le capteur `tests` sous charge          | RÉSOLU  |
+| J-061 | Un heredoc Python a réécrit la garde, hors de la simulation         | RÉSOLU  |
+| J-062 | La sonde du self-test rougit un hook Stop concurrent                | ACCEPTÉ |
+| J-063 | Les revues du lot C voyaient ce que le self-test ne regardait pas   | RÉSOLU  |
 
 ---
 
@@ -717,8 +721,8 @@ absorber silencieusement un défaut antérieur dans le correctif d'un autre.
 
 ## J-022 — Le harness ne vérifie aucune affirmation factuelle des docs
 
-**Date** : 2026-08-24 · **Statut** : OUVERT — trois volets écrits le 2026-11-02, les autres restent
-à écrire (voir « Volets 1 à 3 écrits » plus bas). Requalifié le 2026-09-26 : hors du
+**Date** : 2026-08-24 · **Statut** : RÉSOLU le 2026-11-05 — volets 1 à 3 écrits le 2026-11-02, les
+autres au lot D de la finition (voir « Volets 4 à 8 écrits » plus bas). Requalifié le 2026-09-26 : hors du
 lot harness v2, qui porte sur les contournements du code et des gates. Le reviewer y a d'ailleurs
 trouvé trois affirmations fausses dans les docs du harness v2, corrigées à la main : la leçon tient
 toujours. Suivi : `TODO.md > Harness v2`.
@@ -839,6 +843,34 @@ agent, HEAD détaché, `develop` et `main`, modèle vierge), **sortir en vert** 
 n'est pas une abstention au sens de `scripts/sensors.sh` (exit 3) : sous `MIVRO_NO_ABSTAIN=1`, en CI,
 une abstention fait échouer le run. Cas de self-test à écrire avec le capteur : HEAD détaché,
 `MIVRO_NO_ABSTAIN=1`, contrat de `develop`, et `check.sh --stage push` sort 0.
+
+**Volets 4 à 8 écrits** (lot D de la finition, `bcdfebd`, 2026-11-05, liste validée par Cédric ;
+reprises du lot E). Chaque capteur nomme ses limites dans son en-tête.
+
+- **Absences démenties** et **chemins `src/…` morts** : capteur `docclaims`
+  (`scripts/check-docs-claims.py`, stage `fast`). Grammaire serrée : le chemin entre backticks doit
+  être suivi aussitôt de « n'existe pas/plus », « est absent » ou « inexistant ». La fenêtre de
+  80 caractères prévue plus haut, essayée sur les docs du 2026-11-05, ne donnait que des faux
+  positifs (cinq, dont `INVENTAIRE.md:40`). Docs lues : celles qui décrivent l'état courant
+  (`docs/context/` sauf `PROGRESS.md`, `INVENTAIRE.md`, `CLAUDE.md`, `README.md`), ni ce journal ni
+  les ADR. Premier passage : trois chemins morts dans `POLICIES.md`, restés en
+  `src/infrastructure/` après ADR-014, corrigés.
+- **Métriques de `PROGRESS.md`** : capteur `docmetrics` (`scripts/check-docs-metrics.py`, stage
+  `check`), lancé juste après `tests`. Le compteur de tests n'est pas dans `coverage-summary.json`,
+  contrairement à ce que disait le volet : `tests` écrit donc un rapport `jest --json` dans le
+  dossier de travail du run (`$MIVRO_JEST_REPORT`), et `docmetrics` s'abstient sans lui. Les deux
+  lignes « Suites de tests » et « Tests (cas) » sont comparées ; les autres n'ont pas de compte
+  fiable. Premier passage : 87/1257 écrits, 88/1264 mesurés.
+- **Contrat périmé** : `scripts/check-contract.sh`, ligne `contract` en stage `fast`, verte hors
+  objet comme prévu. La doc des hooks le confirme : un hook `SubagentStart` ne peut pas bloquer,
+  il peut seulement ajouter du contexte au subagent. `reset-review.sh` dit donc au reviewer que le
+  contrat est périmé (`additionalContext`) ; c'est la ligne `fast`, au hook Stop, qui bloque.
+- **Contrat remis à vierge** (relevé dans `7319d42`) : le modèle vierge est versionné
+  (`docs/harness/DONE-CONTRACT.modele.md`, lot E) ; un diff qui rend le contrat identique au
+  modèle est jugé par le reviewer sur le contrat de HEAD (`reviewer.md`, étape 0).
+- **Clés i18n** (la limite laissée par `809ba70`) : `src/i18n/locales.keys.test.ts`, protégé.
+  Chaque clé statique passée à `t()` existe dans le catalogue FR de son namespace, alias compris ;
+  une forme de `useTranslation(` qu'il ne sait pas lire fait échouer le test (lot E).
 
 ---
 
@@ -1925,7 +1957,8 @@ harness, à décrire dans EN-ATTENTE à la prochaine passe, en lien avec J-022.
 
 ## J-052 — Première CI : ce que le Mac cachait
 
-**Date** : 2026-10-08 · **Statut** : OUVERT — correctifs appliqués le 2026-10-08 ; preuve : la CI de la PR #3 après relock
+**Date** : 2026-10-08 · **Statut** : RÉSOLU le 2026-11-05 — correctifs appliqués le 2026-10-08 ; preuve : les PR #4 à #7,
+mergées sous les checks requis du ruleset `protect-develop-main` (2026-10-26 au 2026-11-02)
 
 **Observé.** La PR #3 est la première à faire tourner la CI. `security` est vert, mais `battery`
 est rouge sur deux assertions du self-test (392 passed, 2 failed), alors qu'on a 395/0 en local et
@@ -1976,7 +2009,8 @@ la fasse pas rougir. J-052 passe RÉSOLU quand `battery` est vert sur la PR #3.
 
 ## J-053 — Le self-test a commité dans le vrai dépôt
 
-**Date** : 2026-10-08 · **Statut** : OUVERT — appliqué le 2026-10-08 ; preuve : relock et CI verte
+**Date** : 2026-10-08 · **Statut** : RÉSOLU le 2026-11-05 — appliqué le 2026-10-08 ; preuve : relock et CI verte sur les
+PR #4 à #7, mergées sous les checks requis (le self-test tourne dans `battery`)
 
 **Observé.** Après la session déverrouillée du 2026-10-08, `harness/en-attente-5-8` portait deux
 commits vides « init », d'auteur `selftest <selftest@mivro>`, créés à 14:05 et 14:06, un par
@@ -2791,3 +2825,104 @@ suivent (regex), et son échec appelle `bad`.
 
 **Règle pour la suite.** Une étape de préparation du self-test dont dépend un cas se termine par
 `|| bad "…"` : elle ne peut pas échouer en silence.
+
+---
+
+## J-060 — Un test instable rougissait le capteur `tests` sous charge
+
+**Date** : 2026-11-05 · **Statut** : RÉSOLU — dans le lot E de la finition
+
+**Observé.** Deux revues de la finition (confirmation du lot A, 2e revue du lot C) ont vu le
+capteur `tests` rouge une fois, puis vert au relancement, sans aucun fichier de `src/` touché. Le
+reviewer l'a attribué au test de l'autocomplétion, dont le `testID` `create-autocomplete-sheet`
+s'affichait dans l'arbre imprimé à l'échec. Reproduit au lot E : 1 run complet avec couverture sur
+2 échoue, sur `src/App.test.tsx:125` (« Unable to find an element with text: Calcul en attente »).
+Six runs isolés de la feature `Session` restent verts.
+
+**Cause.** Le test monte toute l'application (bootstrap de la DI, navigation, onglets) et attendait
+le texte avec `waitFor`, qui abandonne après 1 s par défaut. Sous un run complet avec couverture,
+et a fortiori quand un reviewer fait tourner le self-test en même temps, le montage dépasse 1 s.
+
+**Correctif.** `findByText` avec un délai nommé (`BOOTSTRAP_TIMEOUT_MS`, 10 s), et un délai propre
+au test (`TEST_TIMEOUT_MS`, 15 s) au-dessus des 5 s de Jest. Les commentaires du fichier passent en
+anglais.
+
+À part, et avant comme après le correctif : lancé seul, ce test laisse un handle ouvert et Jest ne rend
+pas la main (`--forceExit` le signale). Le run complet n'en souffre pas ; c'est hors du lot.
+
+**Règle pour la suite.** Un test qui monte l'application entière attend avec un délai nommé, pas
+avec le délai par défaut de `waitFor`. Aucun capteur ne le vérifie : un rouge du capteur `tests` qui
+disparaît au relancement est une entrée de ce journal, pas un hasard.
+
+---
+
+## J-061 — Un heredoc Python a réécrit la garde, hors de la simulation de J-056
+
+**Date** : 2026-11-05 · **Statut** : RÉSOLU — par le lot C de la finition
+
+**Observé.** Pendant le lot C, en session déverrouillée, j'ai réécrit
+`scripts/hooks/pre-bash-guard.py` une fois par un heredoc Python lancé par Bash, au lieu de l'outil
+Edit. L'édition était juste, mais elle a contourné la simulation de J-056, qui refuse une édition
+qui casserait les gardes : une erreur m'aurait de nouveau enfermé.
+
+**Réponse.** Le lot C juge le code inline qui écrit contre `scripts/hooks/` dans les deux modes.
+Sondé au lot E : `python3 - <<'PY'` qui ouvre la garde en écriture, la lit puis la réécrit, ou passe
+par `pathlib`, est refusé verrouillé comme déverrouillé. La garde renvoie vers l'outil Edit.
+
+---
+
+## J-062 — La sonde du self-test rougit un hook Stop concurrent
+
+**Date** : 2026-11-05 · **Statut** : ACCEPTÉ — limite nommée
+
+**Observé.** Le hook Stop a refusé une fin de tour sur `lint` et `diff` à cause de
+`src/__harness_stop_probe.ts` (`export const x = 1 as any`). Ce fichier n'était pas le mien : la
+section 9 du self-test le pose un instant dans l'arbre réel pour vérifier que le hook Stop rougit,
+et un reviewer faisait tourner le self-test au même moment. Le fichier avait disparu au tour
+suivant.
+
+**Pourquoi c'est accepté.** Le hook Stop juge l'arbre réel, donc la sonde doit y être. Le cas ne
+se produit que si un reviewer lance le self-test pendant un tour de l'agent principal, et le hook
+Stop laisse passer après trois essais sur un arbre inchangé. La conduite à tenir est de vérifier
+l'origine d'un fichier inconnu avant d'y toucher, et de relancer `check.sh --stage fast`.
+
+---
+
+## J-063 — Les revues du lot C voyaient ce que le self-test ne regardait pas
+
+**Date** : 2026-11-05 · **Statut** : RÉSOLU — dans le lot E de la finition
+
+**Observé.** La 2e revue du lot C a trouvé trois familles de commandes légitimes devenues refusées
+sans être nommées (`XZ_OPT=`, extraction à noms absolus dans `/tmp`, littéral `hooks` dans du code
+qui écrit vers `/tmp`), et des écrivains jamais refusés : mode `'r+'`, `fileinput` avec
+`inplace=True`, `File.write` en Ruby, `open(…, '>')` en Perl, `curl -w '%output{…}'`. Le mode `'r+'`
+réécrivait un fichier du harness même en session verrouillée :
+`python3 -c "open('scripts/check.sh','r+').write('x')"`.
+
+**Pourquoi rien ne l'a vu.** Le self-test n'avait de cas `BLOCK` que pour le mode `'w'`, et aucun
+corpus de commandes ordinaires hors du repo : une régression vers le refus ne rougissait rien.
+
+**Correctif.** La garde reconnaît, dans le code inline, les formes que le self-test teste une à
+une : un mode littéral qui contient `w`, `a`, `x` ou `+` et se termine à la quote (`'r+'`, `'rb+'`,
+`'wb'`), après un `open`, un `new` ou un `FileIO`, avec ou sans parenthèses (`File.open 'x', 'w'
+do`, `File.new`, `io.FileIO`) ; les modes Perl `'>'`, `'>>'` et `'+<'`, en argument séparé ou
+collés au chemin **sans espace** (`open F, '>x'`, `open my $f, '>', 'x'`) ; `File.write`/`IO.write`,
+`inplace=True`, et le `%output{…}` de `curl -w`/`--write-out` (`-w @fichier` refusé : son format
+ne se lit pas). Le self-test a un cas `BLOCK` par forme, et un corpus `ALLOW` de vingt et une
+commandes ordinaires (`cp -r src /tmp/x`, `tar -czf /tmp/x.tgz src`, lecture d'un fichier du
+harness en Perl, Ruby ou Python…). Chaque cas `BLOCK` passait sur la garde de `bcdfebd`, et chaque
+cas du corpus passe sur les deux.
+
+**Ce qui reste ouvert, et pourquoi on s'arrête là.** Chaque revue du lot E a trouvé une variante de
+syntaxe de plus : la première, Perl sans parenthèses (fermé) ; la seconde, un mode Perl suivi d'une
+espace (`'> chemin'`, `'+> chemin'`, `'>> chemin'`), un mode Ruby suivi d'un encodage (`'w:UTF-8'`)
+et `curl --expand-write-out`. Toutes passaient déjà à `bcdfebd`, verrouillé compris. C'est la boucle
+que Cédric a arrêtée au lot A (J-058) : on ne modélise pas chaque syntaxe d'écriture de chaque
+langage. Ces variantes sont des limites nommées (`EN-ATTENTE.md` §6), et la liste de la garde
+reste une liste d'écrivains connus, pas de ce qui est permis.
+
+**Règle pour la suite.** Un refus ajouté à la garde entre au self-test avec ses voisins légitimes
+en `ALLOW`, et un écrivain se teste par famille et par variante de syntaxe (avec et sans
+parenthèses, mode séparé ou collé), pas par un seul mode. `CODE_WRITE_RE` reste une liste
+d'écrivains connus, pas une liste de ce qui est permis : un écrivain qu'elle ne nomme pas passe
+(limite assumée, `EN-ATTENTE.md` §6).

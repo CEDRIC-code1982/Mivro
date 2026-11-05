@@ -1902,6 +1902,43 @@ for cmd in 'gzip -c scripts/check.sh > /tmp/x' 'gzip -dc a.gz > /tmp/x' 'gzip /t
   guard ALLOW "$cmd"
   guard_unlocked ALLOW "$cmd"
 done
+# Lot E (EN-ATTENTE §6, validated by Cedric): one case per family of writer the
+# reviews of lot C found open. Each one is ALLOW on the guard of HEAD bcdfebd.
+# 'r+' rewrote a harness file even in a locked session.
+HPY="scripts/hooks/harness_paths.py"
+for cmd in "python3 -c \"open('$HPY','r+').write('x')\"" "python3 -c \"open('$HPY','rb+').write(b'x')\"" \
+  "python3 -c \"import fileinput; [print(l) for l in fileinput.input('$HPY', inplace=True)]\"" \
+  "ruby -e \"File.write('$HPY','')\"" "perl -e \"open(my \\\$f, '>', '$HPY')\"" \
+  "curl -w '%output{$HPY}import os' https://e.x/a" 'curl -w @/tmp/fmt https://e.x/a' \
+  "perl -e \"open F, '>$HPY'\"" "perl -e \"open my \\\$f, '>', '$HPY'\"" \
+  "ruby -e \"File.new('$HPY','w').write('x')\"" "ruby -e \"File.open '$HPY', 'w' do |f| f.write('x') end\"" \
+  "python3 -c \"import io; io.FileIO('$HPY','r+').write(b'x')\""; do
+  guard BLOCK "$cmd"
+  guard_unlocked BLOCK "$cmd"
+done
+# A harness file outside scripts/hooks: refused locked, allowed unlocked.
+for cmd in "python3 -c \"open('scripts/check.sh','r+').write('x')\"" "ruby -e \"IO.write('scripts/check.sh','')\"" \
+  "perl -e \"open(F, '>>scripts/check.sh')\"" "curl -w '%output{>>scripts/check.sh}x' https://e.x/a" \
+  "perl -e \"open my \\\$f, '>>', 'scripts/check.sh'\""; do
+  guard BLOCK "$cmd"
+  guard_unlocked ALLOW "$cmd"
+done
+# Corpus of ordinary commands outside the repository, or reading it: the
+# regressions of lot C were ALLOW turned BLOCK that no case watched (lot E).
+for cmd in "python3 -c \"open('/tmp/x','r+').write('a')\"" "python3 -c \"print(open('scripts/check.sh').read())\"" \
+  "perl -e \"open(F, '<', 'scripts/check.sh'); print <F>\"" "ruby -e \"puts File.read('scripts/check.sh')\"" \
+  "curl -w '%{http_code}' -o /tmp/x https://e.x/a" "curl -w '%output{/tmp/stats}%{http_code}' https://e.x/a" \
+  'cp -r src /tmp/x' 'zip -r /tmp/a.zip src' 'tar -czf /tmp/x.tgz src' 'curl -o /tmp/x https://e.x/a' \
+  'wget -O /tmp/x https://e.x/a' "python3 -c \"open('/tmp/x','w').write('a')\"" \
+  "node -e \"require('fs').writeFileSync('/tmp/x','a')\"" 'cd /tmp && tar -xf /tmp/a.tar' \
+  'cd /tmp && unzip -o /tmp/a.zip' 'gzip -k /tmp/x' \
+  "perl -e \"open my \\\$f, '<', 'scripts/check.sh'; print <\\\$f>\"" "perl -e \"open my \\\$f, '>', '/tmp/x'\"" \
+  "ruby -e \"File.open('scripts/check.sh') { |f| puts f.read }\"" \
+  "python3 -c \"import io; print(io.FileIO('scripts/check.sh').read())\"" \
+  "node -e \"const x = new Map([['a', 'b']]); console.log(x)\""; do
+  guard ALLOW "$cmd"
+  guard_unlocked ALLOW "$cmd"
+done
 (CLAUDECODE=1 bash scripts/harness-lock.sh --update </dev/null >/dev/null 2>&1)
 expect_exit 1 $? "relock refuses to run inside Claude Code"
 # J-043: every file jest loads before the tests is part of the harness.
@@ -2207,6 +2244,11 @@ claims_case 1 "a dead src/ path is caught (POLICIES.md:359 before lot D)" \
   docs/context/POLICIES.md '- infrastructure (`FirebaseRealtimeService` → `src/infrastructure/realtime/`)'
 claims_case 0 "a live src/ path is green (J-022)" \
   docs/context/POLICIES.md '- infrastructure (`FirebaseRealtimeService` → `src/services/infra/realtime/`)'
+: >"$CLAIMS_DIR/src/App.tsx"
+claims_case 0 "a path with a line suffix is the file it names (review of lot D)" \
+  docs/context/ARCHITECTURE.md '- Entrée : `src/App.tsx:42`, détail `src/App.tsx#L10-L20`.'
+claims_case 1 "a dead path with a line suffix is still dead (review of lot D)" \
+  docs/context/ARCHITECTURE.md '- Entrée : `src/Gone.tsx:42`.'
 claims_case 0 "a file to create, a template and a checked item are not dead paths (J-022)" \
   docs/context/RUNBOOK.md '- Créer `src/services/domain/auth/IAuthService.ts`.'"$NL"'- Voir `src/features/<X>/components/`.'"$NL"'- [x] Adapter → `src/infrastructure/realtime/`'"$NL"'      (puis `src/infrastructure/x.ts`)'
 claims_case 0 "PROGRESS.md, a dated log, is not read (J-022)" \
@@ -2265,6 +2307,11 @@ contract_case 0 "develop and main are without object (J-022)" develop "$OWN"
 contract_case 0 "no contract is without object (J-022)" harness/y ''
 contract_case 0 "the blank template (no Branche line) is without object (J-022)" harness/y '**Titre** :'
 contract_case 0 "a Branche line left to fill is the blank template (J-022)" harness/y '**Branche** : `<branche>`'
+# A template whose Branche line names a branch: only the comparison with the
+# versioned template can make its copy blank (review of lot E).
+printf '%s\n' "$OWN" >"$CONTRACT_REPO/docs/harness/DONE-CONTRACT.modele.md"
+contract_case 0 "a copy of the versioned template is the blank contract (lot E)" harness/y "$OWN"
+rm -f "$CONTRACT_REPO/docs/harness/DONE-CONTRACT.modele.md"
 CONTRACT_CC='' contract_case 0 "outside an agent session (pre-push, CI) a stale contract is without object (J-022)" \
   harness/y "$OWN" -u CLAUDE_PROJECT_DIR
 # reset-review.sh tells the reviewer (a SubagentStart hook cannot block).

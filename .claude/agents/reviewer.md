@@ -26,8 +26,9 @@ ton rendu, et ne recopie jamais une autre valeur de verdict ailleurs dans le mes
 
 Lis `docs/harness/DONE-CONTRACT.md`.
 
-- **Si le diff relu le remet exactement à son modèle vierge** (le commit qui clôt une tâche), ta
-  grille est le contrat de HEAD :
+- **Si le diff relu le remet à son modèle vierge**, c'est-à-dire le rend identique à
+  `docs/harness/DONE-CONTRACT.modele.md` (le commit qui clôt une tâche), ta grille est le contrat de
+  HEAD :
   `git show HEAD:docs/harness/DONE-CONTRACT.md`. Il doit nommer la branche courante sur sa ligne
   `**Branche**` ; sinon, la règle suivante s'applique (JOURNAL J-022).
 - **S'il est vide, absent, ou visiblement pas rempli pour la tâche en cours** →

@@ -13,6 +13,10 @@
  * call `t('key')`, `t("key")` or `` t(`key`) `` of that binding is resolved in
  * `ns`, or in the namespace written before `:` in the key.
  *
+ * Closed by refusal (lot E): any other call of `useTranslation(` — no namespace,
+ * an array of namespaces, `{ t, i18n }` — fails the test until this sensor
+ * learns it, instead of leaving the file unread.
+ *
  * Limits: a key built at run time (a template with `${}`) is not checked; a
  * `t` received as a parameter, or `i18n.t`, is not resolved; a key that ends
  * on a sub-tree instead of a string passes when the sub-tree exists.
@@ -26,6 +30,7 @@ const SRC_DIR = path.join(__dirname, '..');
 const FR_DIR = path.join(__dirname, 'locales', 'fr');
 const BINDING =
   /const\s*\{\s*t(?:\s*:\s*(\w+))?\s*\}\s*=\s*useTranslation\(\s*['"]([\w-]+)['"]\s*\)/g;
+const ANY_BINDING = /\buseTranslation\(/g;
 const COMMENTS = /\/\*[\s\S]*?\*\/|(^|[^:'"\\])\/\/.*$/gm;
 const PLURAL_SUFFIXES = ['_zero', '_one', '_two', '_few', '_many', '_other'];
 
@@ -79,8 +84,12 @@ interface Call {
   key: string;
 }
 
-function staticCalls(file: string): Call[] {
-  const code = fs.readFileSync(file, 'utf8').replace(COMMENTS, '$1');
+function withoutComments(source: string): string {
+  return source.replace(COMMENTS, '$1');
+}
+
+function callsIn(source: string, file: string): Call[] {
+  const code = withoutComments(source);
   const calls: Call[] = [];
   for (const binding of code.matchAll(BINDING)) {
     const name = binding[1] ?? 't';
@@ -105,13 +114,29 @@ function staticCalls(file: string): Call[] {
   return calls;
 }
 
+const staticCalls = (file: string): Call[] => callsIn(fs.readFileSync(file, 'utf8'), file);
+
+/** Number of useTranslation() calls this sensor cannot read in a source. */
+function unreadBindings(source: string): number {
+  const code = withoutComments(source);
+  return [...code.matchAll(ANY_BINDING)].length - [...code.matchAll(BINDING)].length;
+}
+
 describe('i18n keys used in the code exist in the French catalogue', () => {
   const catalogues = loadCatalogues();
-  const calls = sourceFiles(SRC_DIR).flatMap(staticCalls);
+  const files = sourceFiles(SRC_DIR);
+  const calls = files.flatMap(staticCalls);
 
   it('finds the t() calls of the code (the sensor reads something)', () => {
     expect(calls.length).toBeGreaterThan(0);
     expect(calls.some((call) => call.namespace === 'biometric')).toBe(true);
+  });
+
+  it('reads every useTranslation() of the code (an unknown form fails, lot E)', () => {
+    const unread = files
+      .filter((file) => unreadBindings(fs.readFileSync(file, 'utf8')) !== 0)
+      .map((file) => path.relative(SRC_DIR, file));
+    expect(unread).toEqual([]);
   });
 
   it('resolves every static key in its namespace', () => {
@@ -121,7 +146,27 @@ describe('i18n keys used in the code exist in the French catalogue', () => {
     expect(missing).toEqual([]);
   });
 
-  it('resolves a key through an alias and a plural form, and rejects a wrong namespace', () => {
+  it('reads a call through an alias, a namespace prefix, and skips a run-time key', () => {
+    const source = [
+      "const { t } = useTranslation('map');",
+      "const { t: tBio } = useTranslation('biometric');",
+      "t('a.b'); tBio('c.d'); t('poi:e'); t(`f.${x}`); obj.t('g');",
+    ].join('\n');
+    expect(callsIn(source, 'x.tsx').map((call) => `${call.namespace}:${call.key}`)).toEqual([
+      'map:a.b',
+      'poi:e',
+      'biometric:c.d',
+    ]);
+  });
+
+  it('counts a useTranslation() form it cannot read', () => {
+    expect(unreadBindings("const { t } = useTranslation('map');")).toBe(0);
+    expect(unreadBindings("const { t, i18n } = useTranslation('map');")).toBe(1);
+    expect(unreadBindings('const { t } = useTranslation();')).toBe(1);
+    expect(unreadBindings("// useTranslation('x') in a comment")).toBe(0);
+  });
+
+  it('resolves a key in a plural form, and rejects a missing key or namespace', () => {
     const catalogue: Catalogue = { a: { b: 'x', count_one: 'one', count_other: 'n' } };
     expect(hasKey(catalogue, 'a.b')).toBe(true);
     expect(hasKey(catalogue, 'a.count')).toBe(true);

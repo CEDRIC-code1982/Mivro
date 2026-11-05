@@ -267,10 +267,21 @@ EXEC_RE = re.compile(r"os\.system|subprocess|execSync|spawnSync|child_process|\b
 # anywhere after an `open(` on the same line, whatever the nesting
 # (`open(os.path.join(os.getcwd(), ...), 'w')`, review of lot C). Accepted
 # false positive: a later `, 'a'`-like literal in reading code.
+# A write mode holds w, a, x or "+": `'r+'` rewrites in place, and passed even
+# a locked session (`open('scripts/check.sh','r+')`, lot E). Perl writes with
+# a '>', '>>' or '+<' mode, Ruby with File.write / IO.write, Python with
+# fileinput's inplace=True (lot E, EN-ATTENTE §6).
+WRITE_MODE = r"['\"][rbtU]*(?:[wax]|\+)[rbt+]*['\"]"
 CODE_WRITE_RE = re.compile(
-    r"open\s*\([^)]*['\"][rb]*[wax]\+?b?['\"]"
-    r"|open\s*\((?:[^()]|\([^()]*\))*['\"][rb]*[wax]\+?b?['\"]"
-    r"|open\s*\(.*?,\s*(?:mode\s*=\s*)?['\"][rb]*[wax]\+?b?['\"]|\bos\.open\b|\bos\.write\b|write_text|write_bytes|writeFile|appendFile"
+    r"open\s*\([^)]*" + WRITE_MODE
+    + r"|open\s*\((?:[^()]|\([^()]*\))*" + WRITE_MODE
+    + r"|open\s*\(.*?,\s*(?:mode\s*=\s*)?" + WRITE_MODE
+    + r"|\bopen\b[^;\n]*?['\"](?:\+?>|\+<)"
+    # With or without parentheses (Perl `open my $f, '>', ...`, Ruby
+    # `File.open 'x', 'w' do`), and File.new / io.FileIO (review of lot E).
+    + r"|\b(?:open|new|FileIO)\b\s*\(?[^;\n]*?,\s*(?:mode\s*=\s*)?" + WRITE_MODE
+    + r"|\b(?:File|IO)\.(?:write|binwrite)\b|\binplace\s*=\s*(?:True|1)\b"
+    + r"|\bos\.open\b|\bos\.write\b|write_text|write_bytes|writeFile|appendFile"
     r"|createWriteStream|os\.rename|os\.replace|os\.remove|os\.unlink|unlink|shutil|truncate"
     r"|chmod|symlink|copyFile|\bfs\.(?:rm|cp|copy|mv|rename|write|append|truncate)"
 )
@@ -2661,6 +2672,12 @@ class Guard:
                 args, "-D", "--dump-header", "-c", "--cookie-jar", "--trace", "--trace-ascii",
                 "--stderr", "--libcurl", "--etag-save", "--hsts", "--alt-svc",
             )
+            # -w writes its text into a file with %output{path} (or %output{>>path});
+            # a format read from a file (-w @file) may hold one (lot E).
+            for fmt in option_values(args, "-w", "--write-out"):
+                if fmt.startswith("@"):
+                    self.deny_tamper(f"{name} -w {fmt}: its format, and any %output{{}} in it, cannot be judged")
+                side_files += [found.lstrip(">") for found in re.findall(r"%output\{([^}]*)\}", fmt)]
             remote_name = "O" in shorts or has_long(args, "--remote-name", "--remote-name-all")
             # The server names the file (-J): what lands is unknown.
             names_unknown = "J" in shorts or has_long(args, "--remote-header-name")
@@ -2972,6 +2989,8 @@ class Guard:
         # the guards' own modules and for targets known at run time only.
         if CODE_WRITE_RE.search(code):
             for literal in re.findall(r"[\"']([^\"'\s]+)[\"']", code):
+                # Perl's two-argument open glues its mode to the path: '>x', '+<x' (lot E).
+                literal = re.sub(r"^\+?(?:>>?|<)", "", literal) or literal
                 if "/" in literal or "." in literal:
                     if self.protected(literal) and "$" not in literal:
                         self.deny_tamper("inline interpreter code")

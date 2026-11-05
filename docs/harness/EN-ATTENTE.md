@@ -27,7 +27,12 @@ _Administration_ (permissions relevées le 2026-10-28). GitHub reste refusé au 
 finir le harness. L'agent y applique lui-même les entrées ci-dessous, avec une revue et un commit
 local par lot. Le relock final et le push restent à Cédric.
 
-## À appliquer en session déverrouillée
+**2026-11-05 : finition close (lots A à E).** Toutes les entrées à appliquer l'ont été. Ce fichier
+ne garde plus que les limites et faux positifs connus, assumés par décision de Cédric (§5 à §7) :
+« fermer par refus » plutôt que modéliser, et nommer ce qui reste. Une limite qu'on décide de
+fermer redevient une entrée à appliquer.
+
+## Appliqué
 
 L'ancien §1 (contrôle positif de la sonde réseau) est appliqué au lot 2 du chantier, le
 2026-10-12.
@@ -46,6 +51,11 @@ par Cédric). Téléchargeurs, archiveurs (extraction et archive écrite), compr
 `git apply`, `git am` et code inline qui écrit sont jugés verrouillé comme déverrouillé ; une cible
 connue seulement à l'exécution est refusée dans les deux modes. Faux positif hérité et laissé :
 `tar -xOf` (vers stdout) reste refusé dans le repo.
+
+Au lot E (2026-11-05), les écrivains de code inline nommés en limite au §6 sont fermés, avec leurs
+variantes de syntaxe trouvées par la revue du lot E (J-063).
+
+## Limites connues, assumées
 
 ### 5. Garde Bash : trois limites connues laissées par le lot A (J-058, septième revue)
 
@@ -72,16 +82,31 @@ Chaque correctif entre au self-test par `shell_diff`, avec la forme citée.
 - un interpréteur qui lance un fichier (`python3 /tmp/x.py`, `python3 - < /tmp/x.py`) : son contenu
   n'est pas lu ;
 - un `~/.curlrc` ou un `~/.wgetrc` déjà présent, lu sans option ni variable ;
-- du code inline qui écrit sans mode `w`, `a` ou `x` : mode `'r+'` en Python, `fileinput` avec
-  `inplace=True`, `File.write` en Ruby, `open(my $f, '>', …)` en Perl. Le mode `'r+'` passe même en
-  session verrouillée (`open('scripts/check.sh','r+')`) ;
-- les options de curl et de wget qui écrivent un fichier annexe au contenu choisi :
-  `curl -w '%output{…}…'`, `SSLKEYLOGFILE=… curl`, et `wget --hsts-file=…` en session déverrouillée ;
+- les fichiers annexes que curl et wget écrivent sans option de sortie : `SSLKEYLOGFILE=… curl`, et
+  `wget --hsts-file=…` en session déverrouillée ;
 - `gtar --one-top-level=<dossier>` qui extrait ailleurs que dans le dossier courant.
 
-Fermeture peu coûteuse, si on la veut : ajouter `[rb]*\+`, `File\.write` et `open(…, '>'` à
-`CODE_WRITE_RE`, et `-w`/`--write-out` contenant `%output{` à `side_files` dans
-`pre-bash-guard.py`. Chaque famille d'écrivain doit alors avoir son cas `guard BLOCK`.
+Fermées au lot E (J-063), dans les formes que le self-test teste : mode `'r+'`, `fileinput` avec
+`inplace=True`, `File.write`/`IO.write`, `File.new`, `io.FileIO`, `open` avec ou sans parenthèses
+(Perl `open F, '>x'` et `open my $f, '>', 'x'`, Ruby `File.open 'x', 'w' do`),
+`curl -w '%output{…}'`.
+
+Restent ouvertes, même en session verrouillée (elles passaient déjà à `bcdfebd`) :
+
+- un mode Perl collé au chemin **avec une espace** : `open(F, '> scripts/…')`, `'+> …'`, `'>> …'` ;
+- un mode suivi d'un encodage : Ruby `File.open('scripts/…', 'w:UTF-8')`, `'wb:UTF-8'` ;
+- `curl --expand-write-out '%output{…}'` (le préfixe `--expand-` de curl 8.3 et plus).
+
+Limite de nature : `CODE_WRITE_RE` est une liste d'écrivains connus, pas une liste de ce qui est
+permis. Un écrivain ou une syntaxe qu'elle ne nomme pas passe ; il se ferme en l'ajoutant, avec son
+cas `guard BLOCK`.
+
+Nouveaux faux positifs acceptés avec ces fermetures, dans du code inline qui cite un fichier du
+harness : un littéral `'>'` ou `'+<'` après un `open` sur la même ligne (`if '>' in l` après
+`open('scripts/…')`), et un littéral de mode (`'a'`, `'w'`, `'x'`, `'+'`…) placé après une virgule
+dans l'instruction d'un `open`, d'un `new` ou d'un `FileIO` :
+`node -e "const s=new Set(['x', 'a']); …readFileSync('scripts/check.sh')"` est refusé en session
+verrouillée.
 
 **Faux positifs acceptés** (refusés à tort, par prudence). Ce sont des ALLOW de HEAD (`6739939`)
 devenus BLOCK avec le lot C, dans au moins un des deux modes :
@@ -108,3 +133,15 @@ devenus BLOCK avec le lot C, dans au moins un des deux modes :
   `cpio -i` et `cpio -p`, `pax -r`, `tar -P`, `unzip -:`, `7z x -spf` ;
 - le gabarit `#N` de curl dans un nom de sortie, refusé partout :
   `curl -o '/tmp/out_#1.html' 'https://e.x/page[1-3].html'`.
+
+### 7. Chargement de `harness_paths` : limites laissées par le lot B (2026-11-05)
+
+`check-scripts` refuse un import par nom et un changement du chemin de recherche dans le code du
+harness, en lisant le texte. Il ne voit pas :
+
+- un nom calculé à l'exécution (`import_module(var)`) ;
+- `import_module (` avec un espace avant la parenthèse ;
+- `os.environ['PYTHONPATH']` (seule la forme `PYTHONPATH=` est refusée).
+
+Et le chargement de `harness_paths` au niveau module, hors du `try` de la garde, sort en 1 s'il
+échoue : une erreur non bloquante pour Claude Code, au lieu du refus (exit 2) attendu.

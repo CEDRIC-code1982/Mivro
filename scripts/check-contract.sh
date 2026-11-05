@@ -14,8 +14,9 @@
 #     Cedric's own pre-push and the CI, where a contract delivered on develop
 #     names its old branch;
 #   - a detached HEAD (the CI of a pull_request), develop and main;
-#   - no contract, or the blank template (no "**Branche**" line, or a line
-#     with no name in backticks, or a "<...>" placeholder).
+#   - no contract, or the blank template: a copy of
+#     docs/harness/DONE-CONTRACT.modele.md, or no "**Branche**" line, or a
+#     line with no name in backticks, or a "<...>" placeholder.
 #
 # Run as the "contract" sensor (stage fast, so by the Stop hook at every turn)
 # and by scripts/hooks/reset-review.sh before a review, which tells the
@@ -29,9 +30,12 @@ set -uo pipefail
 cd "$(git rev-parse --show-toplevel)" || exit 1
 
 CONTRACT="docs/harness/DONE-CONTRACT.md"
+TEMPLATE="docs/harness/DONE-CONTRACT.modele.md"
 BRANCH="${MIVRO_CONTRACT_BRANCH:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null)}"
 case "$BRANCH" in "" | HEAD | develop | main) exit 0 ;; esac
 [ -f "$CONTRACT" ] || exit 0
+# The versioned blank template (lot E).
+cmp -s "$CONTRACT" "$TEMPLATE" && exit 0
 grep -q '^\*\*Branche\*\*' "$CONTRACT" || exit 0
 
 # The "**Branche**" paragraph, up to the next blank line: Prettier may wrap it
