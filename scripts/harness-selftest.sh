@@ -84,6 +84,19 @@ probe_file() {
   printf '%s\n' "$@" >"$path"
 }
 
+# Lot B: harness_paths is loaded by path, as the hooks load it, never by name
+# through sys.path (a harness_paths/ package would win). HP_LOAD binds it to `h`.
+HP_LOAD='import importlib.util, sys
+_spec = importlib.util.spec_from_file_location("harness_paths", "scripts/hooks/harness_paths.py")
+h = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(h)'
+hp_py() { # hp_py <python code using h> [args...]
+  local code="$1"
+  shift
+  python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc -c "$HP_LOAD
+$code" "$@"
+}
+
 tmp_dir() {
   local dir
   dir="$(mktemp -d "${TMPDIR:-/tmp}/mivro.XXXXXX")" || return 1
@@ -565,7 +578,7 @@ rm -f "$SCRATCH/src/feature/__mocks__/theme.ts"
 rmdir "$SCRATCH/src/feature/__mocks__"
 # J-044: every configuration file a sensor is pointed at is protected.
 for cfg in $(grep -v '^[[:space:]]*#' scripts/sensors.sh | grep -oE -- '(--config|-c) [^ |]+' | awk '{print $2}' | sort -u) .eslintignore docs-site/docusaurus.config.ts typedoc.config.mjs; do
-  if python3 -c 'import sys; sys.path.insert(0, "scripts/hooks"); import harness_paths as h; sys.exit(0 if h.matches(sys.argv[1], h.load_patterns()) else 1)' "$cfg"; then
+  if hp_py 'sys.exit(0 if h.matches(sys.argv[1], h.load_patterns()) else 1)' "$cfg"; then
     ok "sensor configuration $cfg is protected (J-044)"
   else
     bad "sensor configuration $cfg is NOT protected (J-044)"
@@ -597,7 +610,7 @@ case "$(cat scripts/check-diff.sh)" in
   *) bad "check-diff lets .gitattributes hide changes (J-045)" ;;
 esac
 # The two nested-config exception lists (Python guard, bash check-diff) agree.
-PY_EXC="$(python3 -c 'import sys; sys.path.insert(0, "scripts/hooks"); import harness_paths; print(" ".join(sorted(harness_paths.NESTED_CONFIG_EXCEPTIONS)))')"
+PY_EXC="$(hp_py 'print(" ".join(sorted(h.NESTED_CONFIG_EXCEPTIONS)))')"
 SH_EXC="$(sed -n '/NESTED_EXCEPTIONS_BEGIN/,/NESTED_EXCEPTIONS_END/p' scripts/check-diff.sh | grep -oE '[a-z-]+/[A-Za-z.]+\.(json|js)' | sort -u | tr '\n' ' ' | sed 's/ $//')"
 if [ "$PY_EXC" = "$SH_EXC" ]; then ok "nested-config exceptions agree (guard / check-diff)"; else bad "nested-config exceptions differ: guard [$PY_EXC] vs check-diff [$SH_EXC]"; fi
 
@@ -830,7 +843,9 @@ os.makedirs(os.path.dirname(target), exist_ok=True)
 py_compile.compile(forge_src, cfile=target, dfile=real, doraise=True)
 PY
   # Control: without -X the forge IS loaded, so the case below proves something.
-  FORGE_SEEN="$(python3 -I -B -c 'import sys; sys.path.append("scripts/hooks"); import harness_paths; print(harness_paths.unlocked())' 2>/dev/null)"
+  # Loaded by path (lot B): the source loader reads the same cache entry.
+  FORGE_SEEN="$(python3 -I -B -c "$HP_LOAD
+print(h.unlocked())" 2>/dev/null)"
   if [ "$FORGE_SEEN" = "True" ]; then
     CLAUDECODE=1 MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1
     expect_exit 1 $? "a forged harness_paths .pyc cannot fake the unlock (J-055)"
@@ -908,8 +923,8 @@ PY
     bounded 15 env HOME="$SETTINGS_HOME" CLAUDECODE=1 MIVRO_HARNESS_UNLOCK=1 bash scripts/harness-lock.sh >/dev/null 2>&1
     LOCK_SAYS=$?
     PY_SAYS="$(bounded 15 env HOME="$SETTINGS_HOME" CLAUDE_PROJECT_DIR="$PWD" MIVRO_HARNESS_UNLOCK=1 \
-      python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc -c \
-      'import sys; sys.path.append("scripts/hooks"); import harness_paths; print(harness_paths.unlocked())' 2>/dev/null)"
+      python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc -c "$HP_LOAD
+print(h.unlocked())" 2>/dev/null)"
     # stdout only: with a throwaway HOME, Xcode's python3 launcher (xcrun) warns
     # on stderr about its cache. A Python error leaves PY_SAYS empty: a mismatch.
     case "$fixture:$LOCK_SAYS:$PY_SAYS" in
@@ -983,7 +998,7 @@ edit_sim 2 "an edit leaving a syntax error in harness_paths is refused (J-056)" 
 edit_sim 2 "an edit making unlocked() false in the unlocked session is refused (J-056)" \
   scripts/hooks/harness_paths.py 'def unlocked() -> bool:' $'def unlocked() -> bool:\n    return False\n\n\ndef _shadowed() -> bool:'
 edit_sim 2 "an edit making the Bash guard refuse everything is refused (J-056)" \
-  scripts/hooks/pre-bash-guard.py 'import harness_paths' $'import harness_paths\nsys.exit(2)'
+  scripts/hooks/pre-bash-guard.py 'harness_paths = _load_harness_paths()' $'harness_paths = _load_harness_paths()\nsys.exit(2)'
 edit_sim 0 "a harmless edit of harness_paths passes the simulation (J-056)" \
   scripts/hooks/harness_paths.py 'fail closed on anything, by design' 'fail closed on anything, by design.'
 # The repair path itself: breaking the edit guard's scripts/hooks branch would
@@ -1209,6 +1224,75 @@ guard BLOCK '{({(:>scripts/check.sh)})}'
 guard BLOCK 'true;{({(cp /tmp/x .babelrc)})}'
 guard BLOCK '{({(git reset --hard)})}'
 guard ALLOW 'ls src/theme/*(.)'
+
+# Lot B (EN-ATTENTE §2a): harness_paths is loaded by path. A harness_paths/
+# package in scripts/hooks/ — which an import by name picks before the module —
+# changes no verdict. The package is a full stand-in (review of lot B): it
+# carries every function of the real module, so a guard loading by name would
+# not crash into a fail-closed refusal; only unlocked() says True and
+# is_protected() says False. A guard back to an import by name turns these red.
+SHADOW_PKG="scripts/hooks/harness_paths/__init__.py"
+probe_file "$SHADOW_PKG" \
+  "import importlib.util as _u, os as _os" \
+  "_real_path = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), 'harness_paths.py')" \
+  "_spec = _u.spec_from_file_location('_real_module', _real_path)" \
+  "_real = _u.module_from_spec(_spec)" \
+  "_spec.loader.exec_module(_real)" \
+  "globals().update({k: v for k, v in vars(_real).items() if not k.startswith('__')})" \
+  "def unlocked():" "    return True" \
+  "def is_protected(*args):" "    return False"
+# Control: an import by name picks the package, sees the whole API, and gets a
+# permissive answer: so the cases below can fail. Run from scripts/hooks/,
+# where `python3 -c` (without -I) looks first.
+SHADOW_SEEN="$(cd scripts/hooks && python3 -B -X pycache_prefix=/dev/null/mivro-nopyc -c \
+  'import importlib, sys; m = importlib.import_module(sys.argv[1]); print(m.unlocked(), hasattr(m, "repo_root"), m.is_protected("scripts/check.sh", ".", ".", []))' \
+  harness_paths 2>/dev/null)"
+if [ "$SHADOW_SEEN" = "True True False" ]; then
+  guard BLOCK 'echo x > scripts/check.sh'
+  guard BLOCK 'cp /tmp/x scripts/hooks/pre-bash-guard.py'
+  edit_guard 2 "$REPO/scripts/check.sh"
+  edit_guard 2 "$REPO/scripts/hooks/harness_paths.py"
+  case "$(hp_py 'print(h.__file__)')" in
+    scripts/hooks/harness_paths.py | */scripts/hooks/harness_paths.py) ok "the self-test's own loader ignores the harness_paths/ package (lot B)" ;;
+    *) bad "the self-test's loader picked something else than scripts/hooks/harness_paths.py (lot B)" ;;
+  esac
+else
+  bad "harness_paths/ package control failed: an import by name gave [$SHADOW_SEEN], not [True True False]; the lot B cases prove nothing"
+fi
+rm -f "$SHADOW_PKG"
+rmdir scripts/hooks/harness_paths 2>/dev/null || true
+# check-scripts refuses an import by name and any sys.path change in the
+# harness code. The forms are built at run time: written plainly here, they
+# would turn this very file red.
+NAME_IMPORT="import harness""_paths as h"
+SYS_PATH_INSERT="sys.path.ins""ert(0, 'scripts/hooks')"
+probe_file scripts/lotb-probe.py "$NAME_IMPORT"
+bash scripts/check-scripts.sh >/dev/null 2>&1
+expect_exit 1 $? "check-scripts refuses '$NAME_IMPORT' in a harness Python file (lot B)"
+rm -f scripts/lotb-probe.py
+probe_file scripts/lotb-probe.sh '#!/usr/bin/env bash' "python3 -c \"import sys; $SYS_PATH_INSERT\""
+bash scripts/check-scripts.sh >/dev/null 2>&1
+expect_exit 1 $? "check-scripts refuses a sys.path change in a harness shell script (lot B)"
+rm -f scripts/lotb-probe.sh
+probe_file scripts/lotb-probe.py "from harness""_paths import unlocked"
+bash scripts/check-scripts.sh >/dev/null 2>&1
+expect_exit 1 $? "check-scripts refuses the from-form (lot B)"
+rm -f scripts/lotb-probe.py
+# An import in a comma list is an import by name too (review of lot B).
+probe_file scripts/lotb-probe.py "import os, harness""_paths"
+bash scripts/check-scripts.sh >/dev/null 2>&1
+expect_exit 1 $? "check-scripts refuses a name import in a comma list (lot B)"
+rm -f scripts/lotb-probe.py
+probe_file scripts/lotb-probe.sh '#!/usr/bin/env bash' "python3 -m harness""_paths --lockable"
+bash scripts/check-scripts.sh >/dev/null 2>&1
+expect_exit 1 $? "check-scripts refuses running the module by name with -m (lot B)"
+rm -f scripts/lotb-probe.sh
+bash scripts/check-scripts.sh >/dev/null 2>&1
+CHECK_SCRIPTS_CODE=$?
+case "$CHECK_SCRIPTS_CODE" in
+  0 | 3) ok "check-scripts is green again once the lot B probes are gone (exit $CHECK_SCRIPTS_CODE)" ;;
+  *) bad "check-scripts stays red after the lot B probes (exit $CHECK_SCRIPTS_CODE)" ;;
+esac
 # Lot A (EN-ATTENTE §4, closing the harness): the guard followed the current
 # directory too far, read reserved words as command names, and judged zsh
 # qualifiers by a list of forbidden forms. Each hole is closed by an allowlist.
@@ -1725,7 +1809,7 @@ expect_exit 1 $? "relock refuses to run inside Claude Code"
 JEST_SETUP="$(node -e 'const c=require("./jest.config.js");const f=[].concat(c.setupFiles||[],c.setupFilesAfterEnv||[],c.globalSetup||[],c.globalTeardown||[]);console.log(f.map(x=>x.replace(/^<rootDir>\//,"").replace(/^\.\//,"")).join("\n"))')"
 while IFS= read -r setup; do
   [ -n "$setup" ] || continue
-  if python3 -c 'import sys; sys.path.insert(0, "scripts/hooks"); import harness_paths as h; sys.exit(0 if h.matches(sys.argv[1], h.load_patterns()) else 1)' "$setup"; then
+  if hp_py 'sys.exit(0 if h.matches(sys.argv[1], h.load_patterns()) else 1)' "$setup"; then
     ok "jest setup file $setup is protected (J-043)"
   else
     bad "jest setup file $setup is NOT in scripts/harness-protected.txt (J-043)"
@@ -2114,7 +2198,13 @@ pyc_case() { # pyc_case <where> <control output> <hooked output>
     bad "a forged .pyc $1 replaces the source under the hooks' options: got '$3' (J-052)"
   fi
 }
-PYC_IMPORT="import sys; sys.path.insert(0, sys.argv[1]); import mivro_probe; print(mivro_probe.V)"
+# By path, as the hooks load harness_paths (lot B): the source loader reads the
+# same cache entry an import by name would.
+PYC_IMPORT='import importlib.util, os, sys
+spec = importlib.util.spec_from_file_location("mivro_probe", os.path.join(sys.argv[1], "mivro_probe.py"))
+probe = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(probe)
+print(probe.V)'
 PYC_DIR="$(tmp_dir)"
 PYTHONPYCACHEPREFIX="$PYC_DIR/cache" forge_pyc "$PYC_DIR"
 pyc_case "in PYTHONPYCACHEPREFIX" \

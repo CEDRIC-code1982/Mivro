@@ -54,10 +54,14 @@ jobs:
             exit 1
           fi
 
-          python3 - <<'PY' >harness.txt
-          import sys
-          sys.path.insert(0, "scripts/hooks")
-          import harness_paths  # base branch copy: trusted
+          python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc - <<'PY' >harness.txt
+          import importlib.util
+
+          # Base branch copy: trusted. Loaded by path, never by name through
+          # sys.path, like the hooks (EN-ATTENTE §2a, lot B).
+          spec = importlib.util.spec_from_file_location("harness_paths", "scripts/hooks/harness_paths.py")
+          harness_paths = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(harness_paths)
 
           patterns = harness_paths.load_patterns("scripts/harness-protected.txt")
           always = (".github/", "scripts/harness.lock", "scripts/harness-protected.txt")

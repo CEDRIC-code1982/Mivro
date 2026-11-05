@@ -31,6 +31,7 @@ on an internal error.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import re
@@ -38,10 +39,29 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import types
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import harness_paths  # noqa: E402  (path set up just above)
+def _load_harness_paths() -> types.ModuleType:
+    """Load harness_paths.py from this file's own directory, by path.
+
+    Never by name, never through sys.path: a module, a package or an extension
+    called harness_paths anywhere on the search path (a `scripts/hooks/
+    harness_paths/` package, a module at the root) would replace it, and a
+    directory put first on sys.path shadows the stdlib too (EN-ATTENTE §2a,
+    lot B). The hook runs with -I -B -X pycache_prefix=…, so no cached
+    bytecode is read either (J-052).
+    """
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "harness_paths.py")
+    spec = importlib.util.spec_from_file_location("harness_paths", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+harness_paths = _load_harness_paths()
 
 NATIVE_ARTEFACT_RE = re.compile(r"(?:^|/)(?:ios/Pods|android/(?:[^/]+/)*(?:build|\.cxx))(?:/|$)")
 HOOKS_PREFIX = "scripts/hooks/"
@@ -67,6 +87,7 @@ _BROKEN = 3
 # scripts/hooks/ file too (the never-matching old_string ends that simulation
 # at once).
 _HOOKS_HEALTH_CHECK = r"""
+import importlib.util
 import json, os, subprocess, sys, time
 
 def broken(message):
@@ -82,10 +103,12 @@ for name in sorted(os.listdir(hooks)):
                 compile(handle.read(), name, "exec")
         except Exception as error:
             broken(f"{name} does not compile: {type(error).__name__}: {error}")
-sys.path.append(hooks)
+# By path, as the guards load it (lot B): never by name through sys.path.
 started = time.monotonic()
 try:
-    import harness_paths
+    spec = importlib.util.spec_from_file_location("harness_paths", os.path.join(hooks, "harness_paths.py"))
+    harness_paths = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(harness_paths)
     state = harness_paths.unlocked()
 except Exception as error:
     broken(f"harness_paths fails: {type(error).__name__}: {error}")

@@ -35,34 +35,10 @@ L'ancien §1 (contrôle positif de la sonde réseau) est appliqué au lot 2 du c
 L'ancien §4 (quatre trous de la garde Bash) est appliqué au lot A de la finition, le 2026-11-02,
 avec les trous voisins trouvés en sondant (J-058).
 
-### 2. Isoler chaque Python du harness (revue du lot 1 de J-055) — le (a) reste à faire
-
-**a. Ne plus jamais trouver `harness_paths` par son nom.** Les trois revues du lot 1 ont trouvé
-quatre façons de faire mentir un Python du harness qui fait `import harness_paths` :
-
-- un module posé à la racine (`python3 -c` y met le dossier courant) ;
-- un module posé dans `scripts/hooks/` (`sys.path.insert(0, …)` le place avant la stdlib) ;
-- un `.pyc` forgé dans `scripts/hooks/__pycache__/` (`-I` ignore l'export `PYTHONPYCACHEPREFIX`) ;
-- un paquet `scripts/hooks/harness_paths/` (ou une extension `.so`), qui passe avant le `.py` dans
-  la recherche de modules.
-
-Le lot 1 sort la sonde du verrou de ce jeu : elle refait la règle de déverrouillage en shell pur, et
-ne charge plus rien de `scripts/hooks/`. Mais les deux gardes font encore
-`sys.path.insert(0, scripts/hooks)` puis `import harness_paths`. Un paquet `harness_paths/` posé là
-remplacerait donc aussi leur module. Correctif :
-
-- charger `harness_paths` par chemin explicite, partout
-  (`importlib.util.spec_from_file_location("harness_paths", <chemin absolu>)`, puis
-  `module_from_spec` et `exec_module`), avec le triplet `-I -B -X pycache_prefix=…` ;
-- règle dans `scripts/check-scripts.sh` : un `import harness_paths` ou un `sys.path.insert(0,` dans
-  le harness rougit le capteur `scripts` ;
-- cas au self-test : un paquet `scripts/hooks/harness_paths/` posé, et la garde refuse toujours
-  `echo x > scripts/check.sh`.
-
-**b.** Appliqué au lot 4 du chantier (2026-10-15) : la garde Bash juge ce qu'une copie, un
-déplacement ou un lien dépose dans un dossier, refuse `mkfifo`/`mknod` sur un chemin protégé, et,
-en session déverrouillée, l'écriture Bash par fichier d'un module des gardes (`git restore`
-excepté). Voir le §3 pour les écrivains indirects.
+L'ancien §2 (isoler chaque Python du harness) est appliqué : le (b) au lot 4 du chantier, le
+2026-10-15 ; le (a) au lot B de la finition, le 2026-11-05. `harness_paths` est chargé par chemin
+partout (gardes, health check, workflow `harness-guard`, self-test), et `check-scripts` refuse un
+import par nom ou un changement de `sys.path` dans le code du harness.
 
 ### 3. En session déverrouillée, les écrivains indirects vers `scripts/hooks/` (revue du lot 4)
 
