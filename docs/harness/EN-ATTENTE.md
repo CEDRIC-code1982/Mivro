@@ -32,6 +32,9 @@ local par lot. Le relock final et le push restent à Cédric.
 L'ancien §1 (contrôle positif de la sonde réseau) est appliqué au lot 2 du chantier, le
 2026-10-12.
 
+L'ancien §4 (quatre trous de la garde Bash) est appliqué au lot A de la finition, le 2026-11-02,
+avec les trous voisins trouvés en sondant (J-058).
+
 ### 2. Isoler chaque Python du harness (revue du lot 1 de J-055) — le (a) reste à faire
 
 **a. Ne plus jamais trouver `harness_paths` par son nom.** Les trois revues du lot 1 ont trouvé
@@ -71,39 +74,19 @@ vise les accidents, et l'Edit simulé reste la voie normale. À traiter si l'on 
 complet : appliquer `_hooks_module` à leurs cibles et dossiers d'extraction, et refuser `patch` et
 `git apply` aux cibles inconnues. Cas au self-test : un `guard_unlocked BLOCK` par écrivain.
 
-### 4. Quatre trous de la garde Bash, antérieurs au chantier (cinquième, onzième et dernière revues du lot 4)
+### 5. Garde Bash : trois limites connues laissées par le lot A (J-058, septième revue)
 
-**a. Le dossier courant après un sous-shell.** `(cd /tmp); cp /tmp/x .babelrc` passe : la garde
-garde `/tmp` comme dossier courant après le `)`, alors que le shell revient au dépôt. La copie
-écrit donc `<dépôt>/.babelrc`. Correctif : sauvegarder `self.cwd` à chaque `(` et le restaurer au
-`)` correspondant, dans la boucle de `_check_line`. À défaut, passer le dossier à inconnu après un
-`)`. Cas au self-test : `guard BLOCK '(cd /tmp); cp /tmp/x .babelrc'`, plus un contrôle `ALLOW`
-avec une cible produit.
+Elles existaient déjà avant le lot A. Cédric a décidé, après la sixième revue, de ne plus en
+modéliser de nouvelles dans ce lot. Dans les trois cas, bash et zsh exécutent la commande et la
+garde l'accepte :
 
-**b. Un `$` au milieu d'un nom de commande.** `bash -c '(rm${IFS}scripts/check.sh)'` passe, parce
-que `${IFS}` découpe le mot à l'exécution. La garde ne juge comme variable qu'un nom de commande qui
-commence par `$`. Correctif : refuser tout nom de commande qui contient `$` ou le marqueur de
-substitution, quelle que soit sa position. Cas au self-test : la commande ci-dessus en
-`guard BLOCK`.
+- **`\` suivi d'un blanc en fin de ligne** (`echo hi \ ` ⏎ `git clean -fdx`) : tester
+  `ends_with_escape` sur la ligne physique avant d'en retirer les blancs de fin, ou ne retirer que
+  les blancs de tête.
+- **Une `)` entre quotes dans un `$(`** (`echo $(echo ")"; git clean -fdx)`) :
+  `extract_substitutions` doit suivre les quotes dans son comptage de profondeur, ou refuser une
+  `(`/`)` entre quotes dans une substitution.
+- **Un `#` après un blanc échappé** (`echo x\ #"`) : `strip_comments` doit vérifier que le
+  caractère précédent n'est pas lui-même échappé.
 
-**c. Les qualificateurs zsh qui exécutent du code.** En zsh, `*(e:'cmd':)` exécute `cmd` pour
-chaque fichier qui correspond, et `*(+fonction)` appelle une fonction. Le lot 4 a posé un filet :
-`deny_code_qualifier`, appliqué par `deny_argument_qualifiers` à tout groupe qui n'ouvre pas une
-commande, ainsi qu'aux `=(…)` collés et aux ouvreurs échappés dans `extract_substitutions`. Mais
-de la septième à la onzième revue, chaque revue a trouvé une nouvelle position d'où le qualificateur
-échappe au filet. Ce n'est donc pas une garantie, et le trou existait déjà à `8fd98f1`. Deux
-pistes :
-
-- un seul lecteur de quotes et d'échappements, partagé par `extract_substitutions`,
-  `fold_glob_groups` et `deny_argument_qualifiers` ;
-- un exécutable de sonde dédié, approuvé par Cédric, qui lit ses cas depuis un fichier. La garde
-  refuse en effet toute sonde Bash qui contient `e:`, si bien que ni les revues ni l'agent ne
-  peuvent vérifier zsh sur ces formes.
-
-Cas au self-test : rejouer chaque ouvreur et chaque point d'arrêt du repli (`*`, quote, nom, `=`,
-`)`, `\;`, `\$`, `\<`) suivi d'un qualificateur `e:`, en `guard BLOCK`.
-
-**d. Une commande formée par l'expansion des accolades.** `{rm,-rf,node_modules}` passe : le shell
-la développe en `rm -rf node_modules`, mais la garde lit un seul mot, sans nom de commande connu.
-`8fd98f1` l'acceptait aussi. Correctif : refuser un nom de commande qui contient `{` suivi d'une
-`,` hors quotes. Cas au self-test : la commande ci-dessus en `guard BLOCK`.
+Chaque correctif entre au self-test par `shell_diff`, avec la forme citée.

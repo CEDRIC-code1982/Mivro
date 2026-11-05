@@ -72,6 +72,8 @@
 | J-055 | Le chantier du harness coûtait plus que le harness lui-même         | OUVERT  |
 | J-056 | L'agent a cassé les gardes en deux éditions, et s'est enfermé       | OUVERT  |
 | J-057 | GitHub ouvert au sandbox, puis refermé (jeton = route de push)      | CLOS    |
+| J-058 | Garde Bash : `then rm -rf x` passait, le dossier courant mentait    | RÉSOLU  |
+| J-059 | Un cas du self-test ne prouvait plus rien, et passait en silence    | RÉSOLU  |
 
 ---
 
@@ -2483,3 +2485,309 @@ jeton lisible depuis la session permet d'y faire, pas par l'usage prévu.
 **Restes, notés au TODO** : vider `GIT_ASKPASS` et retirer `GH_TOKEN` du shell qui lance `claude`
 (inutiles à l'agent tant que GitHub est refusé). Le ruleset `protect-develop-main` est consigné
 dans le TODO.
+
+## J-058 — Garde Bash : `then rm -rf x` passait, et le dossier courant mentait
+
+**Date** : 2026-11-02 · **Statut** : RÉSOLU (lot A de la finition du harness)
+
+**Observé.** En sondant la garde avant d'appliquer EN-ATTENTE §4, l'agent a trouvé que
+`if true; then rm -rf node_modules; fi` passait. Il en allait de même pour `while … do`,
+`else`, `noglob rm`, `exec -a x rm`, `=rm` (zsh), `/bin/r?` et `{rm,-rf,x}`. La garde prenait `then`
+pour le nom de la commande, et `rm` pour un simple argument. Aucune des onze revues du lot 4 ne
+l'avait vu : elles cherchaient des formes de groupement, pas des mots réservés. Du même côté, le
+dossier courant restait faux dans six formes, en plus du sous-shell de §4a :
+`echo $(cd /tmp)`, `bash -c 'cd /tmp'`, `false && cd /tmp`, `cd` vers un dossier inexistant,
+`cd /tmp | true`, `xargs cd` et `find -exec cd`. Suivies de `cp /tmp/x .babelrc`, elles écrivaient
+toutes dans le dépôt alors que la garde jugeait `/tmp/.babelrc`.
+
+**Leçon.** Les trous de §4 avaient la même cause que les onze revues du lot 4 : on listait les
+formes interdites. Le lot A retourne chaque règle en liste de ce qui est permis.
+
+**Réponse** (`pre-bash-guard.py`, lot A) :
+
+- **Nom de commande** : il doit être un mot simple (`COMMAND_NAME_RE`, plus `[` et `[[`). `$`, une
+  substitution, des accolades, un glob ou un `=` initial sont refusés. Cela ferme §4b et §4d.
+- **Mots réservés** : `then`, `do`, `else`, `elif`, `while`, `until`, `if`, `coproc`, `repeat N`,
+  `[[ … ]] cmd` (forme courte zsh) et les préfixes `noglob`, `nocorrect`, `-` et `arch` sont
+  sautés, et la suite est jugée comme une commande. `exec -a`, `caffeinate -t` et `arch -arch`
+  consomment leur valeur.
+- **Qualificateurs zsh** (§4c) : un groupe hors position de commande doit correspondre à
+  `QUALIFIER_LIST_RE` (types, droits, tailles, dates, tris, indices, `N`, `D`), avec `+` seulement
+  devant un chiffre. `e`, `+fonction`, `P`, `f`, les modificateurs `:` et `#q` ne passent plus.
+  Deux cas gardent l'ancien filet seul : une alternance (`|` au premier niveau, que zsh ne lit pas
+  comme qualificateurs) et un tableau ou un sous-shell après un mot réservé, en position de
+  commande. Cette position est le test qui laissait déjà passer un sous-shell : on ne fait
+  confiance à rien de nouveau.
+- **Dossier courant** (§4a et la suite) : il est sauvegardé à `(` et restauré à `)`, ainsi
+  qu'après `$( )`, `bash -c`, un heredoc lu par un shell et `find -exec`. Un `cd` ne vaut que pour
+  la suite de sa chaîne `&&` (version corrigée après la revue, voir plus bas). Le dossier devient
+  inconnu tout de suite après un `cd` passé par un enrobeur qui sort du shell (`xargs`, `env`…),
+  après un `cd` placé dans un texte qui contient un pipe, `||`, `&`, `!`, des accolades, un mot
+  réservé ou une fonction, et après un nom de dossier employé comme commande (AUTO_CD de zsh).
+- **`mkdir`** est un écrivain. `scripts/hooks/harness_paths/` masquerait le module, même en
+  session déverrouillée.
+
+**Revue du lot A** (CHANGES_REQUESTED, puis corrigé le même jour). La revue a trouvé trois
+contournements de la garde verrouillée, dont un introduit par le lot :
+
+- **Une parenthèse entre quotes pilotait la pile du dossier courant** (régression du lot) :
+  `cd /tmp; echo '('; cd <dépôt>/scripts; echo ')'; rm -rf hooks`. shlex rend `'('` et `\(` sous la
+  même forme que le `(` d'un vrai sous-shell. Correctif : `tokenize` protège les caractères
+  d'opérateur quotés ou échappés avant shlex, et seul un opérateur nu sort en `Op`, le seul type que
+  `split_commands` coupe. Cela ferme aussi `find scripts/hooks \( -name '*.py' \) -delete`, où
+  `-delete` était jugé comme une commande à part.
+- **Un `cd` qui échoue sur un dossier qui existe était cru** : `cd /tmp x` (forme à deux opérandes de
+  zsh), un dossier interdit, une option invalide, une redirection qui échoue. Correctif : un `cd` ne
+  vaut que pour la suite de sa chaîne `&&`, et le dossier est inconnu après `;`, `&` ou la fin de la
+  ligne, quelle que soit la cible. `!` rend aussi le dossier incertain.
+- **L'indice `[x]` d'un qualificateur exécutait du code** : zsh l'évalue comme une expression, où
+  la valeur d'une variable est évaluée à son tour, avec ses indices et leurs `$(…)`
+  (`x='y[$(cmd)]'; ls *([x])`). La même famille existait avant le lot : `$(( x ))`, `(( x ))`,
+  `$[x]`, `${a[x]}`, `${s:x}`, `let`, `-eq` sous `[`, `[[` ou `test`, et `typeset -i`. Correctif :
+  ces contextes n'acceptent que des littéraux (`ARITH_LITERAL_RE`, `SUBSCRIPT_LITERAL_RE`, et
+  `[0-9,-]` dans un qualificateur). Les types entiers ou flottants sont refusés.
+
+Ont été fermés aussi : `env -S 'cmd'` (la chaîne est jugée), `hash x=/bin/rm` et `hash -d`
+(refusés comme `alias`), un chemin `~nom` (injugeable), `~` au milieu d'un nom de commande (glob
+d'exclusion sous EXTENDED_GLOB), `~-` employé comme commande (AUTO_CD). Un faux positif du lot est
+levé : un `\$(` entre guillemets doubles ou dans un heredoc n'est plus lu comme un qualificateur.
+
+**Seconde revue du lot A** (CHANGES_REQUESTED, puis corrigé le même jour). La garde se
+contournait encore en une ligne :
+
+- **Le modèle de quotes ignorait `$'…'`** : dans `echo $'\'' ; rm -rf scripts/hooks #'`, le `\'`
+  ne ferme pas la quote pour le shell, alors qu'il la fermait pour la garde. Correctif : un `$'…'` qui
+  contient un `\` est refusé (`deny_ansi_c_escapes`), y compris sous la forme `\$'` qu'une chaîne
+  `zsh -c "…"` rend au shell. Sans `\`, il se lit comme `'…'` et reste permis.
+- **Les commentaires `#` n'étaient pas modélisés** : avec `echo hi #'`, puis une commande, puis
+  `#'`, la garde joignait les trois lignes en une chaîne. Selon l'option `interactive_comments`, le
+  shell lit ou non ces commentaires : `check_text` juge donc les deux lectures, avec et sans
+  commentaires (`strip_comments`).
+- **La liste des contextes arithmétiques ne se fermait pas**, comme les onze revues du lot 4 : les
+  drapeaux zsh (`${(@)a[x]}`), les préfixes (`$#a[x]`, `${+a[x]}`, `$~x`), les imbrications
+  (`${${a}[x]}`), l'indirection (`${!x}`, `${x@P}`), `${@:x}`, `[[ ! x -eq 1 ]]`, `read 'a[x]'`,
+  `[[ -v a[x] ]]` et `declare -n`. Correctif : **chaque `$` est jugé contre une liste blanche**
+  (`_check_expansion`, `EXPANSION_BODY_RE`). Sont permis un nom, des chiffres ou un paramètre
+  spécial, un indice littéral, puis une seule opération simple (valeur par défaut, retrait,
+  substitution, casse, décalage littéral). Toute autre forme est refusée. `-eq` et les autres
+  comparaisons arithmétiques veulent des opérandes littéraux (un nombre, `$#` ou `$?`), où
+  qu'elles soient. Les arguments
+  numériques de `shift`, `return`, `exit`, `break`, `continue` et `repeat` aussi. Les noms indicés
+  passés à `read`, `unset`, `printf -v`, `typeset`… doivent avoir un indice littéral, et les
+  références de nom sont refusées. Un `((` ou un `$((` non fermé sur sa ligne est refusé.
+- **`env` cachait encore la commande** : `env -P /bin rm …` (option macOS non consommée) et
+  `env -S 'rm\_-rf\_x'` (`env -S` lit ses propres échappements). Correctif : `-P`, `-L` et `-U`
+  consomment leur valeur, `-i` est cherché dans toutes les options, et une chaîne `-S` qui contient
+  `\`, `$` ou `#` est refusée.
+- **`cd old new`** (forme zsh) et un `cd` avec une option hors `-L`, `-P`, `-q`, `-s` rendent le
+  dossier inconnu.
+
+**Troisième revue du lot A** (CHANGES_REQUESTED le 2026-11-02, corrigé le 2026-11-05). Deux
+contournements et une régression :
+
+- **Une apostrophe désarmait `deny_ansi_c_escapes`** : dans `git status # l'état` ⏎
+  `echo $'\'' ; rm -rf scripts/hooks #'`, l'apostrophe du commentaire (ou d'un corps de heredoc)
+  ouvrait une quote pour le scanneur, qui prenait le vrai `$'\''` de la ligne suivante pour du
+  texte cité. Correctif : plus de modèle de quotes ici. Toute occurrence brute de `$'` suivie d'un
+  `\` avant la prochaine `'` est refusée (`ANSI_C_ESCAPE_RE`).
+- **Le heredoc se détectait n'importe où** (le défaut existait avant le lot) : `echo "<<EOF"` ⏎
+  `rm -rf scripts/hooks` ⏎ `EOF` faisait lire la ligne du milieu comme une donnée, que le shell
+  exécute. Un délimiteur partiellement cité (`<<E'OF'`, `<<EO\F`) termine le corps sur une autre
+  ligne que celle attendue. Correctif (`find_heredoc`) : seul un `<<` hors quotes et non échappé
+  ouvre un heredoc. Le délimiteur suit une liste blanche (`HEREDOC_DELIM_RE`) : un mot simple, le
+  même mot cité en entier, ou `\mot`, suivi d'un blanc, d'un opérateur ou de la fin de ligne. Toute
+  autre forme est refusée. Un `<<` entre quotes n'ouvre rien : les lignes suivantes restent des
+  commandes.
+- **Un heredoc dans une substitution prenait le mauvais lecteur** (trouvé en écrivant les cas,
+  le défaut existait avant le lot). Avec `git commit -m "$(sh <<'EOF'` ⏎ `rm -rf scripts/hooks`
+  ⏎ `EOF` ⏎ `)"`, la ligne ne se tokenise pas, son consommateur reste vide et le corps passait pour
+  une donnée, alors que `sh` l'exécute. Avec `echo $(cat <<EOF)` ou des backticks fermés sur la
+  ligne, le heredoc n'a pas de corps et les lignes suivantes s'exécutent comme commandes (vérifié
+  en bash et zsh). Correctif : `find_heredoc` suit les `(`, `$(` et backticks. Un `<<` dans un
+  `$(` ou des backticks fermés sur sa ligne est ignoré : les lignes suivantes sont jugées comme
+  commandes. Un `<<` dans un `$(` laissé ouvert est lu par la dernière commande écrite entre ce
+  `$(` et le `<<` (`_heredoc_consumer`). Si cette commande est illisible, le heredoc est refusé.
+- **Régression du lot** : la liste blanche des noms de commande refusait, dans la lecture sans
+  commentaires, une ligne de commentaire seule (`# step 1` ⏎ `ls`) et le motif `*)` d'un `case`.
+  Correctif : un mot en position de commande qui commence par `#` est inerte (ses redirections
+  restent jugées). Après une fin de branche (`;;`, `;&`, `;;&`, `;|`, désormais des opérateurs), ou
+  en début de ligne après une ligne qui finit par `;;` ou par `case … in`, les alternatives `|`
+  d'un mot chacune jusqu'au `)` sont un motif, jamais exécuté (`case_pattern_end`). Un mot de motif
+  ne prend que des caractères simples et des jokers : pas de `{`, `$`, quote ni `\`. Le `case … in`
+  se cherche sur la ligne masquée, car un `'case'` cité est une commande et le « motif » qui suit
+  s'exécuterait (vérifié en bash et zsh). Hors d'un `case`, `;;` est une erreur de syntaxe : rien
+  ne s'exécute sur sa ligne (vérifié aussi).
+
+**Quatrième revue du lot A** (CHANGES_REQUESTED le 2026-11-05, corrigé le même jour). Le modèle
+des heredocs laissait encore passer des suppressions sous des formes courantes. Tous ces défauts
+existaient déjà à HEAD, et chaque cas a été rejoué en bash et en zsh :
+
+- **Le lecteur d'un heredoc était la dernière commande de la ligne** : avec `bash <<'EOF' 2>&1 |
+tail -20` ⏎ `rm -rf scripts/hooks` ⏎ `EOF`, le corps passait pour une donnée de `tail`. Même
+  chose pour `sh <<A && echo ok` et `sh <<A; cat > f <<B`. Correctif : le lecteur est la commande
+  qui porte le `<<`, c'est-à-dire la dernière commande écrite avant lui sur sa ligne, ou depuis le
+  `$(` laissé ouvert qui l'entoure (`_heredoc_consumer`). `source` et `.` comptent comme un shell.
+- **La ligne s'arrêtait au corps** : dans `git commit -m "$(cat <<'EOF'` ⏎ `msg` ⏎ `EOF` ⏎
+  `)" && git clean -fdx`, la ligne `)" && …` était jugée seule. Elle ne se tokenise pas, et seules
+  six regex brutes la jugeaient. Avec `"$(cat <<'EOF' | sh`, le pipe vers `sh` échappait aussi.
+  Correctif (`_logical_line`) : on découpe les corps, et la ligne logique continue tant qu'une
+  quote, un `$(` ou des backticks restent ouverts. Elle est jugée d'un bloc.
+- **Un pipeline coupé en fin de ligne n'était pas suivi**, avec ou sans heredoc :
+  `printf '…' |` ⏎ `sh`, et `cat <<'EOF' |` ⏎ corps ⏎ `EOF` ⏎ `sh`, lisaient un `sh` seul.
+  Correctif : après un `|`, `||`, `&&` ou `|&` final, la ligne logique continue sur la ligne non
+  vide suivante. Celle-ci peut ouvrir son propre heredoc.
+- **La fin du corps se comparait sans les blancs**, alors que le shell veut la ligne exacte :
+  ` EOF` ou `EOF ` ne ferment rien, et seul `<<-` retire les tabulations de tête. La garde fermait
+  trop tôt, puis prenait la suite pour le corps d'un faux heredoc. Correctif : comparaison exacte
+  (`Heredoc.ends`).
+
+Une ligne de heredoc continuée par un `\` est refusée, car le corps commencerait après la ligne
+suivante. Une ligne logique qui ne se termine jamais est une erreur de syntaxe pour le shell : la
+première ligne est alors jugée seule, puis chaque ligne suivante, corps compris (côté strict).
+Le self-test gagne un **test différentiel** (`shell_diff`). Chaque forme y est rejouée en bash et
+en zsh (zsh s'il est installé), avec une sentinelle à la place de la charge. Dès qu'un shell
+l'exécute, la garde doit refuser la vraie charge.
+
+**Cinquième revue du lot A** (CHANGES_REQUESTED le 2026-11-05, corrigé le même jour). Quatre
+désynchronisations entre les lignes de la garde et celles du shell. Toutes existaient déjà à
+HEAD, et dans chacune une ligne exécutée passait pour le corps d'un heredoc qui, pour le shell,
+n'existait pas :
+
+- **Seul le premier heredoc d'une ligne était suivi** (`cat <<'A' <<'B'`), et aucun sur une ligne
+  qui prolongeait une quote (`echo "a` ⏎ `b" ; cat <<'X'`) ou une continuation `\`.
+- **Les lignes se coupaient sur `\r`, `\f`, ` `…** (`splitlines`), et `strip()` ou `\s`
+  prenaient l'espace insécable pour un blanc. Pour le shell, seul `\n` finit une ligne, et seuls
+  l'espace et la tabulation sont des blancs.
+- **Les commentaires étaient retirés sur le texte brut**, corps de heredoc compris : le `don't`
+  d'un corps cité mettait tout le reste « entre quotes ». Plus aucun commentaire n'était retiré,
+  et le `"` d'un commentaire avalait les lignes suivantes dans la seule lecture faite.
+
+Correctif : on cesse de modéliser au cas par cas. **Un seul scanner (`_scan_line`) relit toute
+la ligne logique, corps exclus, après chaque ligne ajoutée** (`_logical_line`). Les corps de
+_tous_ les `<<` nouveaux sont pris dans l'ordre, où qu'ils soient (`find_heredocs`), et leur
+lecteur est la dernière commande écrite avant eux sur la ligne logique. Les commentaires se
+retirent **par ligne logique, une fois les corps découpés** : c'est la lecture « commentaires
+actifs », le mode réel de `bash -c`, `zsh -c` et `eval`. La lecture brute reste la seconde. Les
+lignes se coupent sur `\n` seul, et les blancs sont l'espace et la tabulation. **Tout caractère de
+contrôle autre que `\n` et `\t`, ainsi que U+0085, U+2028 et U+2029, est refusé**
+(`deny_control_characters`, liste blanche). Les formes de la revue sont entrées dans
+`shell_diff`. Sa branche « aucun shell ne l'exécute » vérifie désormais que la garde accepte la
+forme (MINEUR de la revue) : le test différentiel attrape aussi les faux positifs.
+
+**Sixième revue du lot A** (CHANGES_REQUESTED le 2026-11-05, corrigé le même jour). Deux
+régressions du lot, et trois défauts qui existaient déjà à HEAD :
+
+- **Régression, lecteur mal attribué** : dans `x=$(true` ⏎ `bash <<EOF` ⏎ `git clean -fdx`, le texte
+  du lecteur valait `true⏎bash`, que `tokenize` lit comme une seule commande `true bash`. Correctif
+  : dans ce texte, un saut de ligne hors quotes sépare les commandes.
+- **Régression, faux positif** : `git status && \` ⏎ `git diff --stat` était refusé. La paire `\`
+  - saut de ligne restait dans le texte, et `\n` passait pour un nom de commande. Correctif : comme
+    le shell, `_logical_line` retire la paire hors quotes simples avant de lire les mots. Cela ferme
+    aussi `git cl\` ⏎ `ean -fdx` et `--no-ver\` ⏎ `ify`, qui passaient à HEAD.
+- **Une quote, un `$(` ou des backticks ouverts après un `<<`, et laissés ouverts sur sa ligne**,
+  retardent le corps de plusieurs lignes (`cat <<EOF; echo "` ⏎ `" ; rm -rf x`). Ces cas sont
+  refusés, sans être modélisés.
+- **La `)` d'un motif de `case` fermait le `$(`** pour `extract_substitutions` : avec
+  `echo "$(case a in a) true;; esac; rm -rf x)"`, le reste était lu comme le texte cité d'`echo`.
+  Correctif : un `case` dans une substitution est refusé.
+- MINEUR : la sentinelle de `shell_diff` s'écrivait sur la sortie standard, qu'un `$(…)` avale.
+  C'est pour ça que la régression n'a pas été vue. La sentinelle crée maintenant un fichier : un
+  effet de bord, qu'aucune substitution n'avale.
+
+**Décision de Cédric, après la sixième revue** (2026-11-05). Six revues, et à chaque tour des
+trous dans le modèle des lignes, presque tous antérieurs au lot. Les trous restants se ferment
+par un refus, sans nouveau modèle, et la septième revue est la dernière du lot A. Un trou qu'elle
+trouverait et qui existe déjà à HEAD devient une limite connue (ci-dessous et `EN-ATTENTE.md`).
+Seul ce que le lot régresse ou introduit bloque le commit.
+
+**Faux positifs acceptés.**
+
+- Une commande qui contient un caractère de contrôle autre que le saut de ligne et la tabulation
+  est refusée, fins de ligne CRLF comprises.
+- Le mot `case` non cité dans une substitution (`$(…)`, `<(…)`, backticks, même échappés entre
+  guillemets doubles) est refusé, où qu'il soit. C'est vrai de l'instruction
+  (`x="$(case $y in a) …;; esac)"` : écrire le `case` hors du `$(…)`, ou utiliser `if`), mais
+  aussi du mot en argument (`$(grep -c case f)`, `$(git log --grep case)`,
+  `` -m "\`case x in\`" ``) : il faut alors le citer (`'case'`). Relevé par la septième revue.
+- Une ligne de heredoc qui laisse une quote, un `$(` ou des backticks ouverts après son `<<` est
+  refusée.
+- Un groupe de mots collé hors position de commande est refusé (`ls (a b)`, `echo then(x)`).
+- Après un `cd`, une écriture relative hors de sa chaîne `&&` est refusée en session verrouillée.
+  `cd src; touch x` doit s'écrire `cd src && touch x`.
+- Une variable dans un contexte arithmétique est refusée : `i=$((i+1))`, `[ "$n" -eq 1 ]`,
+  `exit $code`. La sortie est `expr`, ou un littéral.
+- Les drapeaux zsh (`${(f)x}`, `${(j:,:)a}`), les modificateurs `${x:h}`, l'indirection `${!x}` et
+  les préfixes `$~x`, `$=x` sont refusés.
+- `$'…'` avec un `\` est refusé, et `\$'…\…'` aussi. Lu sans modèle de quotes, cela vaut aussi
+  pour un texte cité qui finit par `$` suivi d'un `\` avant la prochaine quote
+  (`printf 'a$' "\n"`) : il faut des guillemets doubles.
+- Un `<<` hors quotes suivi d'autre chose qu'un délimiteur de la liste blanche est refusé, y
+  compris le décalage arithmétique `$((1<<2))` (écrire `$((1*4))`).
+- Un motif de `case` cité avec un blanc (`"a b")`) ou fait d'une variable (`$x)`) est lu comme un
+  nom de commande et refusé. Un commentaire après le `in` (`case $x in # choix`) empêche la ligne
+  suivante d'être lue comme un motif dans la lecture brute : `*)` y est refusé. Il faut mettre le
+  commentaire sur sa propre ligne.
+- Une ligne de heredoc qui finit par `\` est refusée. Un heredoc sans commande écrite avant son
+  `<<` (`<<EOF` seul, `"$(<<EOF"`) est refusé.
+- `mkdir` d'une cible qui contient une variable ou une substitution (`mkdir -p "$TMPDIR/$d"`,
+  `mkdir -p "$(dirname x)"`) est refusé en session verrouillée, comme toute écriture vers une cible
+  injugeable. Il faut écrire le chemin en clair.
+
+**Limites connues.** La garde reste une liste d'écrivains connus : un outil absent de la liste
+(`sort -o`, `split`, `gzip`…) n'est pas jugé. Un script écrit dans un fichier puis lancé
+(`bash fichier`, `source fichier`) n'est pas lu. C'était déjà le cas avant ce lot, et c'est le
+cas de toute valeur qui ne vient pas du texte de la commande. Le verrou du harness (capteur `lock`,
+CI `harness-guard`) reste la barrière derrière elle.
+
+La septième revue (dernière du lot, CHANGES_REQUESTED sur le seul faux positif `case` ci-dessus,
+nommé depuis) a trouvé trois trous **qui existaient déjà à HEAD**. Selon la décision de Cédric,
+ils restent ouverts comme limites connues, reportés dans `EN-ATTENTE.md` §5. Dans chacun, bash et
+zsh exécutent la commande (`-c` et `eval`), et la garde l'accepte à HEAD comme maintenant :
+
+- **`\` suivi d'un blanc en fin de ligne** passe pour une continuation : la ligne est débarrassée
+  de ses blancs de fin avant le test. Exemple : `echo hi \ ` ⏎ `git clean -fdx`.
+- **Une `)` entre quotes ferme un `$(`** pour `extract_substitutions`, qui compte la profondeur
+  sans suivre les quotes : `echo $(echo ")"; git clean -fdx)`. La regex brute de repli rattrape
+  `rm -rf`, mais pas `git clean`.
+- **`strip_comments` prend pour un commentaire un `#` placé après un blanc échappé** (`\ #`), qui
+  est au milieu d'un mot pour le shell. Le refus d'une quote laissée ouverte après un `<<` ne voit
+  donc pas `cat <<EOF; echo x\ #"` ⏎ `" ; git clean -fdx` ⏎ `EOF`.
+
+**Règle pour la suite.** Une sonde de la garde passe aussi par les mots réservés et les préfixes
+de commande, pas seulement par les groupements. Chaque modèle d'état de la garde (pile des
+sous-shells, dossier courant, quotes) se sonde avec des opérateurs mis entre quotes ou échappés,
+avec `$'…'` et `#` en début de mot, et avec des `cd` qui échouent sur un dossier qui existe. Une
+forme d'expansion ou un contexte arithmétique ne se ferme pas par une liste d'interdits : on
+étend la liste blanche. Un modèle d'état de la garde se valide contre le vrai shell, pas contre
+l'intuition : toute nouvelle forme de heredoc, de quote ou de `case` entre au self-test par
+`shell_diff`. Un heredoc se sonde avec un lecteur qui n'est pas la dernière commande de la ligne,
+avec un délimiteur entouré de blancs, et avec du texte après la fermeture du `$(`. Il se sonde
+aussi avec plusieurs `<<` sur une ligne, un `<<` après une quote multi-lignes fermée ou après une
+continuation `\`, des fins de ligne autres que `\n`, et une quote dans un commentaire précédée
+d'une apostrophe dans un corps cité. Chaque forme de `$(` multi-lignes se sonde aussi avec un
+`case` sans `(`, et chaque mot-clé ou option refusé se sonde aussi coupé par `\` + saut de ligne.
+La sentinelle d'un test différentiel est un effet de bord, jamais une sortie. Chaque nouveau
+refus par mot-clé se teste aussi avec ce mot en argument (`$(grep -c case f)`). Self-test : 878/0
+avant la troisième revue, 909/0 après, 936/0 après la quatrième, 950/0 après la cinquième, 965/0
+après la sixième, 967/0 après la septième.
+
+## J-059 — Un cas du self-test ne prouvait plus rien, et passait en silence
+
+**Date** : 2026-11-05 · **Statut** : RÉSOLU — dans le lot A
+
+**Défaut.** Le cas « a guard with a broken health check does not lock a harmless hooks edit out »
+(J-056, revue du lot 3) sabote une copie de `pre-edit-guard.py` en retirant `sys` de la ligne
+d'import de son health check. Il cherchait la ligne exacte `import json, os, subprocess, sys`.
+Le commit `8fd98f1` a ajouté `, time` à cette ligne : le sabotage ne trouvait plus rien, sortait
+en erreur avec « the case below would prove nothing », et le self-test ne comptait pas cette
+sortie. Le cas suivant tournait sur une copie intacte et passait. Le message s'affichait à chaque
+lancement, sans faire échouer le self-test.
+
+**Pourquoi rien ne l'a vu.** Seuls `ok` et `bad` comptent. Une étape de préparation qui échoue
+sans appeler `bad` ne laisse qu'une ligne dans la sortie, et personne ne relit une sortie verte.
+
+**Correctif.** Le sabotage retire `sys` de la ligne d'import quels que soient les modules qui
+suivent (regex), et son échec appelle `bad`.
+
+**Règle pour la suite.** Une étape de préparation du self-test dont dépend un cas se termine par
+`|| bad "…"` : elle ne peut pas échouer en silence.

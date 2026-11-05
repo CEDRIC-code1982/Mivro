@@ -996,17 +996,24 @@ edit_sim 2 "an edit breaking the edit guard's own hooks branch is refused (J-056
 # itself broken still lets a harmless hooks edit through (review of lot 3).
 CHECKER_COPY="$(tmp_dir)"
 cp -R scripts/hooks "$CHECKER_COPY/hooks"
-python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc - "$CHECKER_COPY/hooks/pre-edit-guard.py" <<'PY'
-import sys
+# The sabotage drops `sys` from the health check's import line, whatever follows
+# it; finding no such line is a failure, not a silent pass (J-059).
+python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc - "$CHECKER_COPY/hooks/pre-edit-guard.py" <<'PY' ||
+import re, sys
 path = sys.argv[1]
 with open(path, encoding="utf-8") as handle:
     text = handle.read()
-old = "import json, os, subprocess, sys\n\ndef broken"
-if old not in text:
+text, count = re.subn(
+    r"^import json, os, subprocess, sys((?:, \w+)*)\n\ndef broken",
+    r"import json, os, subprocess\1\n\ndef broken",
+    text, count=1, flags=re.M,
+)
+if count != 1:
     sys.exit("health-check import line not found: the case below would prove nothing")
 with open(path, "w", encoding="utf-8") as handle:
-    handle.write(text.replace(old, "import json, os, subprocess\n\ndef broken", 1))
+    handle.write(text)
 PY
+  bad "the health check of the edit guard could not be sabotaged: its broken-checker case proves nothing (J-059)"
 edit_sim 0 "a guard with a broken health check does not lock a harmless hooks edit out (J-056)" \
   scripts/hooks/harness_paths.py 'fail closed on anything, by design' 'fail closed on anything, by design.' \
   "$CHECKER_COPY/hooks/pre-edit-guard.py"
@@ -1186,8 +1193,8 @@ guard BLOCK "ls (README.md)(e:'rm scripts/check.sh':)"
 guard BLOCK "ls ';'(e:'rm scripts/check.sh':)"
 guard ALLOW '(cd src/theme && ls) && echo ok'
 guard ALLOW 'true && (cd src/theme && ls)'
-guard ALLOW 'x=$((n+m)); echo $x'
-guard ALLOW '(( n+=1 )); echo $n'
+guard BLOCK 'x=$((n+m)); echo $x' # review of lot A: a name in arithmetic is evaluated
+guard BLOCK '(( n+=1 )); echo $n'
 # Eleventh review of lot 4: an escaped substitution opener is a literal character
 # followed by a group, which zsh may read as qualifiers.
 guard BLOCK "ls \\\$(e:'rm scripts/check.sh':)"
@@ -1202,6 +1209,481 @@ guard BLOCK '{({(:>scripts/check.sh)})}'
 guard BLOCK 'true;{({(cp /tmp/x .babelrc)})}'
 guard BLOCK '{({(git reset --hard)})}'
 guard ALLOW 'ls src/theme/*(.)'
+# Lot A (EN-ATTENTE §4, closing the harness): the guard followed the current
+# directory too far, read reserved words as command names, and judged zsh
+# qualifiers by a list of forbidden forms. Each hole is closed by an allowlist.
+# a. The directory a `cd` sets ends with its subshell, and is unknown whenever
+#    the `cd` may run in a subshell or not at all.
+guard BLOCK '(cd /tmp); cp /tmp/x .babelrc'
+guard ALLOW '(cd /tmp); cp /tmp/x src/notes.md'
+guard BLOCK 'echo $(cd /tmp); cp /tmp/x .babelrc'
+guard BLOCK "bash -c 'cd /tmp'; cp /tmp/x .babelrc"
+guard BLOCK 'false && cd /tmp; cp /tmp/x .babelrc'
+guard BLOCK 'cd /nonexistent-mivro; cp /tmp/x .babelrc'
+guard BLOCK 'cd /tmp | true; cp /tmp/x .babelrc'
+guard BLOCK '{ cd /tmp; } | cat; cp /tmp/x .babelrc'
+guard BLOCK 'cd /tmp & cp /tmp/x .babelrc'
+guard BLOCK 'f() { cd /tmp; }; cp /tmp/x .babelrc'
+guard BLOCK 'echo /tmp | xargs cd; cp /tmp/x .babelrc'
+guard BLOCK 'find . -maxdepth 0 -exec cd /tmp \; ; cp /tmp/x .babelrc'
+guard BLOCK "$(printf 'if true; then\ncd /tmp\nfi\ncp /tmp/x .babelrc')"
+guard ALLOW 'mkdir -p $TMPDIR/mivro-lot-a && cd $TMPDIR/mivro-lot-a && touch y.txt'
+guard ALLOW 'cd src && echo x > notes.md'
+# b and d. A command name is a plain word: no `$`, braces, glob, leading `=`.
+guard BLOCK "bash -c '(rm\${IFS}scripts/check.sh)'"
+guard BLOCK 'rm${IFS}scripts/check.sh'
+guard BLOCK '{rm,-rf,node_modules}'
+guard BLOCK '{rm,scripts/check.sh}'
+guard BLOCK '=rm scripts/check.sh'
+guard BLOCK '/bin/r? scripts/check.sh'
+guard ALLOW 'node_modules/.bin/jest --version'
+guard ALLOW '[ -f README.md ] && echo y'
+# Reserved words and zsh precommand modifiers: what follows is a command.
+guard BLOCK "if true; then $RM_RF node_modules; fi"
+guard BLOCK "if false; then :; else $RM_RF node_modules; fi"
+guard BLOCK "while false; do $RM_RF node_modules; done"
+guard BLOCK "for x in a; do $RM_RF node_modules; done"
+guard BLOCK "if [[ -n x ]] $RM_RF node_modules"
+guard BLOCK "repeat 1 $RM_RF node_modules"
+guard BLOCK "coproc $RM_RF node_modules"
+guard BLOCK "noglob $RM_RF node_modules"
+guard BLOCK "nocorrect rm scripts/check.sh"
+guard BLOCK "exec -a x $RM_RF node_modules"
+guard BLOCK "caffeinate -t 1 $RM_RF node_modules"
+guard BLOCK "arch -arch x86_64 $RM_RF node_modules"
+guard ALLOW 'if true; then echo ok; fi'
+# c. A group outside command position is a plain qualifier list, or refused.
+guard BLOCK 'ls *(exrm scripts/check.shx)'
+guard BLOCK 'ls *(P:x:)'
+guard BLOCK "ls *(#qe:'rm scripts/check.sh':)"
+guard BLOCK 'ls *(o+cleanup)'
+guard BLOCK "ls *(:e)"
+guard ALLOW 'ls src/*(om[1])'
+guard ALLOW 'ls src/*(.N)'
+guard ALLOW 'ls src/(App|index).tsx'
+# e. mkdir writes its operands.
+guard BLOCK 'mkdir scripts/newdir'
+guard BLOCK 'mkdir -p .github/x'
+guard ALLOW 'mkdir -m 755 -p src/features/lot-a'
+# Second review of lot A: `$'...'` and `#` comments desynchronised the quote
+# model; every `$` expansion now has an allowlist, arithmetic takes literals,
+# `env -P`/`-S`, `[[ -v a[x] ]]`, namerefs and `cd old new` hide nothing.
+# `mkdir` of a target with a variable is a named false positive (J-058).
+guard BLOCK 'echo $'\''\'\'''\'' ; rm -rf scripts/hooks #'\'''
+guard BLOCK 'echo $'\''\'\'''\'' ; echo $(rm -rf scripts/hooks) #'\'''
+guard BLOCK 'cd /tmp; echo $'\''\'\'''\'' ; cd '"$REPO"'/scripts && rm -rf hooks #'\'''
+guard BLOCK "$(printf '%s' 'echo hi #'\''
+rm -rf scripts/hooks
+#'\''')"
+guard BLOCK "$(printf '%s' 'echo hi #'\''
+rm -rf '"$REPO"'/scripts/hooks
+#'\''')"
+guard BLOCK "$(printf '%s' 'echo hi #"
+cp /tmp/x .babelrc
+#"')"
+guard BLOCK 'echo #; rm -rf scripts/hooks'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; a=(1 2); echo ${(@)a[x]}'
+guard BLOCK 'echo ${+a[x]}'
+guard BLOCK 'echo $#a[x]'
+guard BLOCK 'echo $+a[x]'
+guard BLOCK 'echo ${^a[x]}'
+guard BLOCK 'echo ${=a[x]}'
+guard BLOCK 'echo ${${a}[x]}'
+guard BLOCK 'echo "${(@)a[x]}"'
+guard BLOCK 'read "a[x]" <<< 1'
+guard BLOCK 'env -P /bin rm -rf scripts/hooks'
+guard BLOCK 'env -P /bin -S '\''rm -rf scripts/hooks'\'''
+guard BLOCK 'env -P /bin -i true'
+guard BLOCK 'env -S '\''rm\_-rf\_scripts/hooks'\'''
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\'' bash -c '\''[[ ! x -eq 1 ]]'\'''
+guard BLOCK '[[ 1 -eq 1 && x -eq 1 ]]'
+guard BLOCK 'echo ${@:x}'
+guard BLOCK 'echo ${1:x}'
+guard BLOCK 'echo ${!x}'
+guard BLOCK "$(printf '%s' '(( x
+))')"
+guard BLOCK "$(printf '%s' 'echo $((x
+))')"
+guard BLOCK 'echo ${x@P}'
+guard BLOCK 'echo $~x'
+guard BLOCK 'shift x'
+guard BLOCK 'builtin shift x'
+guard BLOCK 'repeat x echo hi'
+guard BLOCK 'noglob unset '\''a[x]'\'''
+guard BLOCK 'printf -v '\''a[x]'\'' 1'
+guard BLOCK 'typeset '\''a[x]=1'\'''
+guard BLOCK 'for d in a b; do mkdir -p "$TMPDIR/$d"; done'
+guard ALLOW 'printf '\''items[%s]\n'\'' a'
+guard ALLOW 'echo ${x:0:3}'
+guard ALLOW 'echo "${PIPESTATUS[0]}" "${arr[@]}"'
+guard ALLOW 'exit 0'
+guard ALLOW 'npm test; exit $?'
+guard ALLOW 'echo $'\''abc'\'''
+guard ALLOW 'echo $# $? $$'
+guard ALLOW 'grep -n '\''#'\'' README.md'
+guard ALLOW 'echo a # comment'
+guard ALLOW 'git log --format='\''%h #%s'\'' -3'
+guard ALLOW 'echo ${HOME}/x ${x:-default} ${x#*/} ${x//a/b} ${#x}'
+guard ALLOW "$(printf '%s' 'git commit -m "$(cat <<'\''EOF'\''
+fix: #12 don'\''t (lot A) $((n)) ${(@)a[x]}
+EOF
+)"')"
+guard ALLOW "$(printf '%s' 'cat > $TMPDIR/s.sh <<'\''EOF'\''
+# heading
+for i in $(seq 3); do echo $((i+1)); done
+EOF')"
+guard ALLOW 'npm run check 2>&1 | tail -20'
+guard ALLOW 'git diff --stat'
+guard BLOCK 'env -S'\''rm\_-rf\_scripts/hooks'\'''
+guard BLOCK 'env -L root rm -rf scripts/hooks'
+guard BLOCK 'env -0 -S '\''rm -rf scripts/hooks'\'''
+guard BLOCK 'env -vS'\''rm -rf scripts/hooks'\'''
+guard BLOCK 'env --split-string='\''rm -rf scripts/hooks'\'''
+guard BLOCK "$(printf '%s' 'x='\''a[$(rm -rf scripts/hooks)]'\''; echo $((x
+))')"
+guard BLOCK "$(printf '%s' 'x='\''a[$(rm -rf scripts/hooks)]'\''; (( x
+))')"
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; [[ 1 -eq 1 && x -eq 1 ]]'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; [[ ! x -eq 1 ]]'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; [[ 1 -eq 1 || x -eq 1 ]]'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; set -- a b; echo ${@:x}'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; set -- a b; echo ${1:x}'
+guard BLOCK 'y='\''$(rm -rf scripts/hooks)'\''; echo ${(e)y}'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; a=(1 2); echo $a[x]'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; a=(1 2); echo ${a[x,2]}'
+guard BLOCK 'source $TMPDIR/c.sh && rm -rf hooks'
+guard BLOCK '. /tmp/c.sh && rm -rf hooks'
+guard BLOCK 'cdpath=('"$REPO"'); cd scripts && rm -rf hooks'
+guard BLOCK 'export CDPATH='"$REPO"'; cd scripts && rm -rf hooks'
+guard BLOCK 'setopt cdablevars; x='"$REPO"'/scripts; cd x && rm -rf hooks'
+guard BLOCK 'shopt -s cdable_vars; x='"$REPO"'/scripts; cd x && rm -rf hooks'
+guard BLOCK 'cd '"$REPO"'/scripts; cd /tmp x; rm -rf hooks'
+guard BLOCK 'cd '"$REPO"'/scripts && cd /tmp x; rm -rf hooks'
+guard BLOCK 'cd '"$REPO"'/scripts; ! cd /tmp && rm -rf hooks'
+guard BLOCK 'cd /tmp; echo \(; cd '"$REPO"'/scripts; echo \); rm -rf hooks'
+guard BLOCK 'cd /tmp; echo "("; cd '"$REPO"'/scripts; echo ")"; rm -rf hooks'
+guard BLOCK 'cd /tmp; echo $"("; cd '"$REPO"'/scripts; echo $")"; rm -rf hooks'
+guard BLOCK 'cd '"$REPO"'/scripts; cd -Z /tmp && rm -rf hooks'
+guard BLOCK 'cd '"$REPO"' && cd scripts 2>/nonexistent/x && rm -rf hooks'
+guard BLOCK ''"$REPO"'/scripts && rm -rf hooks'
+guard BLOCK '~-/x && rm -rf hooks'
+guard BLOCK 'hash -d h='"$REPO"'/scripts; rm -rf ~h/hooks'
+guard BLOCK 'rm -rf ~h/hooks'
+guard BLOCK 'x=1; ls *([x])'
+guard BLOCK 'ls *([$(rm -rf scripts/hooks)])'
+guard BLOCK 'ls *(e:'\''rm -rf scripts/hooks'\'':)'
+guard BLOCK 'ls *(+f)'
+guard BLOCK 'let x'
+guard BLOCK 'typeset -i n; n=x'
+guard BLOCK 'integer n=x'
+guard BLOCK '[ x -eq 1 ]'
+guard BLOCK 'test 1 -eq x'
+guard BLOCK 'echo ${a[x]}'
+guard BLOCK 'echo ${s:x}'
+guard BLOCK 'echo "${a[x]}"'
+guard BLOCK "$(printf '%s' 'cat <<EOF
+$((x))
+EOF')"
+guard BLOCK 'rm${IFS}-rf scripts/hooks'
+guard BLOCK '{rm,-rf,scripts/hooks}'
+guard BLOCK '=rm -rf scripts/hooks'
+guard BLOCK 'then rm -rf scripts/hooks'
+guard BLOCK 'noglob rm -rf scripts/hooks'
+guard BLOCK '- rm -rf scripts/hooks'
+guard BLOCK 'arch -arm64 rm -rf scripts/hooks'
+guard BLOCK 'exec -a foo rm -rf scripts/hooks'
+guard BLOCK 'mkdir scripts/hooks/harness_paths'
+guard BLOCK 'mkdir -p '"$REPO"'/scripts/hooks/harness_paths'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\'' bash -c '\''set -- a b; echo ${@:x}'\'''
+guard BLOCK "$(printf '%s' 'x='\''a[$(rm -rf scripts/hooks)]'\'' bash -c '\''(( x
+))'\''')"
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\'' bash -c '\''[[ 1 -eq 1 && x -eq 1 ]]'\'''
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\'' bash -c '\''echo ${!x}'\'''
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\'' bash -c '\''printf -v "a[x]" %s 1'\'''
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\'' bash -c '\''unset "a[x]"'\'''
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\'' bash -c '\''[[ -v a[x] ]]'\'''
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; echo ${(P)x}'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\'' bash -c '\''declare -n r=x; echo $r'\'''
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; read "a[x]" <<< 1'
+guard BLOCK 'env -S '\''rm\_-rf\_'"$REPO"'/scripts/hooks'\'''
+guard BLOCK 'env -S '\''rm -rf #'\'' '"$REPO"'/scripts/hooks'
+guard BLOCK 'env -S '\''rm -rf ${HOME}/../../..'"$REPO"'/scripts/hooks'\'''
+guard BLOCK 'env -P /bin -i rm -rf scripts/hooks'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; a=(1 2); echo ${+a[x]}'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; a=(1 2); echo $#a[x]'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; a=(1 2); echo $+a[x]'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; a=(1 2); echo ${^a[x]}'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; a=(1 2); echo ${${a}[x]}'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; a=(1 2); echo "${(@)a[x]}"'
+guard BLOCK 'bash -c "x='\''a[\$(rm -rf scripts/hooks)]'\''; [[ ! x -eq 1 ]]"'
+guard BLOCK 'bash -c '\''echo ${@:x}'\'''
+guard BLOCK 'zsh -c "echo \$'\''\\'\'''\'' ; rm -rf scripts/hooks #'\''"'
+guard ALLOW 'npm test -- src/features/map'
+guard ALLOW 'npx jest src/shared/foo.test.ts --coverage=false'
+guard ALLOW 'git status && git diff --stat'
+guard ALLOW 'git log --oneline -5 | cat'
+guard ALLOW 'git add -A && git status --short'
+guard ALLOW "$(printf '%s' 'git commit -m "$(cat <<'\''EOF'\''
+fix(i18n): label (I18N-002); see J-058
+
+Body with (parens), a; semicolon and `ticks`.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)"')"
+guard ALLOW 'git commit -m '\''feat: lot A (guard); x | y'\'''
+guard ALLOW 'cd ios && ls'
+guard ALLOW 'cd src && npx jest features'
+guard ALLOW 'cd '"$REPO"' && npm run lint'
+guard ALLOW 'cd "$TMPDIR" && ls'
+guard ALLOW 'mkdir -p $TMPDIR/work && cp src/App.tsx $TMPDIR/work/'
+guard ALLOW 'mkdir -p /private/tmp/claude-928877853/x/scratchpad/a'
+guard ALLOW 'mkdir -p src/features/newfeat/ui'
+guard ALLOW 'echo "$((1+2))"'
+guard ALLOW 'for f in src/*.ts; do echo "$f"; done'
+guard ALLOW '[ -f package.json ] && echo yes'
+guard ALLOW '[ $# -eq 0 ] || echo args'
+guard ALLOW 'while read -r l; do echo "$l"; done < package.json'
+guard ALLOW 'jq '\''.scripts["check"]'\'' package.json'
+guard ALLOW 'grep -n '\''foo('\'' src -r | head'
+guard ALLOW 'awk '\''{print $1}'\'' package.json'
+guard ALLOW 'python3 -c '\''print((1))'\'''
+guard ALLOW 'node -e '\''const a=[1];console.log(a[0])'\'''
+guard ALLOW 'echo "${arr[@]}" "${#arr[@]}" "${HOME:-x}" ${x:0:3}'
+guard ALLOW 'ls src/**/*.tsx(.N)'
+guard ALLOW 'git diff HEAD~1 -- src | head -50'
+guard ALLOW "$(printf '%s' 'gh pr create --title '\''fix: x'\'' --body "$(cat <<'\''EOF'\''
+## Summary
+- a (b); c
+EOF
+)"')"
+guard ALLOW 'npm run test:coverage -- --silent 2>&1 | tail -5'
+guard ALLOW 'cd src && grep -rn useTranslation . | wc -l'
+guard ALLOW '(cd src && ls)'
+guard ALLOW 'find src -name '\''*.tsx'\'' | xargs grep -l '\''Pressable'\'' | head'
+guard ALLOW 'test -d node_modules && echo ok'
+guard ALLOW 'echo '\''a (b) ; c'\'' && echo "d (e)"'
+guard ALLOW "$(printf '%s' 'cat > $TMPDIR/x.json <<'\''EOF'\''
+{"a": [1, 2], "b": "(x)"}
+EOF')"
+guard ALLOW 'npx tsc --noEmit -p . | head -20'
+guard ALLOW 'bash scripts/check.sh --stage check 2>&1 | tail -20'
+guard ALLOW 'git stash list; git branch --show-current'
+guard ALLOW 'sed -n '\''10,40p'\'' src/App.tsx'
+guard ALLOW 'echo done; cd src && ls'
+guard ALLOW 'cd src; ls'
+# Review of lot A: quoted or escaped operators drive no directory stack, a `cd`
+# holds for its `&&` chain only, arithmetic contexts take literals only,
+# `env -S`, `hash` bindings and `~name` paths hide nothing.
+guard BLOCK 'cd /tmp; echo '\''('\''; cd '"$REPO"'/scripts; echo '\'')'\''; rm -rf hooks'
+guard BLOCK 'cd /tmp; echo \(; cd '"$REPO"'/scripts; echo \); cp /tmp/x hooks/x.py'
+guard BLOCK '(cd '"$REPO"'/scripts && echo ")" && mv hooks /tmp/h)'
+guard BLOCK 'cd /tmp x; rm -rf scripts/hooks'
+guard BLOCK 'cd /tmp x; mv scripts/hooks /tmp/h'
+guard BLOCK 'cd -Z /tmp; cp /tmp/x .babelrc'
+guard BLOCK 'cd /tmp 2>/nonexistent/f; cp /tmp/x .babelrc'
+guard BLOCK 'cd /tmp </nonexistent; cp /tmp/x .babelrc'
+guard BLOCK 'echo '\'';'\'' cd /tmp; cp /tmp/x .babelrc'
+guard BLOCK '! cd /tmp x && cp /tmp/x .babelrc'
+guard BLOCK 'x='\''y[$(rm -rf scripts/hooks)]'\''; ls *([x])'
+guard BLOCK 'x='\''y[$(rm -rf scripts/hooks)]'\''; echo $(( x ))'
+guard BLOCK 'echo "$((x))"'
+guard BLOCK 'i=$((i+1))'
+guard BLOCK '(( n+=1 ))'
+guard BLOCK 'for ((i=0; i<n; i++)); do echo; done'
+guard BLOCK 'echo $[x]'
+guard BLOCK 'echo ${arr[$i]}'
+guard BLOCK 'echo $arr[i]'
+guard BLOCK 'a[i]=1'
+guard BLOCK 'echo ${s:$o}'
+guard BLOCK 'let x=y'
+guard BLOCK '[ "$x" -eq 1 ]'
+guard BLOCK '[[ $x -gt 1 ]] && echo y'
+guard BLOCK 'typeset -i n'
+guard BLOCK 'integer n'
+guard BLOCK 'env -S '\''rm -rf scripts/hooks'\'''
+guard BLOCK 'env -u X -S '\''rm scripts/check.sh'\'''
+guard BLOCK 'env -S'\''rm scripts/check.sh'\'''
+guard BLOCK 'env -vS '\''rm scripts/check.sh'\'''
+guard BLOCK 'hash x=/bin/rm; x -rf scripts/hooks'
+guard BLOCK 'hash -p /bin/rm x'
+guard BLOCK 'hash -d h='"$REPO"'/scripts/hooks; cd /tmp; cp /tmp/x ~h/pre-bash-guard.py'
+guard BLOCK 'cp /tmp/x ~h/pre-bash-guard.py'
+guard BLOCK '/bin/rm~x -rf scripts/hooks'
+guard BLOCK 'find scripts/hooks \( -name '\''*.py'\'' \) -delete'
+guard BLOCK 'cd src; echo x > notes.md'
+guard BLOCK "$(printf '%s' 'cat <<EOF > $TMPDIR/x.sh
+echo $((y))
+EOF')"
+guard BLOCK 'cd scripts; cd /tmp; ~-; rm -rf hooks'
+guard BLOCK '(cd /tmp); cp /tmp/x .babelrc'
+guard BLOCK 'if true; then rm -rf node_modules; fi'
+guard BLOCK '{rm,-rf,node_modules}'
+guard BLOCK 'ls *(e:'\''rm scripts/check.sh'\'':)'
+guard ALLOW 'echo "\$(date)"'
+guard ALLOW 'sh -c "echo \$(date)"'
+guard ALLOW "$(printf '%s' 'cat > $TMPDIR/x.sh <<EOF
+echo \$(date)
+EOF')"
+guard ALLOW "$(printf '%s' 'cat > $TMPDIR/x.sh <<'\''EOF'\''
+echo $((y)) ${a[$i]}
+EOF')"
+guard ALLOW 'echo $((1+2))'
+guard ALLOW 'echo ${arr[1]} ${#arr[@]}'
+guard ALLOW '[ $# -eq 0 ] && echo none'
+guard ALLOW '[ -n "$x" ] && echo y'
+guard ALLOW 'cd src && echo x > notes.md'
+guard ALLOW 'git commit -m "fix (a) and b[1]=x"'
+guard ALLOW 'echo '\''('\'' '\'')'\'' '\'';'\'''
+guard ALLOW 'find . -name x -exec grep -l y {} \;'
+guard ALLOW 'ls src/*(om[1,3])'
+guard ALLOW 'npm test 2>&1 | tail -20'
+guard ALLOW 'arr+=(c d)'
+guard ALLOW 'a[1]=x'
+guard ALLOW 'echo ${x:-default} ${y:=z}'
+guard ALLOW 'if true; then(echo done); fi'
+guard ALLOW 'files=(README.md src/App.tsx); echo $files'
+guard ALLOW 'mkdir -p $TMPDIR/mivro-lot-a && cd $TMPDIR/mivro-lot-a && touch y.txt'
+guard ALLOW '(cd /tmp); cp /tmp/x src/notes.md'
+guard ALLOW 'env FOO=1 npx jest --version'
+guard ALLOW "$(printf '%s' 'git commit -m "$(cat <<'\''EOF'\''
+feat: x (lot A) $((n)) a[i]=1
+EOF
+)"')"
+# Third review of lot A: an apostrophe in a comment or a heredoc body hid a
+# `$'\''` from the quote model (it is now read raw); a `<<` in quotes opened a
+# heredoc, and a partly quoted delimiter ended it elsewhere; a comment line and
+# a `case` pattern were refused as command names (J-058).
+guard BLOCK "git status # l'état${NL}echo \$'\\'' ; rm -rf scripts/hooks #'"
+guard BLOCK "cat > docs/x.md <<'EOF'${NL}l'x${NL}EOF${NL}echo \$'\\'' ; rm -rf scripts/hooks #'"
+guard BLOCK "printf 'a\$' \"\\n\"" # named false positive: `$'` then a backslash, read raw
+guard BLOCK "echo \"<<EOF\"${NL}rm -rf scripts/hooks${NL}EOF"
+guard BLOCK "echo '<<EOF'${NL}rm -rf scripts/hooks${NL}EOF"
+guard BLOCK "echo \\<<EOF${NL}rm -rf scripts/hooks${NL}EOF"
+guard BLOCK "cat <<E'OF'${NL}EOF${NL}rm -rf scripts/hooks${NL}EOF"
+guard BLOCK "cat <<EO\\F${NL}EOF${NL}rm -rf scripts/hooks${NL}EOF"
+guard BLOCK "ls # <<EOF${NL}rm -rf scripts/hooks${NL}EOF"
+guard BLOCK 'echo $((1<<2))' # named false positive: its inner `(1<<2)` is judged as a command
+guard ALLOW "echo \"(\" <<EOF${NL}rm -rf scripts/hooks${NL}EOF" # a quoted `(` opens no group
+# A heredoc in a `$(` left open feeds the command inside it; in a `$(` or
+# backticks closed on the line it has no body, and the next lines run.
+guard BLOCK "git commit -m \"\$(sh <<'EOF'${NL}rm -rf scripts/hooks${NL}EOF${NL})\""
+guard BLOCK "x=\"\$(python3 - <<'EOF'${NL}import shutil; shutil.rmtree('scripts/hooks')${NL}EOF${NL})\""
+guard BLOCK "echo \$(cat <<EOF)${NL}rm -rf scripts/hooks${NL}EOF"
+guard BLOCK "echo \`cat <<EOF\`${NL}rm -rf scripts/hooks${NL}EOF"
+guard BLOCK "x=\"\$(<<EOF${NL}a${NL}EOF${NL})\"" # no readable command before the heredoc
+# Fourth review of lot A: a heredoc is read by the command that carries its
+# `<<`, its body ends on the exact delimiter line, and a logical line goes on
+# after a trailing operator or an open `$(`, past the bodies (J-058).
+guard BLOCK "git commit -m \"\$(cat <<'EOF'${NL}msg${NL}EOF${NL})\" && git clean -fdx"
+guard BLOCK "git commit -m \"\$(cat <<'EOF'${NL}msg${NL}EOF${NL})\"; truncate -s 0 scripts/hooks/pre-bash-guard.py"
+guard BLOCK "git commit -m \"\$(cat <<'EOF' | sh${NL}rm -rf scripts/hooks${NL}EOF${NL})\""
+guard BLOCK "printf 'import shutil' |${NL}python3"
+guard BLOCK "cat <<EOF \\${NL}| sh${NL}x${NL}EOF" # a heredoc line continued by a backslash
+guard ALLOW "git commit -m \"\$(cat <<'EOF'${NL}msg${NL}EOF${NL})\" && git log --oneline -1"
+guard ALLOW "bash <<'EOF' 2>&1 | tail -5${NL}ls${NL}EOF"
+guard ALLOW "cat <<'EOF' | wc -l${NL}a${NL}b${NL}EOF"
+guard ALLOW "ls |${NL}${NL}wc -l"
+# The same forms replayed in the real shells, a sentinel in place of the
+# payload: whenever bash or zsh runs it, the guard must refuse the payload.
+# A model of the shell is checked against the shell, not against intuition.
+DIFF_DIR="$(tmp_dir)"
+mkdir -p "$DIFF_DIR/docs"
+shell_diff() { # shell_diff <template where @RUN@ stands for the payload>
+  local ran="" sh
+  # The sentinel leaves a file: an output can be swallowed by a `$(...)`
+  # (sixth review of lot A), a side effect cannot. As data, its text names no file.
+  local sentinel="touch docs/mivro_\"\"ran"
+  for sh in bash zsh; do
+    command -v "$sh" >/dev/null 2>&1 || continue
+    rm -f "$DIFF_DIR/docs/mivro_ran"
+    # Some forms end on `EOF: command not found` (127): only the side effect counts.
+    (cd "$DIFF_DIR" && { "$sh" -c "${1//@RUN@/$sentinel}" >/dev/null 2>&1 </dev/null || true; })
+    [ -e "$DIFF_DIR/docs/mivro_ran" ] && ran="$ran $sh"
+  done
+  rm -f "$DIFF_DIR/docs/mivro_ran"
+  if [ -n "$ran" ]; then
+    guard BLOCK "${1//@RUN@/rm -rf scripts/hooks}"
+  else
+    # Data for every shell: the harmless form must pass, or the guard is
+    # refusing an ordinary command (fifth review of lot A).
+    guard ALLOW "${1//@RUN@/$sentinel}"
+  fi
+}
+CR=$'\r'
+FF=$'\f'
+LSEP="$(printf '\342\200\250')" # U+2028
+NBSP="$(printf '\302\240')"     # U+00A0
+shell_diff "bash <<'EOF' 2>&1 | tail -20${NL}@RUN@${NL}EOF"
+shell_diff "sh <<A | cat${NL}@RUN@${NL}A"
+shell_diff "sh <<A && echo ok${NL}@RUN@${NL}A"
+shell_diff "sh <<A; cat > docs/x.md <<B${NL}@RUN@${NL}A${NL}hello${NL}B"
+shell_diff "x=\"\$(cat <<'EOF' | sh${NL}@RUN@${NL}EOF${NL})\"; echo \"\$x\""
+shell_diff "x=\"\$(sh <<'EOF'${NL}@RUN@${NL}EOF${NL})\"; echo \"\$x\""
+shell_diff "x=\"\$(cat <<'EOF'${NL}msg${NL}EOF${NL})\" && @RUN@"
+shell_diff "cat > docs/x.md <<EOF${NL} EOF${NL}cat > docs/y.md <<ZZZ${NL}EOF${NL}@RUN@${NL}ZZZ"
+shell_diff "cat > docs/x.md <<EOF${NL}EOF ${NL}cat > docs/y.md <<ZZZ${NL}EOF${NL}@RUN@${NL}ZZZ"
+shell_diff "cat > docs/x.md <<-EOF${NL}  EOF${NL}@RUN@${NL}EOF"
+shell_diff "cat <<'EOF' |${NL}@RUN@${NL}EOF${NL}sh"
+shell_diff "printf '%s\\n' '@RUN@' |${NL}${NL}sh"
+shell_diff "echo \$(cat <<EOF)${NL}@RUN@${NL}EOF"
+shell_diff "echo \`cat <<EOF\`${NL}@RUN@${NL}EOF"
+shell_diff "echo \"<<EOF\"${NL}@RUN@${NL}EOF"
+shell_diff "source /dev/stdin <<'EOF'${NL}@RUN@${NL}EOF"
+shell_diff "cat > docs/x.md <<'EOF'${NL}@RUN@${NL}EOF"
+shell_diff "case x in${NL}  x) @RUN@ ;;${NL}esac"
+# Fifth review of lot A: every `<<` of a logical line has a body, wherever it
+# stands; lines end on `\n` only; comments are removed per logical line, once
+# the bodies are cut out (J-058).
+shell_diff "cat <<'A' <<'B' > docs/x.md${NL}a${NL}A${NL}: <<'X'${NL}B${NL}@RUN@${NL}X"
+shell_diff "echo \"a${NL}b\" ; cat <<'X' > docs/x.md${NL}: <<'Y'${NL}X${NL}@RUN@${NL}Y"
+shell_diff ": \\${NL}<<'X'${NL}: <<'Y'${NL}X${NL}@RUN@${NL}Y"
+shell_diff "cat > docs/x.md <<EOF${NL}EOF${CR}: <<'EOG'${NL}EOF${NL}@RUN@${NL}EOG"
+shell_diff "cat > docs/x.md <<EOF${NL}EOF${FF}: <<'EOG'${NL}EOF${NL}@RUN@${NL}EOG"
+shell_diff "cat > docs/x.md <<EOF${NL}EOF${LSEP}: <<'EOG'${NL}EOF${NL}@RUN@${NL}EOG"
+shell_diff "cat > docs/x.md <<'EOF'${NBSP}${NL}EOF${NL}: <<'EOG'${NL}EOF${NBSP}${NL}@RUN@${NL}EOG"
+shell_diff "cat > docs/x.md <<'EOF'${NL}don't${NL}EOF${NL}echo hi # say \"hi${NL}@RUN@${NL}# \""
+shell_diff "echo \"a${NL}b\" ; cat <<'X' > docs/x.md${NL}@RUN@${NL}X"
+shell_diff "cat <<'A' <<'B' > docs/x.md${NL}@RUN@${NL}A${NL}@RUN@${NL}B"
+shell_diff "cat > docs/x.md <<'EOF' # it's${NL}@RUN@${NL}EOF"
+guard BLOCK "ls${CR}${NL}echo ok" # named false positive: CRLF line ends are refused
+# Sixth review of lot A: a quote or `$(` opened after a `<<` delays its body
+# (refused); a newline ends a command in a heredoc's reader text; a `case`
+# inside a substitution is refused; `\` + newline is removed as the shell does.
+shell_diff "cat <<EOF; echo \"${NL}\" ; @RUN@${NL}EOF${NL}\"${NL}\""
+shell_diff "cat <<EOF; echo '${NL}' ; @RUN@${NL}EOF${NL}'${NL}'"
+shell_diff "cat <<EOF; echo \$(${NL}@RUN@${NL})${NL}EOF${NL})"
+shell_diff "echo \"\$(${NL}true${NL}bash <<'EOF'${NL}@RUN@${NL}EOF${NL})\""
+shell_diff "x=\$(true${NL}bash <<EOF${NL}@RUN@${NL}EOF${NL})"
+shell_diff "x=\$(true${NL}cat <<EOF${NL}@RUN@${NL}EOF${NL})"
+shell_diff "echo \"\$(case a in a) true;; esac; @RUN@)\""
+shell_diff "echo \"\$(case a in a) true ;;${NL}esac${NL}@RUN@${NL})\""
+shell_diff "echo a &&\\${NL}@RUN@"
+shell_diff "ls # note \\${NL}@RUN@"
+guard BLOCK "git cl\\${NL}ean -fdx scripts"
+guard BLOCK "git commit --no-ver\\${NL}ify -m x"
+guard ALLOW "git status && \\${NL}  git diff --stat"
+guard ALLOW "echo 'a\\${NL}b'"
+guard BLOCK 'x="$(case $y in a) echo a;; esac)"' # named false positive: no `case` in a substitution
+guard BLOCK 'n=$(grep -c case README.md)' # named false positive: the bare word, even as an argument
+guard ALLOW "n=\$(grep -c 'case' README.md)"
+guard ALLOW "ls |${NL}  # count them${NL}  wc -l"
+guard ALLOW "cat > docs/x.md <<'EOF'${NL}Une phrase${NBSP}: insécable${NL}EOF"
+guard ALLOW "cat > docs/x.md <<\\EOF${NL}hello \$HOME${NL}EOF"
+guard ALLOW "cat > docs/x.md <<-EOF${NL}  hello${NL}  EOF"
+guard ALLOW 'cat <<< hello'
+guard ALLOW "# step 1${NL}ls"
+guard ALLOW "ls${NL}# step 2: list${NL}ls -la"
+guard BLOCK "# x${NL}rm -rf scripts/hooks"
+guard BLOCK '# x > scripts/hooks/pre-bash-guard.py'
+guard ALLOW 'case $x in a) ls;; *) echo other;; esac'
+guard ALLOW 'case $x in a) ls;& b) echo b;| (*) echo c;;& esac'
+guard ALLOW "for f in a b; do${NL}  case \$f in${NL}    a|b) echo A ;;${NL}    *) echo other ;;${NL}  esac${NL}done"
+guard BLOCK 'case $x in a) ls;; *) rm -rf scripts/hooks;; esac'
+guard BLOCK 'case $x in a) ls;; {rm,-rf,scripts}) ls;; esac'
+guard BLOCK "('case' x in${NL}{rm,-rf,scripts})"
+guard BLOCK "case \$x in${NL}  rm) ls ;;${NL}  *) rm -rf scripts/hooks ;;${NL}esac"
+guard BLOCK ';; /bin/r? -rf scripts/hooks)'
 COPY_MSG="$(python3 -c 'import json,sys; json.dump({"tool_name":"Bash","tool_input":{"command":sys.argv[1]},"cwd":sys.argv[2]}, sys.stdout)' 'cp -R src/features src/backup/' "$REPO" |
   CLAUDE_PROJECT_DIR="$REPO" MIVRO_HARNESS_UNLOCK='' python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc scripts/hooks/pre-bash-guard.py 2>&1 >/dev/null)"
 case "$COPY_MSG" in
@@ -1222,6 +1704,9 @@ guard_unlocked BLOCK 'echo x >> scripts/hooks/harness_paths.py'
 guard_unlocked BLOCK "sed -i '' s/a/b/ scripts/hooks/harness_paths.py"
 guard_unlocked BLOCK 'cp /tmp/x.py scripts/hooks/'
 guard_unlocked ALLOW 'git restore -- scripts/hooks/harness_paths.py'
+# Lot A: a directory may shadow a module (`scripts/hooks/harness_paths/`).
+guard_unlocked BLOCK 'mkdir -p scripts/hooks/harness_paths'
+guard_unlocked ALLOW 'mkdir -p scripts/lot-a'
 # Moving or removing the whole directory takes every guard with it.
 guard_unlocked BLOCK 'mv scripts/hooks scripts/hooks.old'
 guard_unlocked BLOCK 'git rm -r scripts/hooks'
