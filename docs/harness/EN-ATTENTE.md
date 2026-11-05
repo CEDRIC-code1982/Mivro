@@ -52,8 +52,9 @@ par Cédric). Téléchargeurs, archiveurs (extraction et archive écrite), compr
 connue seulement à l'exécution est refusée dans les deux modes. Faux positif hérité et laissé :
 `tar -xOf` (vers stdout) reste refusé dans le repo.
 
-Au lot E (2026-11-05), les écrivains de code inline nommés en limite au §6 sont fermés, avec leurs
-variantes de syntaxe trouvées par la revue du lot E (J-063).
+Au lot E (2026-11-05), les écrivains de code inline nommés en limite au §6 sont fermés, avec la
+variante trouvée par la 1re revue du lot E (Perl sans parenthèses). Celles de la 2e revue restent
+ouvertes : §6, « Restent ouvertes » (J-063).
 
 ## Limites connues, assumées
 
@@ -99,14 +100,26 @@ Restent ouvertes, même en session verrouillée (elles passaient déjà à `bcdf
 
 Limite de nature : `CODE_WRITE_RE` est une liste d'écrivains connus, pas une liste de ce qui est
 permis. Un écrivain ou une syntaxe qu'elle ne nomme pas passe ; il se ferme en l'ajoutant, avec son
-cas `guard BLOCK`.
+cas `guard BLOCK`. Exemples vérifiés le 2026-11-05, acceptés verrouillé comme déverrouillé :
+`node -e "require('fs').openSync('scripts/check.sh','w')"` (tronque le fichier), un mode passé par
+une variable (`python3 -c "m='w'; open('scripts/check.sh', m)"`), et Perl `sysopen`
+(`sysopen(F, 'scripts/check.sh', O_WRONLY|O_TRUNC)`).
 
-Nouveaux faux positifs acceptés avec ces fermetures, dans du code inline qui cite un fichier du
-harness : un littéral `'>'` ou `'+<'` après un `open` sur la même ligne (`if '>' in l` après
-`open('scripts/…')`), et un littéral de mode (`'a'`, `'w'`, `'x'`, `'+'`…) placé après une virgule
-dans l'instruction d'un `open`, d'un `new` ou d'un `FileIO` :
-`node -e "const s=new Set(['x', 'a']); …readFileSync('scripts/check.sh')"` est refusé en session
-verrouillée.
+Nouveaux faux positifs acceptés avec ces fermetures :
+
+- dans du code inline qui cite un fichier du harness, un littéral `'>'` ou `'+<'` après le mot
+  `open`, jusqu'au `;` suivant ou à la fin de la ligne
+  (`print([l for l in open('scripts/…') if '>' in l])` est refusé ; avec `f=open(…);` avant, non) ;
+- dans le même cas, un littéral de mode placé après une virgule, après le **mot nu** `open`, `new`
+  ou `FileIO` (un nom de variable `new` compte), jusqu'au `;` suivant ou à la fin de la ligne ; et,
+  pour `open(` suivi de sa parenthèse, n'importe où plus loin sur la ligne. Un « littéral de mode »
+  est fait des lettres r, b, t, U autour de `w`, `a`, `x` ou `+` : `'tab'`, `'bat'` ou `'rat'` en
+  sont. `new Map(); const x = [1, 'tab']` passe, le `;` coupe. Refusés en session verrouillée :
+  `node -e "const s=new Set(['x', 'a']); …readFileSync('scripts/check.sh')"`,
+  `node -e "const m = new Map([[1, 'tab']]); …readFileSync('scripts/check.sh')"`,
+  `python3 -c "new = 'x'.replace('x', 'w'); print(open('scripts/check.sh').read())"` ;
+- `curl -w @fichier`, refusé partout, `/tmp` compris (`curl -w @/tmp/fmt -o /tmp/x …`) : le format
+  lu dans le fichier peut contenir un `%output{…}`.
 
 **Faux positifs acceptés** (refusés à tort, par prudence). Ce sont des ALLOW de HEAD (`6739939`)
 devenus BLOCK avec le lot C, dans au moins un des deux modes :
