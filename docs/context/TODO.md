@@ -281,6 +281,8 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
       (lot D de la finition), modèle vierge du contrat versionné (lot E).
 - [x] ~~Finition du harness, lots A à E~~ (EN-ATTENTE §2a, §3, §4, fin de J-022) → commits locaux le
       2026-11-05. `EN-ATTENTE.md` ne garde que les limites assumées (§5 à §7).
+- [x] ~~Harness refusé en écriture au noyau~~ → `sandbox.filesystem.denyWrite` posé le 2026-11-05
+      (J-064), prouvé dans la session et par le self-test.
 - [ ] Cédric : `npm run harness:relock` hors Claude Code après la finition, puis push, PR vers
       `develop` et fusion si la CI est verte. Le relock final passe J-055 et J-056 RÉSOLU.
 - [ ] **Tests des règles RTDB** sur l'émulateur Firebase (`@firebase/rules-unit-testing`) :

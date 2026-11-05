@@ -58,6 +58,29 @@ ouvertes : §6, « Restent ouvertes » (J-063).
 
 ## Limites connues, assumées
 
+**Depuis J-064 (2026-11-05), le sandbox de Claude Code refuse au noyau toute écriture Bash dans
+les chemins de `scripts/harness-protected.txt`** (`sandbox.filesystem.denyWrite`, chaque chemin
+de la liste sauf `.git/` et `.claude/`, que Claude Code garde lui-même). Pour ces chemins, les
+limites d'écriture ci-dessous ne valent plus que hors du sandbox (CI, terminal de Cédric) ;
+dans une session Claude Code, elles sont couvertes, quelle que soit la syntaxe.
+
+Ne sont pas couverts : le harness au sens de J-045 hors de cette liste, qui reste protégé par la
+seule garde texte. Ce sont `CLAUDE.md` (instructions injectées avec autorité, J-046),
+`.gitignore`, la configuration de `docs-site/` hors `docusaurus.config.ts`,
+`functions/package.json`, `Gemfile`, et `package.json` avec son lockfile (laissés écrivables
+pour `npm install`). Un écrivain que la garde ne connaît pas les réécrit encore.
+
+Restent entières les limites qui ne sont pas des écritures du harness : §5 (masquer une
+commande destructive) et §7 (détection textuelle de `check-scripts`).
+
+Effet de bord, nouveau avec J-064 : sous le sandbox, `git pull`, `git switch`, `git rebase`,
+une avance rapide ou un `git stash` qui doit réécrire un chemin de la liste échoue en cours de
+route (`unable to unlink`), et peut laisser l'arbre à moitié mis à jour : le produit à la
+nouvelle version, le harness à l'ancienne, verrou compris, donc vert. Un `git add -A` derrière
+commiterait un retour arrière du harness. Même mécanisme sur le chemin d'échec de lint-staged
+(`reset --hard` puis `stash apply`) quand un commit de fichiers du harness échoue au lint. Ces
+opérations se font hors de Claude Code (RUNBOOK, « Au quotidien »).
+
 ### 5. Garde Bash : trois limites connues laissées par le lot A (J-058, septième revue)
 
 Elles existaient déjà avant le lot A. Cédric a décidé, après la sixième revue, de ne plus en
@@ -92,7 +115,9 @@ Fermées au lot E (J-063), dans les formes que le self-test teste : mode `'r+'`,
 (Perl `open F, '>x'` et `open my $f, '>', 'x'`, Ruby `File.open 'x', 'w' do`),
 `curl -w '%output{…}'`.
 
-Restent ouvertes, même en session verrouillée (elles passaient déjà à `bcdfebd`) :
+Restent ouvertes pour la garde texte, même en session verrouillée (elles passaient déjà à
+`bcdfebd`). Depuis J-064, le sandbox les couvre pour Bash sur les chemins de
+`harness-protected.txt`, pas sur le reste du harness (`CLAUDE.md`, `.gitignore`…) :
 
 - un mode Perl collé au chemin **avec une espace** : `open(F, '> scripts/…')`, `'+> …'`, `'>> …'` ;
 - un mode suivi d'un encodage : Ruby `File.open('scripts/…', 'w:UTF-8')`, `'wb:UTF-8'` ;

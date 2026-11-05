@@ -78,6 +78,7 @@
 | J-061 | Un heredoc Python a réécrit la garde, hors de la simulation         | RÉSOLU  |
 | J-062 | La sonde du self-test rougit un hook Stop concurrent                | ACCEPTÉ |
 | J-063 | Les revues du lot C voyaient ce que le self-test ne regardait pas   | RÉSOLU  |
+| J-064 | La garde texte ne fermait jamais l'écriture : le noyau la refuse    | RÉSOLU  |
 
 ---
 
@@ -2926,3 +2927,66 @@ en `ALLOW`, et un écrivain se teste par famille et par variante de syntaxe (ave
 parenthèses, mode séparé ou collé), pas par un seul mode. `CODE_WRITE_RE` reste une liste
 d'écrivains connus, pas une liste de ce qui est permis : un écrivain qu'elle ne nomme pas passe
 (limite assumée, `EN-ATTENTE.md` §6).
+
+---
+
+## J-064 — La garde texte ne fermait jamais l'écriture du harness : le noyau la refuse
+
+**Date** : 2026-11-05 · **Statut** : RÉSOLU — `sandbox.filesystem.denyWrite`, sur décision de Cédric
+(liste S1 à S9 validée)
+
+**Observé.** Trois chantiers de suite (lot A, J-058 ; lot C ; lot E, J-063) ont fini de la même
+façon : chaque revue de la garde Bash trouvait une syntaxe d'écriture de plus. Après le lot E, ces
+commandes réécrivaient encore un fichier du harness **en session verrouillée** : Perl
+`open(F, '> chemin')` avec une espace, Ruby `File.open(…, 'w:UTF-8')`, `fs.openSync(…, 'w')`, un
+mode passé par une variable, Perl `sysopen`, `curl --expand-write-out`. La règle d'arrêt de Cédric
+(nommer au lieu de modéliser) tenait la dépense, pas la porte.
+
+**Cause.** La garde lit le texte d'une commande et refuse une liste d'écrivains connus. Un langage
+ou une syntaxe qu'elle ne nomme pas passe : c'est une liste noire, et une liste noire d'un langage
+de programmation ne se ferme pas. Le sandbox de Claude Code, lui, ne refusait que des lectures
+(`~/.ssh`, `~/.config/gh`) et le réseau vers GitHub.
+
+**Correctif.** `.claude/settings.json` refuse en écriture, au sandbox, chaque chemin de
+`scripts/harness-protected.txt` sauf `.git/` (git l'écrit ; Claude Code en garde les hooks et la
+config) et `.claude/` (Claude Code le garde lui-même), plus les variantes de configuration Babel qui
+n'existent pas encore : en créer une changerait la configuration de Jest. Le noyau (Seatbelt)
+refuse alors l'écriture à toute commande Bash et à ses sous-processus, quels que soient le langage
+et la syntaxe. Vérifié dans la session même, le réglage étant rechargé à chaud : `touch`, Perl
+`'> chemin'`, Ruby `'w:UTF-8'`, `openSync`, un mode en variable, tous « Operation not permitted »
+dans `scripts/`, `.github/`, sur `jest.config.js` et sur `.babelrc` absent ; `src/` reste écrivable.
+La syntaxe des chemins (`./scripts`, relatif à la racine du projet) n'étant pas documentée, elle
+est prouvée, pas supposée.
+
+**Self-test.** La configuration est comparée à la liste protégée : un chemin protégé sans son
+`denyWrite` est rouge. Sous le sandbox (`SANDBOX_RUNTIME=1`), Python doit échouer à écrire dans
+`scripts/`, `.github/`, `jest.config.js` et `.babelrc`, après un contrôle positif dans `src/`. Les
+cas qui plantent un fichier dans le harness pour juger un capteur (lint d'un `.js` de `scripts/`,
+faux paquet `harness_paths/`, sondes du lot B, dérive du verrou) vérifient sous le sandbox que
+l'écriture est refusée, et gardent leur forme hors sandbox, en CI et dans le terminal de Cédric, où
+la logique des capteurs reste testée.
+
+**Ce que ça change.** La garde Bash devient un filet : elle reste la seule protection hors sandbox,
+et elle refuse toujours les commandes destructives, que le sandbox laisse passer dans le reste du
+repo (`EN-ATTENTE.md` §5). En session déverrouillée aussi, Bash ne peut plus écrire le harness :
+l'outil Edit, que le sandbox ne couvre pas, est la seule voie, ce qu'imposait déjà J-056.
+`git restore -- scripts/…` ne sert donc plus de réparation par Bash ; elle passe par Edit ou par
+Cédric. Le relock (`npm run harness:relock`) se lance hors Claude Code, comme avant.
+
+**Ce que ça ne couvre pas, et ce que ça casse** (revue de J-064). La liste protégée n'est pas
+tout le harness : depuis J-045, tout ce qui est hors des zones produit en fait partie.
+Restent à la seule garde texte : `CLAUDE.md` (instructions injectées avec autorité, J-046),
+`.gitignore`, la configuration de `docs-site/` hors `docusaurus.config.ts`,
+`functions/package.json`, `Gemfile`, et `package.json` avec son lockfile (laissés écrivables
+pour `npm install`). Un écrivain que la garde ne connaît pas les réécrit encore.
+
+Et un effet de bord nouveau : sous le sandbox, une opération git qui doit réécrire un
+chemin protégé (`pull`, `switch`, `rebase`, avance rapide, `stash`, et le chemin d'échec de
+lint-staged) échoue en cours de route et peut laisser l'arbre à moitié mis à jour, le harness à
+l'ancienne version et son verrou cohérent, donc vert. Ces opérations se font hors de Claude Code
+(RUNBOOK). Le commit nominal passe : le hook `pre-commit` ne fait que lire, et Prettier comme
+`eslint --fix` n'écrivent rien sur un arbre déjà vert.
+
+**Règle pour la suite.** Une protection qui peut s'écrire au niveau du système ne s'écrit pas en
+analyse de texte. Un chemin ajouté à `harness-protected.txt` reçoit son `denyWrite` dans le même
+commit, sinon le self-test rougit.

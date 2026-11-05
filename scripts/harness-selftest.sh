@@ -83,6 +83,29 @@ probe_file() {
   mkdir -p "$(dirname "$path")"
   printf '%s\n' "$@" >"$path"
 }
+# Under the Bash sandbox of Claude Code, the harness is refused in writing by the
+# OS (sandbox.filesystem.denyWrite, JOURNAL J-064): a case that plants a file
+# there checks that refusal instead, a stronger result than any detection. Out
+# of the sandbox (CI, a terminal) the file is planted and the sensor judged as
+# before, so the sensors' logic stays tested where the sandbox is absent.
+harness_plant() { # harness_plant <path> <lines...>: 0 = planted, 1 = refused (checked)
+  local path="$1"
+  if [ "${SANDBOX_RUNTIME:-}" = 1 ]; then
+    if (mkdir -p "$(dirname "$path")" && printf 'x\n' >"$path") 2>/dev/null; then
+      PROBES+=("$path")
+      bad "the sandbox let $path be written (denyWrite, J-064)"
+    else
+      ok "the sandbox refuses planting $path (denyWrite, J-064)"
+    fi
+    return 1
+  fi
+  # Out of the sandbox the plant must land: a failure here would drop the case
+  # silently (review of J-064).
+  probe_file "$@" 2>/dev/null || {
+    bad "could not plant $path outside the sandbox: the case below would prove nothing (J-064)"
+    return 1
+  }
+}
 
 # Lot B: harness_paths is loaded by path, as the hooks load it, never by name
 # through sys.path (a harness_paths/ package would win). HP_LOAD binds it to `h`.
@@ -764,9 +787,10 @@ if run_hook "$HOOK_PROBE"; then bad "hook missed an eslint error"; else ok "esli
 rm -f "$HOOK_PROBE"
 
 JS_PROBE="scripts/__probe.js"
-probe_file "$JS_PROBE" "const unused = 1;"
-if run_hook "$JS_PROBE"; then bad "hook ignores .js files (J-035)"; else ok "a .js file is linted too (J-035)"; fi
-rm -f "$JS_PROBE"
+if harness_plant "$JS_PROBE" "const unused = 1;"; then
+  if run_hook "$JS_PROBE"; then bad "hook ignores .js files (J-035)"; else ok "a .js file is linted too (J-035)"; fi
+  rm -f "$JS_PROBE"
+fi
 
 ARCH_PROBE="src/services/domain/midpoint/__probe.ts"
 probe_file "$ARCH_PROBE" "import { Platform } from 'react-native';" "export const p = Platform.OS;"
@@ -790,8 +814,13 @@ section "7. Harness lock, native identity, dependency allowlist, journal refs"
 # The lock cases are judged as in a locked session (MIVRO_HARNESS_UNLOCK unset):
 # construction mode only changes how the drift is reported, never the verdict
 # that CI and Cedric's terminal will give (JOURNAL J-055).
-if MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1; then
-  LOCK_PROBE="scripts/__selftest_lock_probe.sh"
+LOCK_PROBE="scripts/__selftest_lock_probe.sh"
+if MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1 && [ "${SANDBOX_RUNTIME:-}" = 1 ]; then
+  # The drift cannot be planted under the sandbox: the refusal is the result, and
+  # the drift cases run in CI and in Cedric's terminal (J-064).
+  harness_plant "$LOCK_PROBE" "exit 0" || true
+  printf '  - lock drift cases skipped under the sandbox: they run in CI and in a terminal (J-064)\n'
+elif MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1; then
   probe_file "$LOCK_PROBE" "exit 0"
   MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1
   expect_exit 1 $? "a new file in scripts/ turns the lock red (J-029)"
@@ -1232,7 +1261,7 @@ guard ALLOW 'ls src/theme/*(.)'
 # not crash into a fail-closed refusal; only unlocked() says True and
 # is_protected() says False. A guard back to an import by name turns these red.
 SHADOW_PKG="scripts/hooks/harness_paths/__init__.py"
-probe_file "$SHADOW_PKG" \
+if harness_plant "$SHADOW_PKG" \
   "import importlib.util as _u, os as _os" \
   "_real_path = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), 'harness_paths.py')" \
   "_spec = _u.spec_from_file_location('_real_module', _real_path)" \
@@ -1240,7 +1269,7 @@ probe_file "$SHADOW_PKG" \
   "_spec.loader.exec_module(_real)" \
   "globals().update({k: v for k, v in vars(_real).items() if not k.startswith('__')})" \
   "def unlocked():" "    return True" \
-  "def is_protected(*args):" "    return False"
+  "def is_protected(*args):" "    return False"; then
 # Control: an import by name picks the package, sees the whole API, and gets a
 # permissive answer: so the cases below can fail. Run from scripts/hooks/,
 # where `python3 -c` (without -I) looks first.
@@ -1261,32 +1290,38 @@ else
 fi
 rm -f "$SHADOW_PKG"
 rmdir scripts/hooks/harness_paths 2>/dev/null || true
+fi
 # check-scripts refuses an import by name and any sys.path change in the
 # harness code. The forms are built at run time: written plainly here, they
 # would turn this very file red.
 NAME_IMPORT="import harness""_paths as h"
 SYS_PATH_INSERT="sys.path.ins""ert(0, 'scripts/hooks')"
-probe_file scripts/lotb-probe.py "$NAME_IMPORT"
-bash scripts/check-scripts.sh >/dev/null 2>&1
-expect_exit 1 $? "check-scripts refuses '$NAME_IMPORT' in a harness Python file (lot B)"
-rm -f scripts/lotb-probe.py
-probe_file scripts/lotb-probe.sh '#!/usr/bin/env bash' "python3 -c \"import sys; $SYS_PATH_INSERT\""
-bash scripts/check-scripts.sh >/dev/null 2>&1
-expect_exit 1 $? "check-scripts refuses a sys.path change in a harness shell script (lot B)"
-rm -f scripts/lotb-probe.sh
-probe_file scripts/lotb-probe.py "from harness""_paths import unlocked"
-bash scripts/check-scripts.sh >/dev/null 2>&1
-expect_exit 1 $? "check-scripts refuses the from-form (lot B)"
-rm -f scripts/lotb-probe.py
+if harness_plant scripts/lotb-probe.py "$NAME_IMPORT"; then
+  bash scripts/check-scripts.sh >/dev/null 2>&1
+  expect_exit 1 $? "check-scripts refuses '$NAME_IMPORT' in a harness Python file (lot B)"
+  rm -f scripts/lotb-probe.py
+fi
+if harness_plant scripts/lotb-probe.sh '#!/usr/bin/env bash' "python3 -c \"import sys; $SYS_PATH_INSERT\""; then
+  bash scripts/check-scripts.sh >/dev/null 2>&1
+  expect_exit 1 $? "check-scripts refuses a sys.path change in a harness shell script (lot B)"
+  rm -f scripts/lotb-probe.sh
+fi
+if harness_plant scripts/lotb-probe.py "from harness""_paths import unlocked"; then
+  bash scripts/check-scripts.sh >/dev/null 2>&1
+  expect_exit 1 $? "check-scripts refuses the from-form (lot B)"
+  rm -f scripts/lotb-probe.py
+fi
 # An import in a comma list is an import by name too (review of lot B).
-probe_file scripts/lotb-probe.py "import os, harness""_paths"
-bash scripts/check-scripts.sh >/dev/null 2>&1
-expect_exit 1 $? "check-scripts refuses a name import in a comma list (lot B)"
-rm -f scripts/lotb-probe.py
-probe_file scripts/lotb-probe.sh '#!/usr/bin/env bash' "python3 -m harness""_paths --lockable"
-bash scripts/check-scripts.sh >/dev/null 2>&1
-expect_exit 1 $? "check-scripts refuses running the module by name with -m (lot B)"
-rm -f scripts/lotb-probe.sh
+if harness_plant scripts/lotb-probe.py "import os, harness""_paths"; then
+  bash scripts/check-scripts.sh >/dev/null 2>&1
+  expect_exit 1 $? "check-scripts refuses a name import in a comma list (lot B)"
+  rm -f scripts/lotb-probe.py
+fi
+if harness_plant scripts/lotb-probe.sh '#!/usr/bin/env bash' "python3 -m harness""_paths --lockable"; then
+  bash scripts/check-scripts.sh >/dev/null 2>&1
+  expect_exit 1 $? "check-scripts refuses running the module by name with -m (lot B)"
+  rm -f scripts/lotb-probe.sh
+fi
 bash scripts/check-scripts.sh >/dev/null 2>&1
 CHECK_SCRIPTS_CODE=$?
 case "$CHECK_SCRIPTS_CODE" in
@@ -2489,9 +2524,19 @@ for d in ("~/.ssh", "~/.config/gh"):
     if "Read(%s/**)" % d not in deny: fails.append("deny Read(%s/**)" % d)
 for host in ("github.com", "api.github.com"):
     if host not in box.get("network", {}).get("deniedDomains", []): fails.append("deniedDomains " + host)
+# J-064: every protected path is refused in writing to Bash, except .git/ (git
+# writes it; Claude Code guards its hooks and config) and .claude/ (Claude Code
+# guards it itself).
+deny_write = box.get("filesystem", {}).get("denyWrite", [])
+for line in open(sys.argv[2], encoding="utf-8"):
+    path = line.strip()
+    if not path or path.startswith("#") or path.startswith((".git/", ".claude/")):
+        continue
+    path = path[: -len("/**")] if path.endswith("/**") else path
+    if "./" + path not in deny_write: fails.append("denyWrite ./" + path)
 print(" ".join(fails))
-' "$SETTINGS" 2>&1)"
-if [ -z "$SANDBOX_CFG" ]; then ok "$SETTINGS enables the sandbox and denies reading the secrets (J-051)"; else bad "$SETTINGS sandbox incomplete: $SANDBOX_CFG (J-051)"; fi
+' "$SETTINGS" scripts/harness-protected.txt 2>&1)"
+if [ -z "$SANDBOX_CFG" ]; then ok "$SETTINGS enables the sandbox, denies reading the secrets (J-051) and writing the harness (J-064)"; else bad "$SETTINGS sandbox incomplete: $SANDBOX_CFG (J-051)"; fi
 # The real test is the OS: inside the agent's sandbox, the secret directories
 # must be unreadable whatever the command's text. Out of Claude Code (terminal,
 # CI) there is no sandbox to test.
@@ -2510,6 +2555,22 @@ except FileNotFoundError: print("ABSENT")
       *) bad "$secret_dir is readable inside the sandbox (J-051)" ;;
     esac
   done
+  # J-064: the OS refuses writing the harness, whatever writes it. Positive
+  # control first: the same write lands in src/, so a refusal below is denyWrite.
+  WRITE_CTL="src/__selftest_sandbox_write_probe"
+  if (: >"$WRITE_CTL") 2>/dev/null; then
+    rm -f "$WRITE_CTL"
+    for target in scripts/__selftest_sandbox_write_probe .github/__selftest_sandbox_write_probe jest.config.js .babelrc; do
+      if python3 -I -B -c 'import sys; open(sys.argv[1], "a").close()' "$target" 2>/dev/null; then
+        [ "$target" = jest.config.js ] || PROBES+=("$target")
+        bad "the sandbox lets Python write $target (denyWrite, J-064)"
+      else
+        ok "the sandbox refuses writing $target (denyWrite, J-064)"
+      fi
+    done
+  else
+    bad "sandbox write control failed: src/ is not writable, the denyWrite probe proves nothing (J-064)"
+  fi
   # A token read from the keychain must have nowhere to go: any HTTP answer from
   # GitHub, whatever its status, means the sandbox let the call out (J-054).
   # Positive control first: the network itself works, so a failure below is the

@@ -87,6 +87,11 @@ variable posée dans le bloc `env` des settings est ignorée exprès.
 
 ### Au quotidien
 
+- **Intégrer une base dont le harness a changé se fait hors de Claude Code** (J-064) : `git pull`,
+  `git switch`, `git rebase`, une avance rapide ou un `git stash` qui doit réécrire un fichier de
+  `scripts/harness-protected.txt` échoue sous le sandbox, et peut laisser l'arbre à moitié mis à
+  jour (le produit à la nouvelle version, le harness à l'ancienne). Lance-les dans ton terminal ;
+  si l'agent en voit une échouer sur `unable to unlink`, il s'arrête et te le dit.
 - **Le shell de l'agent tourne sous sandbox** (`.claude/settings.json`, J-051) : il ne lit ni
   `~/.ssh` ni `~/.config/gh`, donc `gh` (sans sa config) et un `git push` en SSH n'y passent pas.
   Le push et le merge restent les tiens. Le proxy refuse les domaines inconnus, et depuis le

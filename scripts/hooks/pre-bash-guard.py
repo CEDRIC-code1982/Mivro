@@ -1526,7 +1526,8 @@ class Guard:
                 f"writing a module the guards load through Bash ({how})",
                 "In an unlocked session, edit scripts/hooks/*.py with the Edit tool: it simulates "
                 "the change and refuses one that would break the guards (JOURNAL J-056). "
-                "`git restore -- <file>` stays allowed for repairs.",
+                "`git restore -- <file>` stays allowed for repairs outside the Bash sandbox; under "
+                "it, the harness is refused in writing (J-064): repair with Edit, or ask Cedric.",
             )
         deny(
             f"write to a harness file, or to a target that cannot be judged ({how})",
