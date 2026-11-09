@@ -25,7 +25,8 @@ _Administration_ (permissions relevées le 2026-10-28). GitHub reste refusé au 
 
 **Depuis le 2026-10-12 : mode chantier (J-055).** Cédric a ouvert une session déverrouillée pour
 finir le harness. L'agent y applique lui-même les entrées ci-dessous, avec une revue et un commit
-local par lot. Le relock final et le push restent à Cédric.
+local par lot. Le relock final est fait par Cédric le 2026-11-09 (`4340afe`) : le mode chantier est
+clos, J-055 et J-056 sont RÉSOLU. Le push et la PR restent à Cédric.
 
 **2026-11-05 : finition close (lots A à E).** Toutes les entrées à appliquer l'ont été. Ce fichier
 ne garde plus que les limites et faux positifs connus, assumés par décision de Cédric (§5 à §7) :
