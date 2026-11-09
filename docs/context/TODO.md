@@ -288,8 +288,10 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
       moitié mis à jour après `pull`/`switch`/`stash` sous le sandbox) ; un hook PostToolUse:Bash qui
       signale `unable to unlink` ou `unable to create file` ; un cas du self-test qui exige que
       chaque chemin du harness au sens de J-045 hors liste soit nommé dans EN-ATTENTE.
-- [ ] Cédric : `npm run harness:relock` hors Claude Code après la finition, puis push, PR vers
-      `develop` et fusion si la CI est verte. Le relock final passe J-055 et J-056 RÉSOLU.
+- [x] ~~Cédric : `npm run harness:relock` hors Claude Code après la finition~~ → fait le
+      2026-11-09 ; J-055 et J-056 passent RÉSOLU.
+- [ ] Cédric : commit du verrou, push, PR vers `develop` (label `harness-change`) et fusion si la
+      CI est verte.
 - [ ] **Tests des règles RTDB** sur l'émulateur Firebase (`@firebase/rules-unit-testing`) :
       `$other` absent au niveau `sessions/$sessionId`, écriture refusée hors des trois nœuds. (P2)
 

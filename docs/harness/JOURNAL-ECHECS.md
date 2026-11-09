@@ -69,8 +69,8 @@
 | J-052 | 1re CI : identité git, `__pycache__`, cache de bytecode forgeable   | RÉSOLU  |
 | J-053 | Le self-test a commité dans le vrai dépôt (`scratch_repo`)          | RÉSOLU  |
 | J-054 | 13e revue : quatre routes vers le jeton par le trousseau            | OUVERT  |
-| J-055 | Le chantier du harness coûtait plus que le harness lui-même         | OUVERT  |
-| J-056 | L'agent a cassé les gardes en deux éditions, et s'est enfermé       | OUVERT  |
+| J-055 | Le chantier du harness coûtait plus que le harness lui-même         | RÉSOLU  |
+| J-056 | L'agent a cassé les gardes en deux éditions, et s'est enfermé       | RÉSOLU  |
 | J-057 | GitHub ouvert au sandbox, puis refermé (jeton = route de push)      | CLOS    |
 | J-058 | Garde Bash : `then rm -rf x` passait, le dossier courant mentait    | RÉSOLU  |
 | J-059 | Un cas du self-test ne prouvait plus rien, et passait en silence    | RÉSOLU  |
@@ -2111,7 +2111,7 @@ Règle à consigner pour le capteur `docrefs`, avec (a)(b)(c) de J-051 :
 
 ## J-055 — Le chantier du harness coûtait plus que le harness lui-même
 
-**Date** : 2026-10-12 · **Statut** : OUVERT — mode chantier posé ; clos au relock final de Cédric
+**Date** : 2026-10-12 · **Statut** : RÉSOLU le 2026-11-09 — mode chantier posé le 2026-10-12, clos par le relock final fait par Cédric le 2026-11-09, après la finition (lots A à E, J-064) ; session normale, capteur `lock` vert
 
 **Observé.** Du 2026-10-05 au 2026-10-12, chaque correctif du harness touchait un fichier protégé. Il
 fallait donc à chaque fois une session déverrouillée lancée par Cédric, un relock, une revue, puis un
@@ -2160,7 +2160,7 @@ settings.
 
 ## J-056 — L'agent a cassé les gardes en deux éditions, et s'est enfermé
 
-**Date** : 2026-10-12 · **Statut** : OUVERT — règle de méthode, cas au self-test posés au lot 2 ; clos au relock final
+**Date** : 2026-10-12 · **Statut** : RÉSOLU le 2026-11-09 — règle de méthode, cas au self-test posés au lot 2 ; depuis J-064, Bash ne peut plus écrire les gardes, l'outil Edit (simulé) est la seule voie ; relock final fait par Cédric le 2026-11-09, après la finition (lots A à E, J-064) ; session normale, capteur `lock` vert
 
 **Observé.** En mode chantier, l'agent a modifié `harness_paths._settings_inject_unlock()` pour
 décoder le JSON (`json.loads`), puis a voulu ajouter `import json` dans une **seconde** édition.

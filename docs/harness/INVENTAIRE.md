@@ -435,9 +435,8 @@ et protection de branche. SmartBLE n'a aucun de ces derniers.
   Claude Code.
 - **J-054** — reste le jeton à privilèges réduits ; la régénération du jeton `mivro-claude` est
   une case du TODO, à Cédric.
-- **J-055, J-056** — se closent au relock final de Cédric, après la finition (lots A à E). Les
-  limites assumées de la garde Bash et du chargement de `harness_paths` sont dans
-  `EN-ATTENTE.md` §5 à §7.
+- **Limites assumées** de la garde Bash et du chargement de `harness_paths` : `EN-ATTENTE.md` §5
+  à §7 (J-055 et J-056 sont RÉSOLU depuis le relock final du 2026-11-09).
 - **J-051** — la lecture des secrets du `$HOME` est fermée par le sandbox Bash de Claude Code
   (2026-10-08) ; reste à Cédric la clé utilisateur `allowUnsandboxedCommands: false`. Le comptage des appels morts (J-048)
   est corrigé par un trap `ERR` (§2, 2026-10-05) ; sa preuve sous Bash 5 est un pas du job
