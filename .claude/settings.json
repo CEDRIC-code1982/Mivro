@@ -62,7 +62,11 @@
         "./src/theme/contrast.test.ts",
         "./src/i18n/locales.parity.test.ts",
         "./src/i18n/locales.keys.test.ts",
-        "./docs/harness/DONE-CONTRACT.modele.md"
+        "./docs/harness/DONE-CONTRACT.modele.md",
+        "./CLAUDE.md",
+        "./CLAUDE.local.md",
+        "./**/CLAUDE.md",
+        "./**/CLAUDE.local.md"
       ]
     },
     "network": {

@@ -283,6 +283,11 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
       2026-11-05. `EN-ATTENTE.md` ne garde que les limites assumées (§5 à §7).
 - [x] ~~Harness refusé en écriture au noyau~~ → `sandbox.filesystem.denyWrite` posé le 2026-11-05
       (J-064), prouvé dans la session et par le self-test.
+- [ ] Optionnel, suggestions de la revue de J-064 (non implémentées) : un capteur qui rougit, en
+      session verrouillée, quand `git diff HEAD --name-only` touche un chemin protégé (arbre à
+      moitié mis à jour après `pull`/`switch`/`stash` sous le sandbox) ; un hook PostToolUse:Bash qui
+      signale `unable to unlink` ou `unable to create file` ; un cas du self-test qui exige que
+      chaque chemin du harness au sens de J-045 hors liste soit nommé dans EN-ATTENTE.
 - [ ] Cédric : `npm run harness:relock` hors Claude Code après la finition, puis push, PR vers
       `develop` et fusion si la CI est verte. Le relock final passe J-055 et J-056 RÉSOLU.
 - [ ] **Tests des règles RTDB** sur l'émulateur Firebase (`@firebase/rules-unit-testing`) :

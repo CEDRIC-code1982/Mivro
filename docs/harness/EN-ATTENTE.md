@@ -65,7 +65,7 @@ limites d'écriture ci-dessous ne valent plus que hors du sandbox (CI, terminal 
 dans une session Claude Code, elles sont couvertes, quelle que soit la syntaxe.
 
 Ne sont pas couverts : le harness au sens de J-045 hors de cette liste, qui reste protégé par la
-seule garde texte. Ce sont `CLAUDE.md` (instructions injectées avec autorité, J-046),
+seule garde texte. Ce sont
 `.gitignore`, la configuration de `docs-site/` hors `docusaurus.config.ts`,
 `functions/package.json`, `Gemfile`, et `package.json` avec son lockfile (laissés écrivables
 pour `npm install`). Un écrivain que la garde ne connaît pas les réécrit encore.
@@ -117,7 +117,7 @@ Fermées au lot E (J-063), dans les formes que le self-test teste : mode `'r+'`,
 
 Restent ouvertes pour la garde texte, même en session verrouillée (elles passaient déjà à
 `bcdfebd`). Depuis J-064, le sandbox les couvre pour Bash sur les chemins de
-`harness-protected.txt`, pas sur le reste du harness (`CLAUDE.md`, `.gitignore`…) :
+`harness-protected.txt`, pas sur le reste du harness (`.gitignore`, `functions/package.json`…) :
 
 - un mode Perl collé au chemin **avec une espace** : `open(F, '> scripts/…')`, `'+> …'`, `'>> …'` ;
 - un mode suivi d'un encodage : Ruby `File.open('scripts/…', 'w:UTF-8')`, `'wb:UTF-8'` ;

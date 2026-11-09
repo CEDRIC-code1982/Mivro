@@ -11,12 +11,13 @@
 
 ## Tâche
 
-**Titre** : le harness refusé en écriture par le sandbox (`sandbox.filesystem.denyWrite`)
+**Titre** : `CLAUDE.md` sous le refus d'écriture du sandbox, suite de J-064
 
-**Demande d'origine** : « fais le nécessaire pour le harness en béton », puis validation par Cédric
-de la liste S1 à S9 (« Je valide tes recommandations GO »).
+**Demande d'origine** : « On suit tes recommandations », après la revue de J-064 (`86cbb90`) :
+protéger `CLAUDE.md` au noyau comme le reste de la liste, noter en suggestion les capteurs proposés
+par la revue, et corriger ses deux imprécisions mineures.
 
-**Branche** : `harness/finition-lots-a-e`, après `2c7f86a`, avant le relock et le push.
+**Branche** : `harness/finition-lots-a-e`, après `86cbb90`, avant le relock et le push.
 
 **Hors périmètre explicite** :
 
@@ -30,13 +31,12 @@ de la liste S1 à S9 (« Je valide tes recommandations GO »).
 
 ## Conditions de fin
 
-| #   | Condition                                                                                                                                                                         | Comment on le vérifie                                                      |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| 1   | `.claude/settings.json` refuse en écriture, au sandbox, les chemins S1 (liste protégée sans `.git/` ni `.claude/`)                                                                | relecture ; sonde `touch` sur chaque famille de chemins                    |
-| 2   | Une écriture Bash dans le harness échoue au noyau (« Operation not permitted »), quelle que soit la syntaxe : `touch`, Perl `'> chemin'`, Ruby `'w:UTF-8'`, `openSync`            | sonde manuelle dans la session, ou dans la suivante si pas de rechargement |
-| 3   | Sous le sandbox, les cas du self-test qui plantent un fichier dans le harness vérifient que l'écriture est refusée ; hors sandbox (CI, terminal), ils gardent leur forme actuelle | self-test vert sous le sandbox ; code des cas relu                         |
-| 4   | Un cas du self-test prouve que, sous le sandbox de Claude Code, `scripts/` est refusé en écriture                                                                                 | self-test                                                                  |
-| 5   | `EN-ATTENTE.md` §6 marque les limites d'écriture « couvertes par le sandbox pour Bash » ; journal (nouvelle entrée), `INVENTAIRE.md` et `TODO.md` à jour                          | relecture, `docrefs`, `docfacts`                                           |
+| #   | Condition                                                                                                                                                                                                                         | Comment on le vérifie                      |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 1   | `CLAUDE.md` et `CLAUDE.local.md` sont dans `scripts/harness-protected.txt` et refusés en écriture au sandbox ; un `CLAUDE.md` créé dans un sous-dossier l'est aussi si le sandbox accepte un motif, sinon c'est une limite nommée | sonde `touch` ; self-test (config = liste) |
+| 2   | Le self-test prouve, sous le sandbox, le refus d'écrire `CLAUDE.md`                                                                                                                                                               | self-test                                  |
+| 3   | J-064, EN-ATTENTE et INVENTAIRE ne citent plus `CLAUDE.md` parmi les chemins non couverts ; « plus les variantes Babel » devient « y compris » ; le RUNBOOK cite aussi `unable to create file`                                    | relecture, `docrefs`, `docclaims`          |
+| 4   | Les capteurs proposés par la revue de J-064 sont notés en suggestion, non implémentés                                                                                                                                             | relecture de `TODO.md`                     |
 
 ---
 

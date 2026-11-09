@@ -2560,14 +2560,21 @@ except FileNotFoundError: print("ABSENT")
   WRITE_CTL="src/__selftest_sandbox_write_probe"
   if (: >"$WRITE_CTL") 2>/dev/null; then
     rm -f "$WRITE_CTL"
-    for target in scripts/__selftest_sandbox_write_probe .github/__selftest_sandbox_write_probe jest.config.js .babelrc; do
+    for target in scripts/__selftest_sandbox_write_probe .github/__selftest_sandbox_write_probe jest.config.js .babelrc \
+      CLAUDE.md src/__selftest_sandbox_dir/CLAUDE.md; do
+      existed=0
+      [ -e "$target" ] && existed=1
+      [ "$target" = src/__selftest_sandbox_dir/CLAUDE.md ] && mkdir -p src/__selftest_sandbox_dir
       if python3 -I -B -c 'import sys; open(sys.argv[1], "a").close()' "$target" 2>/dev/null; then
-        [ "$target" = jest.config.js ] || PROBES+=("$target")
+        # Only a file this probe created is cleaned up, never an existing one.
+        [ "$existed" = 1 ] || PROBES+=("$target")
         bad "the sandbox lets Python write $target (denyWrite, J-064)"
       else
         ok "the sandbox refuses writing $target (denyWrite, J-064)"
       fi
     done
+    rm -f src/__selftest_sandbox_dir/CLAUDE.md 2>/dev/null
+    rmdir src/__selftest_sandbox_dir 2>/dev/null || true
   else
     bad "sandbox write control failed: src/ is not writable, the denyWrite probe proves nothing (J-064)"
   fi

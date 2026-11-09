@@ -2949,7 +2949,7 @@ de programmation ne se ferme pas. Le sandbox de Claude Code, lui, ne refusait qu
 
 **Correctif.** `.claude/settings.json` refuse en écriture, au sandbox, chaque chemin de
 `scripts/harness-protected.txt` sauf `.git/` (git l'écrit ; Claude Code en garde les hooks et la
-config) et `.claude/` (Claude Code le garde lui-même), plus les variantes de configuration Babel qui
+config) et `.claude/` (Claude Code le garde lui-même), y compris les variantes de configuration Babel qui
 n'existent pas encore : en créer une changerait la configuration de Jest. Le noyau (Seatbelt)
 refuse alors l'écriture à toute commande Bash et à ses sous-processus, quels que soient le langage
 et la syntaxe. Vérifié dans la session même, le réglage étant rechargé à chaud : `touch`, Perl
@@ -2975,10 +2975,15 @@ Cédric. Le relock (`npm run harness:relock`) se lance hors Claude Code, comme a
 
 **Ce que ça ne couvre pas, et ce que ça casse** (revue de J-064). La liste protégée n'est pas
 tout le harness : depuis J-045, tout ce qui est hors des zones produit en fait partie.
-Restent à la seule garde texte : `CLAUDE.md` (instructions injectées avec autorité, J-046),
+Restent à la seule garde texte :
 `.gitignore`, la configuration de `docs-site/` hors `docusaurus.config.ts`,
 `functions/package.json`, `Gemfile`, et `package.json` avec son lockfile (laissés écrivables
 pour `npm install`). Un écrivain que la garde ne connaît pas les réécrit encore.
+
+`CLAUDE.md` et `CLAUDE.local.md`, instructions injectées avec autorité (J-046), y étaient d'abord ;
+sur la recommandation de la revue, ils sont entrés dans la liste protégée, et le refus couvre la
+racine comme tout sous-dossier (`./**/CLAUDE.md`, motif prouvé : `touch src/CLAUDE.md` est
+refusé).
 
 Et un effet de bord nouveau : sous le sandbox, une opération git qui doit réécrire un
 chemin protégé (`pull`, `switch`, `rebase`, avance rapide, `stash`, et le chemin d'échec de

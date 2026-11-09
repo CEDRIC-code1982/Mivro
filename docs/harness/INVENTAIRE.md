@@ -429,7 +429,8 @@ et protection de branche. SmartBLE n'a aucun de ces derniers.
 
 - **Écriture du harness par Bash** — fermée au noyau par le sandbox depuis J-064 (`denyWrite`)
   pour les chemins de `harness-protected.txt` ; le reste du harness au sens de J-045
-  (`CLAUDE.md`, `.gitignore`, `functions/package.json`, `package.json`…) n'a que la garde texte.
+  (`.gitignore`, `functions/package.json`, `package.json`…) n'a que la garde texte ; `CLAUDE.md`
+  est couvert, à la racine et dans tout sous-dossier.
   Intégrer une base dont le harness a changé (`pull`, `switch`, `rebase`, `stash`) se fait hors de
   Claude Code.
 - **J-054** — reste le jeton à privilèges réduits ; la régénération du jeton `mivro-claude` est
