@@ -186,8 +186,11 @@ install_deps() {
 # J-051: a self-test that hits an undefined helper must count it as a failure.
 # The copy lives in the work directory, never in the repository (section 12 of
 # the self-test counts litter). Its full output is long and repeats step 2:
-# only its summary is shown.
+# only its summary is shown. The red "X exit 127" and " 1 failed" it prints
+# are the point of the probe: the title and the line below say so up front,
+# so a green run does not look broken.
 probe_dead_call() {
+  info "ℹ la copie du self-test contient un appel mort volontaire : X exit 127 et 1 failed sont attendus"
   sed '/^section() {/a\
 undefined_helper_ci_probe' scripts/harness-selftest.sh >"$WORK/st-dead.sh" || return 1
   bash "$WORK/st-dead.sh" >"$WORK/st-dead.out" 2>&1
@@ -203,7 +206,8 @@ undefined_helper_ci_probe' scripts/harness-selftest.sh >"$WORK/st-dead.sh" || re
 [ "$INSTALL" = 1 ] && run_step "Install (npm ci, docs-site)" install_deps
 run_step "Capteurs, stage push (MIVRO_NO_ABSTAIN=1)" env MIVRO_NO_ABSTAIN=1 bash scripts/check.sh --stage push --range "$RANGE"
 run_step "Self-test du harness" npm run check:harness
-run_step "Sonde J-051 : le self-test compte un appel mort" probe_dead_call
+# Kept within the 52 columns of the summary (bytes under Bash 3.2).
+run_step "Sonde J-051 : appel mort compté (1 échec attendu)" probe_dead_call
 run_step "npm audit (dépendances runtime)" bash scripts/check-audit.sh
 
 # --- Summary ------------------------------------------------------------------

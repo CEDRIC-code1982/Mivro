@@ -253,10 +253,11 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
 - [x] ~~`npm run harness:relock` après §2 et §4~~ → **FAIT (2026-10-05)**.
 - [ ] Première CI : vérifier vert le pas `self-test counts a dead call (J-051)` (preuve Bash 5 de
       J-048), puis passer J-048 RÉSOLU.
-- [ ] Cédric : CI locale `npm run ci:local` (2026-11-12, `scripts/ci-local.sh`, J-065) — relock 1
-      fait ; corrections de la revue 1 appliquées en session déverrouillée ; relock 2 fait
-      (2026-11-12). Reste à Cédric : revue et commit en session normale, `npm run ci:local` vert,
-      push et PR vers `develop` (label `harness-change`).
+- [ ] Cédric : CI locale `npm run ci:local` (2026-11-12, `scripts/ci-local.sh`, J-065) — relocks
+      1, 2 et 3 faits, commité et poussé, premier run vert 4/4. Retouche « (1 échec attendu) » sur
+      la sonde J-051 appliquée en session déverrouillée (2026-11-12). Reste à Cédric : revue et
+      commit en session normale, `npm run ci:local` vert, push et PR vers `develop` (label
+      `harness-change`).
 - [ ] Harness, reporté de la revue 1 de `ci:local` : parité complète entre `check.yml` et
       `ci-local.sh` — comparer le bloc `run:` entier (pas la seule première ligne), les clés `env:`
       de chaque pas, et tenir les pas `uses:` (checkout, setup-node, gitleaks) dans une liste

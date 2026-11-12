@@ -2539,6 +2539,13 @@ else
   else
     bad "$CI_LOCAL output redirected to a file holds $CI_LOCAL_ESC line(s) with an escape sequence"
   fi
+  # The J-051 probe fails on purpose: its title, its summary line and an info
+  # line before its output must say the failure is expected.
+  case "$CI_LOCAL_TEXT" in
+    *"Sonde J-051 : appel mort compté (1 échec attendu) ━━"*"ℹ la copie du self-test contient un appel mort volontaire : X exit 127 et 1 failed sont attendus"*"0 passed, 1 failed"*"Récapitulatif"*"✔ Sonde J-051 : appel mort compté (1 échec attendu)"*)
+      ok "$CI_LOCAL announces the expected failure of the J-051 probe" ;;
+    *) bad "$CI_LOCAL does not announce the expected failure of the J-051 probe (title, info line, summary)" ;;
+  esac
   case "$CI_LOCAL_TEXT" in
     *"(abstention, refusée comme en CI)"*) ok "$CI_LOCAL keeps a step's exit code through the stripping pipe" ;;
     *) bad "$CI_LOCAL lost the abstention (exit 3) of a step off a terminal" ;;

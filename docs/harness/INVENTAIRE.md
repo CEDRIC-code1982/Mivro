@@ -396,7 +396,10 @@ elle échoue.
 ne démarre aucun job (compte verrouillé depuis le 2026-11-12). Quatre étapes, dans l'ordre du
 workflow : capteurs `--stage push` sur la plage `<merge-base origin/develop>...HEAD` avec
 `MIVRO_NO_ABSTAIN=1`, `npm run check:harness`, sonde J-051 (copie du self-test avec un appel mort,
-dans un répertoire temporaire, doit afficher ` 1 failed`), `scripts/check-audit.sh`.
+dans un répertoire temporaire, doit afficher ` 1 failed`), `scripts/check-audit.sh`. L'échec de la
+sonde est voulu : son titre et sa ligne du récapitulatif portent « (1 échec attendu) », et une ligne
+`ℹ` avant sa sortie annonce le `X exit 127` et le ` 1 failed` (retouche du 2026-11-12, vérifiée par
+le self-test).
 
 - Toutes les étapes tournent même après un échec ; titres `━━ [n/4] … ━━`, récapitulatif ✔/✖ avec
   durées et total ; exit 1 si une étape échoue (une abstention compte rouge, comme en CI) ; couleurs
