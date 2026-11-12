@@ -87,6 +87,12 @@ variable posée dans le bloc `env` des settings est ignorée exprès.
 
 ### Au quotidien
 
+- **CI locale avant chaque push** : `npm run ci:local` (ajoute `-- --install` après un changement
+  de lockfile). Elle rejoue `check.yml` (capteurs stage push sur la plage de la PR, self-test,
+  sonde J-051, audit), affiche chaque étape puis un récapitulatif, et sort en erreur si une étape
+  est rouge. Tant que GitHub Actions ne démarre aucun job (compte verrouillé depuis le
+  2026-11-12), c'est le seul check d'une PR : lance-la dans ton terminal sur la branche à pousser.
+  Elle dit aussi si la PR demandera le label `harness-change`. gitleaks n'y est pas.
 - **Intégrer une base dont le harness a changé se fait hors de Claude Code** (J-064) : `git pull`,
   `git switch`, `git rebase`, une avance rapide ou un `git stash` qui doit réécrire un fichier de
   `scripts/harness-protected.txt` échoue sous le sandbox, et peut laisser l'arbre à moitié mis à

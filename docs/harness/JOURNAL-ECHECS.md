@@ -79,6 +79,7 @@
 | J-062 | La sonde du self-test rougit un hook Stop concurrent                | ACCEPTÉ |
 | J-063 | Les revues du lot C voyaient ce que le self-test ne regardait pas   | RÉSOLU  |
 | J-064 | La garde texte ne fermait jamais l'écriture : le noyau la refuse    | RÉSOLU  |
+| J-065 | GitHub Actions bloqué : `ci:local` remplace la CI, en partie        | OUVERT  |
 
 ---
 
@@ -2995,3 +2996,48 @@ l'ancienne version et son verrou cohérent, donc vert. Ces opérations se font h
 **Règle pour la suite.** Une protection qui peut s'écrire au niveau du système ne s'écrit pas en
 analyse de texte. Un chemin ajouté à `harness-protected.txt` reçoit son `denyWrite` dans le même
 commit, sinon le self-test rougit.
+
+## J-065 — GitHub Actions ne démarre plus : `ci:local` remplace la CI, en partie
+
+**Date** : 2026-11-12 · **Statut** : OUVERT — dette tant que GitHub Actions ne démarre aucun job ;
+condition de retrait ci-dessous
+
+**Observé.** Depuis le 2026-11-12, GitHub Actions ne démarre plus aucun job sur le dépôt (compte
+verrouillé côté facturation, ticket ouvert au support). Les checks requis par le ruleset
+(`battery`, `security`, `harness-guard`) ne tournent plus : aucune PR n'a de check, et la PR #10
+(lots A à E) a été fusionnée avec `--admin`, sur une CI rejouée à la main. Un capteur rouge sur la
+plage de la PR, un self-test rouge, une sonde J-051 muette ou un avis d'audit nouveau ne sont plus
+vus par personne avant la fusion.
+
+**Cause.** Externe au harness : le verrou du compte GitHub. Le harness supposait une CI qui tourne
+et n'avait aucun moyen de la rejouer d'un bloc hors de GitHub.
+
+**Réponse mécanique.** `npm run ci:local` (`scripts/ci-local.sh`, INVENTAIRE §11, « CI locale »)
+rejoue les quatre étapes de `check.yml` avec les mêmes arguments : capteurs `--stage push` sur
+`<merge-base origin/develop>...HEAD` avec `MIVRO_NO_ABSTAIN=1`, self-test, sonde J-051, audit. Le
+self-test (section 10) la tient alignée sur le workflow : il rougit si une commande `run:` de
+`check.yml` n'a pas son équivalent dans le script (contrôle négatif avec un pas factice), et, depuis
+la revue 1 du chantier, si la sortie redirigée garde une séquence de couleur, perd le code d'une
+étape, tait l'échec de l'évaluation `harness-guard`, ou cache l'erreur du `git fetch`.
+
+**Ce que ça ne couvre pas.**
+
+- **gitleaks** (job `security`) : action GitHub, pas rejouée. Seuls restent les motifs de secrets
+  du capteur `diff` (clés Google et AWS, clé privée, jeton GitHub) sur les lignes ajoutées ;
+  l'historique complet n'est plus balayé.
+- **Le verdict réel de `harness-guard`** : en local, une ligne d'information dit si la plage
+  touche le harness. Rien n'empêche la fusion d'une PR qui le touche sans label `harness-change` :
+  c'est à Cédric de le vérifier au moment de fusionner.
+- **L'exécution n'est pas obligatoire** : rien n'impose `ci:local` avant un push ou une fusion. Le
+  hook pre-push rejoue les capteurs `--stage push` (audit compris), pas le self-test ni la sonde
+  J-051, et une abstention n'y est pas refusée. La règle tient au RUNBOOK (« Au quotidien ») et à
+  la discipline de Cédric.
+- **La parité est partielle** : seule la première ligne de chaque `run:` est comparée ; les clés
+  `env:` par pas et les pas `uses:` ne le sont pas (TODO, reporté de la revue 1).
+- **L'environnement diffère** : macOS et la version de Bash de la machine au lieu d'Ubuntu et
+  Bash 5 ; la preuve Bash 5 de J-048 reste en attente de la première CI GitHub.
+
+**Condition de retrait.** Quand GitHub Actions redémarre : un run vert de `check.yml` et de
+`harness-guard.yml` sur une PR, les checks requis du ruleset de nouveau exigés à la fusion (plus de
+`--admin`), et J-048 vérifié sur le runner. L'entrée passe alors RÉSOLU avec la date ;
+`ci:local` reste un outil de confort avant le push, plus un remplacement.

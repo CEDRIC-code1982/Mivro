@@ -47,6 +47,12 @@ déclare remplacé, et aucune case ouverte du TODO ou du RUNBOOK ne nomme une br
 déjà mergée (`docfacts`, `scripts/check-docs-facts.sh`). Rejouées sur les docs d'avant `507b275`,
 elles attrapent les quatre cas réels relevés par les revues de J-057.
 
+**2026-11-12, CI locale.** GitHub Actions ne démarre plus aucun job (compte verrouillé) :
+`npm run ci:local` (`scripts/ci-local.sh`) rejoue `check.yml` en local — capteurs stage push sur
+la plage de la PR sans abstention, self-test, sonde J-051, audit — avec un titre par étape, un
+récapitulatif ✔/✖ et un code de sortie non nul si une étape est rouge. Le self-test vérifie que chaque
+commande `run:` du workflow a son équivalent dans le script. Détail : INVENTAIRE §11.
+
 ## ADR rattrapage — série ADR-001→014 complète (2026-07-14)
 
 Documentation rétroactive des décisions d'architecture manquantes, au format imposé

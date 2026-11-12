@@ -22,6 +22,7 @@
     "check:arch:graph": "depcruise src --config .dependency-cruiser.js --output-type dot > .dependency-graph.dot",
     "check:diff": "bash scripts/check-diff.sh",
     "check:harness": "bash scripts/harness-selftest.sh",
+    "ci:local": "bash scripts/ci-local.sh",
     "check:fast": "bash scripts/check.sh --stage fast",
     "check:push": "bash scripts/check.sh --stage push",
     "check:lock": "bash scripts/harness-lock.sh",

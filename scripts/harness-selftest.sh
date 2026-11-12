@@ -2438,6 +2438,125 @@ case "$GUARD_TEXT" in
   *) bad "harness-guard's checkout is not pinned to the base sha (J-036)" ;;
 esac
 if grep -q "harness-guard:" "$WF"; then bad "harness-guard is back in check.yml, under pull_request (J-036)"; else ok "harness-guard is not in check.yml"; fi
+# `npm run ci:local` replays check.yml while GitHub Actions is down: every
+# `run:` command of check.yml except Install and Diff range (local-only
+# concerns there) must appear in scripts/ci-local.sh, first line, cut before
+# the first `${{` or ` #`. A step added to the CI and forgotten locally fails here.
+ci_run_commands() { # ci_run_commands <workflow>
+  awk '
+    function emit(c, i) {
+      if (name == "Install" || name == "Diff range") return
+      i = index(c, "${{"); if (i) c = substr(c, 1, i - 1)
+      i = index(c, " #"); if (i) c = substr(c, 1, i - 1)
+      sub(/[[:space:]]+$/, "", c)
+      if (c != "") print c
+    }
+    want { line = $0; sub(/^[[:space:]]+/, "", line); if (line != "") { emit(line); want = 0 }; next }
+    /^[[:space:]]*- name:/ { name = $0; sub(/^[[:space:]]*- name:[[:space:]]*/, "", name); next }
+    /^[[:space:]]*- / { name = ""; next }
+    /^[[:space:]]*run:/ { v = $0; sub(/^[[:space:]]*run:[[:space:]]*/, "", v); if (v ~ /^[|>]/) want = 1; else emit(v); next }
+  ' "$1"
+}
+ci_parity_missing() { # ci_parity_missing <workflow> <script>: prints the commands absent from the script
+  local cmd
+  while IFS= read -r cmd; do
+    grep -qF -- "$cmd" "$2" || printf '%s\n' "$cmd"
+  done < <(ci_run_commands "$1")
+}
+CI_LOCAL="scripts/ci-local.sh"
+CI_CMDS="$(ci_run_commands "$WF" | wc -l | tr -d ' ')"
+CI_MISSING="$(ci_parity_missing "$WF" "$CI_LOCAL")"
+if [ "$CI_CMDS" -lt 4 ]; then
+  bad "only $CI_CMDS run commands read from $WF, wanted 4 or more: the parity case below proves nothing"
+elif [ -z "$CI_MISSING" ]; then
+  ok "$CI_LOCAL replays the $CI_CMDS run commands of $WF"
+else
+  bad "$CI_LOCAL lacks run commands of $WF: $(printf '%s' "$CI_MISSING" | tr '\n' ';')"
+fi
+CI_PARITY_TMP="$(tmp_dir)"
+{
+  cat "$WF"
+  printf '      - name: Parity probe\n        run: |\n          echo ci-parity-probe-step\n'
+} >"$CI_PARITY_TMP/check.yml"
+case "$(ci_parity_missing "$CI_PARITY_TMP/check.yml" "$CI_LOCAL")" in
+  "echo ci-parity-probe-step") ok "a CI step missing from $CI_LOCAL is caught" ;;
+  *) bad "a CI step missing from $CI_LOCAL is not caught by the parity case" ;;
+esac
+# ci-local.sh off a terminal (review 1 of ci:local): a copy runs in a scratch
+# repository whose steps are stand-ins that colour stdout and stderr; the
+# sensors' stand-in abstains (exit 3) and the harness_paths of the base
+# crashes. The redirected output must hold no escape sequence, the abstention
+# must survive the stripping pipe, the guard must say "not evaluated", and the
+# failed fetch must name its cause and the ref the range uses.
+ci_local_scratch() { # ci_local_scratch: prints the scratch repository, ready to run
+  local dir
+  dir="$(scratch_repo)" || return 1
+  mkdir -p "$dir/scripts/hooks" "$dir/empty" || return 1
+  cp "$CI_LOCAL" "$dir/scripts/ci-local.sh" || return 1
+  cat >"$dir/scripts/check.sh" <<'SH'
+printf '\033[31mci-local-colour-probe sensors\033[0m\n'
+printf '\033[33mci-local-colour-probe stderr\033[0m\n' >&2
+exit 3
+SH
+  cat >"$dir/scripts/harness-selftest.sh" <<'SH'
+section() { :; }
+printf '\033[1mci-local-colour-probe self-test\033[0m\n'
+printf '\033[31m  0 passed, 1 failed\033[0m\n'
+SH
+  printf '%s\n' "printf '\\033[32mci-local-colour-probe audit\\033[0m\\n'" >"$dir/scripts/check-audit.sh"
+  printf '%s\n' 'raise RuntimeError("ci-local-guard-probe")' >"$dir/scripts/hooks/harness_paths.py"
+  : >"$dir/scripts/harness-protected.txt"
+  printf '%s\n' '{ "scripts": { "check:harness": "bash scripts/harness-selftest.sh" } }' >"$dir/package.json"
+  touch "$dir/empty/.keep"
+  git --git-dir="$dir/.git" --work-tree="$dir" add -A &&
+    git --git-dir="$dir/.git" --work-tree="$dir" -c user.email=selftest@mivro -c user.name=selftest \
+      commit -q -m stand-ins &&
+    git --git-dir="$dir/.git" update-ref refs/remotes/origin/develop HEAD || return 1
+  printf '%s' "$dir"
+}
+if ! CI_LOCAL_DIR="$(ci_local_scratch)" || [ -z "$CI_LOCAL_DIR" ]; then
+  bad "could not build the scratch repository for $CI_LOCAL: the cases below would prove nothing"
+else
+  CI_LOCAL_OUT="$(tmp_dir)/ci-local.out"
+  # Control: the stand-ins do colour, otherwise "no escape" proves nothing.
+  # The stand-in exits 3: captured first, as pipefail would turn a pipe red.
+  CI_LOCAL_RAW="$( (cd "$CI_LOCAL_DIR" && bash scripts/check.sh) 2>&1)"
+  if case "$CI_LOCAL_RAW" in *$'\033'*) true ;; *) false ;; esac then
+    ok "the stand-in steps of the ci-local case do emit escape sequences (control)"
+  else
+    bad "the stand-in steps emit no escape sequence: the ci-local colour case proves nothing"
+  fi
+  (cd "$CI_LOCAL_DIR" && bash scripts/ci-local.sh) >"$CI_LOCAL_OUT" 2>&1
+  expect_exit 1 $? "$CI_LOCAL exits 1 when a step is red"
+  CI_LOCAL_TEXT="$(cat "$CI_LOCAL_OUT")"
+  case "$CI_LOCAL_TEXT" in
+    *"ci-local-colour-probe sensors"*"ci-local-colour-probe audit"*) ok "$CI_LOCAL ran the stand-in steps" ;;
+    *) bad "$CI_LOCAL did not run the stand-in steps: the colour case proves nothing" ;;
+  esac
+  CI_LOCAL_ESC="$(grep -c $'\033' "$CI_LOCAL_OUT")"
+  if [ "$CI_LOCAL_ESC" = 0 ]; then
+    ok "$CI_LOCAL output redirected to a file holds no escape sequence"
+  else
+    bad "$CI_LOCAL output redirected to a file holds $CI_LOCAL_ESC line(s) with an escape sequence"
+  fi
+  case "$CI_LOCAL_TEXT" in
+    *"(abstention, refusée comme en CI)"*) ok "$CI_LOCAL keeps a step's exit code through the stripping pipe" ;;
+    *) bad "$CI_LOCAL lost the abstention (exit 3) of a step off a terminal" ;;
+  esac
+  case "$CI_LOCAL_TEXT" in
+    *"harness-guard : non évalué, python3 a échoué"*"ci-local-guard-probe"*) ok "$CI_LOCAL reports a crashed harness-guard evaluation as not evaluated" ;;
+    *) bad "$CI_LOCAL does not report a crashed harness-guard evaluation" ;;
+  esac
+  case "$CI_LOCAL_TEXT" in
+    *"git fetch origin impossible : "?*"plage calculée sur le dernier origin/develop connu"*"base    : origin/develop"*)
+      ok "$CI_LOCAL names the fetch error and the ref the range uses" ;;
+    *) bad "$CI_LOCAL does not name the fetch error and the ref the range uses" ;;
+  esac
+  case "$( (cd "$CI_LOCAL_DIR/empty" && bash ../scripts/ci-local.sh --help) 2>&1)" in
+    *"npm run ci:local"*) ok "$CI_LOCAL --help works from a subdirectory" ;;
+    *) bad "$CI_LOCAL --help prints no usage from a subdirectory" ;;
+  esac
+fi
 SETTINGS=".claude/settings.json"
 for hook in PreToolUse PostToolUse Stop SubagentStart SubagentStop pre-edit-guard.py seal-review.sh reset-review.sh stop-check.sh; do
   if grep -q "$hook" "$SETTINGS"; then ok "$SETTINGS wires $hook"; else bad "$SETTINGS does not wire $hook"; fi

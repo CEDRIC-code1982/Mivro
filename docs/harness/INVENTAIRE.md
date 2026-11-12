@@ -390,6 +390,37 @@ après un clone.
 Une abstention (exit 3) est nommée et n'est jamais comptée verte ; en CI (`MIVRO_NO_ABSTAIN=1`)
 elle échoue.
 
+### CI locale — `npm run ci:local` (2026-11-12)
+
+`scripts/ci-local.sh` rejoue `.github/workflows/check.yml` sur la machine, tant que GitHub Actions
+ne démarre aucun job (compte verrouillé depuis le 2026-11-12). Quatre étapes, dans l'ordre du
+workflow : capteurs `--stage push` sur la plage `<merge-base origin/develop>...HEAD` avec
+`MIVRO_NO_ABSTAIN=1`, `npm run check:harness`, sonde J-051 (copie du self-test avec un appel mort,
+dans un répertoire temporaire, doit afficher ` 1 failed`), `scripts/check-audit.sh`.
+
+- Toutes les étapes tournent même après un échec ; titres `━━ [n/4] … ━━`, récapitulatif ✔/✖ avec
+  durées et total ; exit 1 si une étape échoue (une abstention compte rouge, comme en CI) ; couleurs
+  seulement sur un terminal. Hors terminal, la sortie de chaque étape (stderr compris) passe par un
+  `sed` qui retire les séquences de couleur que `check.sh` et le self-test écrivent en dur ; le code
+  de l'étape est lu dans `PIPESTATUS[0]`, les scripts enfants ne sont pas modifiés.
+- `--install` lance d'abord `npm ci` et `npm --prefix docs-site ci` (étape 0, `[n/5]`).
+- `git fetch origin` est tenté ; hors ligne ou sous le sandbox, avertissement avec la première ligne
+  de l'erreur de git, et plage calculée sur le dernier `origin/develop` connu (repli `origin/main`) ;
+  la ref réellement utilisée est affichée (`base : …`).
+- `harness-guard` n'est pas rejoué : une ligne d'information dit si la plage touche le harness
+  (donc si la PR demandera le label `harness-change`), avec `harness_paths` et la liste protégée
+  **de la base**, chargés par chemin comme dans `harness-guard.yml`. Si cette évaluation plante,
+  la ligne dit « non évalué » avec l'erreur, jamais « aucun fichier du harness ». gitleaks n'est pas
+  rejoué (JOURNAL J-065).
+- **Parité** : le self-test (section 10) échoue si une commande `run:` de `check.yml`, hors
+  « Install » et « Diff range », n'apparaît pas dans `ci-local.sh` (première ligne, coupée avant
+  `${{` ou ` #`) ; un contrôle négatif ajoute un pas factice à une copie du workflow.
+- **Sortie redirigée** (revue 1) : le self-test lance une copie de `ci-local.sh` dans un dépôt
+  jetable dont les étapes sont des doublures qui colorent stdout et stderr (contrôle : elles émettent
+  bien des séquences). Il exige zéro `\033` dans la sortie redirigée, l'abstention (exit 3) d'une
+  étape conservée à travers le `sed`, « non évalué » quand `harness_paths` plante, l'erreur du fetch
+  et la ref de base nommées, et un `--help` qui marche depuis un sous-dossier.
+
 ### Mesures (2026-09-26, MacBook de Cédric, cache chaud)
 
 | Étape                                           | Durée                         |

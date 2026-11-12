@@ -253,6 +253,22 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
 - [x] ~~`npm run harness:relock` après §2 et §4~~ → **FAIT (2026-10-05)**.
 - [ ] Première CI : vérifier vert le pas `self-test counts a dead call (J-051)` (preuve Bash 5 de
       J-048), puis passer J-048 RÉSOLU.
+- [ ] Cédric : CI locale `npm run ci:local` (2026-11-12, `scripts/ci-local.sh`, J-065) — relock 1
+      fait ; corrections de la revue 1 appliquées en session déverrouillée ; relock 2 fait
+      (2026-11-12). Reste à Cédric : revue et commit en session normale, `npm run ci:local` vert,
+      push et PR vers `develop` (label `harness-change`).
+- [ ] Harness, reporté de la revue 1 de `ci:local` : parité complète entre `check.yml` et
+      `ci-local.sh` — comparer le bloc `run:` entier (pas la seule première ligne), les clés `env:`
+      de chaque pas, et tenir les pas `uses:` (checkout, setup-node, gitleaks) dans une liste
+      d'exceptions nommée, pour qu'un pas ajouté sans `run:` ne passe pas en silence.
+- [ ] Harness, reporté de la revue 1 de `ci:local` : capteur qui exige une entrée du JOURNAL quand
+      une plage touche le harness. ⚠️ À SPÉCIFIER AVEC CÉDRIC : quels changements y sont soumis
+      (tout fichier du harness, ou seulement les gardes et capteurs ; un relock seul ; une doc du
+      harness), avant d'écrire le capteur.
+- [ ] Harness, suggéré par la revue 2 de `ci:local` : règle `docfacts` — un item ouvert de
+      `TODO.md` ou de `DONE-CONTRACT.md` qui annonce un relock à faire rougit quand
+      `scripts/harness-lock.sh` passe déjà sur l'arbre courant (défaut vu deux fois sur `ci:local`,
+      arrêté par le reviewer). Session déverrouillée et relock requis.
 - [x] ~~Commit de `harness/en-attente-5-8`, push et PR vers `develop`~~ → mergée par la PR #3 (`7d6c33c`).
 - [x] ~~**J-040 lot 1**~~ → mergé dans `develop` le 2026-10-08 (PR #1, `4242ada`).
 - [x] ~~**J-040 lot 1 bis**~~ → `compression` 1.8.2 mergé le 2026-10-08 (PR #2), branche du
