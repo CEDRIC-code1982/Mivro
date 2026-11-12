@@ -367,22 +367,25 @@ après un clone.
 
 `npm run check -- --list` (stage `check`) ou `bash scripts/check.sh --stage push --list`.
 
-| id          | stage | Rôle                                                                                                |
-| ----------- | ----- | --------------------------------------------------------------------------------------------------- |
-| `typecheck` | fast  | `tsc --noEmit` incrémental                                                                          |
-| `lint`      | fast  | ESLint `.ts/.tsx/.js/.mjs/.cjs`, **zéro warning**, cache indexé sur les règles                      |
-| `format`    | fast  | Prettier                                                                                            |
-| `arch`      | fast  | dependency-cruiser                                                                                  |
-| `diff`      | fast  | `check-diff.sh` : échappatoires, `any` en toute position, tests focalisés, secrets                  |
-| `lock`      | fast  | intégrité du harness                                                                                |
-| `native`    | fast  | team Apple, bundle id, deployment target, plist Firebase, scheme Debug                              |
-| `deps`      | fast  | liste blanche des dépendances npm                                                                   |
-| `docrefs`   | fast  | numérotation et index du journal, citations `J-NNN` résolues (J-022)                                |
-| `docfacts`  | fast  | RUNBOOK/TODO : script déclaré remplacé encore prescrit, case ouverte sur une branche mergée (J-022) |
-| `scripts`   | fast  | shellcheck + syntaxe Python du harness (peut s'abstenir sans shellcheck)                            |
-| `tests`     | check | Jest + seuils de couverture                                                                         |
-| `audit`     | push  | `npm audit --omit=dev`, hautes et critiques, avis acceptés par GHSA (s'abstient)                    |
-| `docs`      | push  | TypeDoc + Docusaurus (peut s'abstenir sans `docs-site/node_modules`)                                |
+| id           | stage | Rôle                                                                                                |
+| ------------ | ----- | --------------------------------------------------------------------------------------------------- |
+| `typecheck`  | fast  | `tsc --noEmit` incrémental                                                                          |
+| `lint`       | fast  | ESLint `.ts/.tsx/.js/.mjs/.cjs`, **zéro warning**, cache indexé sur les règles                      |
+| `format`     | fast  | Prettier                                                                                            |
+| `arch`       | fast  | dependency-cruiser                                                                                  |
+| `diff`       | fast  | `check-diff.sh` : échappatoires, `any` en toute position, tests focalisés, secrets                  |
+| `lock`       | fast  | intégrité du harness                                                                                |
+| `native`     | fast  | team Apple, bundle id, deployment target, plist Firebase, scheme Debug                              |
+| `deps`       | fast  | liste blanche des dépendances npm                                                                   |
+| `docrefs`    | fast  | numérotation et index du journal, citations `J-NNN` résolues (J-022)                                |
+| `docfacts`   | fast  | RUNBOOK/TODO : script déclaré remplacé encore prescrit, case ouverte sur une branche mergée (J-022) |
+| `docclaims`  | fast  | docs d'état courant : absence démentie par le repo, chemin `src/…` mort (J-022)                     |
+| `contract`   | fast  | `DONE-CONTRACT` nomme la branche courante, en session agent seulement (J-022)                       |
+| `scripts`    | fast  | shellcheck + syntaxe Python du harness (peut s'abstenir sans shellcheck)                            |
+| `tests`      | check | Jest + seuils de couverture ; écrit son rapport `--json` pour `docmetrics`                          |
+| `docmetrics` | check | `PROGRESS.md` : suites et tests égaux au rapport Jest du même run (s'abstient sans lui) (J-022)     |
+| `audit`      | push  | `npm audit --omit=dev`, hautes et critiques, avis acceptés par GHSA (s'abstient)                    |
+| `docs`       | push  | TypeDoc + Docusaurus (peut s'abstenir sans `docs-site/node_modules`)                                |
 
 Une abstention (exit 3) est nommée et n'est jamais comptée verte ; en CI (`MIVRO_NO_ABSTAIN=1`)
 elle échoue.
@@ -424,7 +427,16 @@ et protection de branche. SmartBLE n'a aucun de ces derniers.
 
 ### Reste ouvert
 
-- **J-022** — aucun capteur ne vérifie les affirmations factuelles des docs.
+- **Écriture du harness par Bash** — fermée au noyau par le sandbox depuis J-064 (`denyWrite`)
+  pour les chemins de `harness-protected.txt` ; le reste du harness au sens de J-045
+  (`.gitignore`, `functions/package.json`, `package.json`…) n'a que la garde texte ; `CLAUDE.md`
+  est couvert, à la racine et dans tout sous-dossier.
+  Intégrer une base dont le harness a changé (`pull`, `switch`, `rebase`, `stash`) se fait hors de
+  Claude Code.
+- **J-054** — reste le jeton à privilèges réduits ; la régénération du jeton `mivro-claude` est
+  une case du TODO, à Cédric.
+- **Limites assumées** de la garde Bash et du chargement de `harness_paths` : `EN-ATTENTE.md` §5
+  à §7 (J-055 et J-056 sont RÉSOLU depuis le relock final du 2026-11-09).
 - **J-051** — la lecture des secrets du `$HOME` est fermée par le sandbox Bash de Claude Code
   (2026-10-08) ; reste à Cédric la clé utilisateur `allowUnsandboxedCommands: false`. Le comptage des appels morts (J-048)
   est corrigé par un trap `ERR` (§2, 2026-10-05) ; sa preuve sous Bash 5 est un pas du job

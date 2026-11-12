@@ -60,9 +60,20 @@ jest.config.js
 jest.setup.js
 
 # Tests that are sensors, not product tests: deleting or weakening one
-# switches a rule off (WCAG contrast, FR/EN catalogue parity).
+# switches a rule off (WCAG contrast, FR/EN catalogue parity, t() keys vs the
+# French catalogue).
 src/theme/contrast.test.ts
 src/i18n/locales.parity.test.ts
+src/i18n/locales.keys.test.ts
+
+# The blank contract: check-contract.sh and the reviewer's step 0 trust it.
+docs/harness/DONE-CONTRACT.modele.md
+
+# Instructions Claude Code injects with authority into every session (J-046):
+# refused in writing to Bash by the sandbox too, at the root and in any
+# subdirectory (`./**/CLAUDE.md` in .claude/settings.json, J-064).
+CLAUDE.md
+CLAUDE.local.md
 
 # Git internals: hooks, config, refs and objects written by hand make commits
 # without the hooks, and the review seal lives here (JOURNAL J-042). git itself

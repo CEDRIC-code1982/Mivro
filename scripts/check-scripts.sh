@@ -4,6 +4,8 @@
 #
 #   ShellCheck (severity >= warning) on scripts/*.sh and the husky hooks
 #   Python syntax of every hook and sensor written in Python
+#   No harness code loads harness_paths by name or changes the module search
+#   path (EN-ATTENTE §2a, lot B)
 #
 # A sensor with a syntax error does not fail loudly: a hook that crashes may
 # simply stop judging. Abstains (exit 3) when shellcheck is not installed
@@ -33,6 +35,31 @@ for path in sys.argv[1:]:
         bad = 1
 sys.exit(bad)
 ' $PY_FILES || FAIL=1
+fi
+
+# harness_paths is loaded by path, never by name (EN-ATTENTE §2a, lot B): a
+# module, package or extension named harness_paths anywhere on the search path
+# would replace it, and a directory put on that path shadows the stdlib. Closed
+# by refusal, not by listing the import forms one by one: any line where an
+# `import` is followed by the word harness_paths, a `from harness_paths`, the
+# name handed to __import__/import_module/run_module or to `-m`, and any change
+# of the search path (sys.path written, indexed or extended, a site dir added,
+# a PYTHONPATH assignment). A file path (harness_paths.py, …/harness_paths) is
+# no import. No exception list: the self-test's own controls load their
+# modules by path too.
+# Accepted false positive, named: a comment or a message whose text reads like
+# such an import turns this sensor red too; reword it. The self-test builds its
+# probe forms at run time for that reason, and so does the second pattern here.
+NAME_IMPORT_RE='(^|[^A-Za-z0-9_.])(import[[:space:]]([^#]*[^A-Za-z0-9_/])?harness_paths([^A-Za-z0-9_./]|$)|from[[:space:]]+harness_paths[[:space:]]+import)|(__import__|import_module|run_module)\([[:space:]]*.harness_paths|-m[[:space:]]*harness_paths'
+SYS_PATH_RE='sys\.path[[:space:]]*(\.(insert|append|extend)[[:space:]]*\(|\+?=|\[)|addsite''dir|PYTHON''PATH='
+HARNESS_CODE="$(git ls-files --cached --others --exclude-standard -- \
+  'scripts/*.py' 'scripts/**/*.py' 'scripts/*.sh' 'scripts/**/*.sh' '.husky/*' '.github/workflows/*.yml' '.claude/settings.json')"
+if [ -n "$HARNESS_CODE" ]; then
+  # shellcheck disable=SC2086  # word splitting of the file list is intended
+  if grep -nE -- "$NAME_IMPORT_RE|$SYS_PATH_RE" $HARNESS_CODE /dev/null; then
+    echo "✖ harness_paths imported by name, or sys.path changed: load it by path (importlib.util.spec_from_file_location), lot B"
+    FAIL=1
+  fi
 fi
 
 if ! command -v shellcheck >/dev/null 2>&1; then

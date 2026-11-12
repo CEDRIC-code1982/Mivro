@@ -356,7 +356,7 @@ Pour chaque feature : objectif · couches · composants · dépendances · déci
 #### F4 — Temps réel Firebase (S09-10) — ✅ FAIT (2026-06-20 ; code+tests+review APPROVED ; ADR-006 ; projet Firebase EU `mivro-40125` câblé ; reste fichiers config natifs + déploiement rules + pod install par Cédric)
 
 - **Objectif** : voir les positions GPS live des participants sur la carte.
-- **Couches** : core (`IRealtimeService` port + `TrackParticipantsUseCase` + entité `RealtimeParticipant`), infrastructure (`FirebaseRealtimeService` → `src/infrastructure/realtime/`), presentation (`useRealtimeStore`).
+- **Couches** : core (`IRealtimeService` port + `TrackParticipantsUseCase` + entité `RealtimeParticipant`), infrastructure (`FirebaseRealtimeService` → `src/services/infra/realtime/`), presentation (`useRealtimeStore`).
 - **Store** : `useRealtimeStore` (Zustand, **NON persisté** — RGPD).
 - **Dépendances** : `@react-native-firebase/app` + `@react-native-firebase/database`.
 - **Décisions tranchées** : Realtime Database (pas Firestore) pour le MVP ; positions éphémères ; TTL court ; suppression en fin de session ; opti batterie (5s en mouvement / 30s à l'arrêt / off en background — cf. LOCALISATION TEMPS RÉEL).
@@ -377,7 +377,7 @@ Pour chaque feature : objectif · couches · composants · dépendances · déci
 #### F8 — Biométrie (S12) — ✅ FAIT (2026-06-29 ; code + tests 1133 + review APPROVED ; reste vérif device par Cédric)
 
 - **Objectif** : protéger l'accès à l'app par Face ID / Touch ID / empreinte.
-- **Couches** : core (port `IBiometricService` + `BiometricError`/types), infrastructure (`KeychainBiometricService` → `src/infrastructure/security/`), presentation (hook `useBiometricLock`, molecule `BiometricLockScreen`, gate `BiometricLockGate` dans `App.tsx`, toggle `ProfileScreen`) + `usePreferencesStore.biometricEnabled` (flag MMKV).
+- **Couches** : core (port `IBiometricService` + `BiometricError`/types), infrastructure (`KeychainBiometricService` → `src/services/infra/security/`), presentation (hook `useBiometricLock`, molecule `BiometricLockScreen`, gate `BiometricLockGate` dans `App.tsx`, toggle `ProfileScreen`) + `usePreferencesStore.biometricEnabled` (flag MMKV).
 - **Dépendances** : `react-native-keychain` (déjà installé) — secret sentinelle `ACCESS_CONTROL.BIOMETRY_ANY_OR_DEVICE_PASSCODE` + `WHEN_UNLOCKED_THIS_DEVICE_ONLY` (jamais loggé).
 - **Décisions tranchées** : opt-in ; **« compte requis » relâché → ouvert à TOUT utilisateur (guest inclus)** car F6 bloqué — **réversible** quand F6 existera (pas d'ADR dédié, décision MVP). Anti-lockout **double filet** (fallback passcode device natif + échappatoire applicative `disableLockAndContinue` après 3 échecs / auto-désactivation si biométrie indispo). Re-lock dès `inactive`/`background` (masque l'app-switcher) ET au retour `→ active`.
 - **Done** : toggle dans Profile + déverrouillage biométrique au lancement + re-lock au retour d'arrière-plan ✅. DI câblé, i18n `biometric` FR+EN, natif iOS `NSFaceIDUsageDescription` + Android `USE_BIOMETRIC`. ~140 tests / **1133** au total, reviewé APPROVED (1 tour).
@@ -405,7 +405,7 @@ Pour chaque feature : objectif · couches · composants · dépendances · déci
 #### PostHog analytics
 
 - **Objectif** : analytics produit RGPD-compliant.
-- **Couches** : core (`IAnalyticsService` port), infrastructure (`PostHogAnalytics` → `src/infrastructure/analytics/`), presentation (opt-out dans `usePreferencesStore`).
+- **Couches** : core (`IAnalyticsService` port), infrastructure (`PostHogAnalytics` → `src/services/infra/analytics/`), presentation (opt-out dans `usePreferencesStore`).
 - **Décisions tranchées** : auto-hébergé (VPS, données EU) ; JAMAIS de GPS exact / identités / contenus ; opt-out respecté.
 - **Done** : events feature-usage trackés, opt-out fonctionnel.
 - **Complexité** : M.

@@ -83,6 +83,42 @@ probe_file() {
   mkdir -p "$(dirname "$path")"
   printf '%s\n' "$@" >"$path"
 }
+# Under the Bash sandbox of Claude Code, the harness is refused in writing by the
+# OS (sandbox.filesystem.denyWrite, JOURNAL J-064): a case that plants a file
+# there checks that refusal instead, a stronger result than any detection. Out
+# of the sandbox (CI, a terminal) the file is planted and the sensor judged as
+# before, so the sensors' logic stays tested where the sandbox is absent.
+harness_plant() { # harness_plant <path> <lines...>: 0 = planted, 1 = refused (checked)
+  local path="$1"
+  if [ "${SANDBOX_RUNTIME:-}" = 1 ]; then
+    if (mkdir -p "$(dirname "$path")" && printf 'x\n' >"$path") 2>/dev/null; then
+      PROBES+=("$path")
+      bad "the sandbox let $path be written (denyWrite, J-064)"
+    else
+      ok "the sandbox refuses planting $path (denyWrite, J-064)"
+    fi
+    return 1
+  fi
+  # Out of the sandbox the plant must land: a failure here would drop the case
+  # silently (review of J-064).
+  probe_file "$@" 2>/dev/null || {
+    bad "could not plant $path outside the sandbox: the case below would prove nothing (J-064)"
+    return 1
+  }
+}
+
+# Lot B: harness_paths is loaded by path, as the hooks load it, never by name
+# through sys.path (a harness_paths/ package would win). HP_LOAD binds it to `h`.
+HP_LOAD='import importlib.util, sys
+_spec = importlib.util.spec_from_file_location("harness_paths", "scripts/hooks/harness_paths.py")
+h = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(h)'
+hp_py() { # hp_py <python code using h> [args...]
+  local code="$1"
+  shift
+  python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc -c "$HP_LOAD
+$code" "$@"
+}
 
 tmp_dir() {
   local dir
@@ -565,7 +601,7 @@ rm -f "$SCRATCH/src/feature/__mocks__/theme.ts"
 rmdir "$SCRATCH/src/feature/__mocks__"
 # J-044: every configuration file a sensor is pointed at is protected.
 for cfg in $(grep -v '^[[:space:]]*#' scripts/sensors.sh | grep -oE -- '(--config|-c) [^ |]+' | awk '{print $2}' | sort -u) .eslintignore docs-site/docusaurus.config.ts typedoc.config.mjs; do
-  if python3 -c 'import sys; sys.path.insert(0, "scripts/hooks"); import harness_paths as h; sys.exit(0 if h.matches(sys.argv[1], h.load_patterns()) else 1)' "$cfg"; then
+  if hp_py 'sys.exit(0 if h.matches(sys.argv[1], h.load_patterns()) else 1)' "$cfg"; then
     ok "sensor configuration $cfg is protected (J-044)"
   else
     bad "sensor configuration $cfg is NOT protected (J-044)"
@@ -597,7 +633,7 @@ case "$(cat scripts/check-diff.sh)" in
   *) bad "check-diff lets .gitattributes hide changes (J-045)" ;;
 esac
 # The two nested-config exception lists (Python guard, bash check-diff) agree.
-PY_EXC="$(python3 -c 'import sys; sys.path.insert(0, "scripts/hooks"); import harness_paths; print(" ".join(sorted(harness_paths.NESTED_CONFIG_EXCEPTIONS)))')"
+PY_EXC="$(hp_py 'print(" ".join(sorted(h.NESTED_CONFIG_EXCEPTIONS)))')"
 SH_EXC="$(sed -n '/NESTED_EXCEPTIONS_BEGIN/,/NESTED_EXCEPTIONS_END/p' scripts/check-diff.sh | grep -oE '[a-z-]+/[A-Za-z.]+\.(json|js)' | sort -u | tr '\n' ' ' | sed 's/ $//')"
 if [ "$PY_EXC" = "$SH_EXC" ]; then ok "nested-config exceptions agree (guard / check-diff)"; else bad "nested-config exceptions differ: guard [$PY_EXC] vs check-diff [$SH_EXC]"; fi
 
@@ -751,9 +787,10 @@ if run_hook "$HOOK_PROBE"; then bad "hook missed an eslint error"; else ok "esli
 rm -f "$HOOK_PROBE"
 
 JS_PROBE="scripts/__probe.js"
-probe_file "$JS_PROBE" "const unused = 1;"
-if run_hook "$JS_PROBE"; then bad "hook ignores .js files (J-035)"; else ok "a .js file is linted too (J-035)"; fi
-rm -f "$JS_PROBE"
+if harness_plant "$JS_PROBE" "const unused = 1;"; then
+  if run_hook "$JS_PROBE"; then bad "hook ignores .js files (J-035)"; else ok "a .js file is linted too (J-035)"; fi
+  rm -f "$JS_PROBE"
+fi
 
 ARCH_PROBE="src/services/domain/midpoint/__probe.ts"
 probe_file "$ARCH_PROBE" "import { Platform } from 'react-native';" "export const p = Platform.OS;"
@@ -777,8 +814,13 @@ section "7. Harness lock, native identity, dependency allowlist, journal refs"
 # The lock cases are judged as in a locked session (MIVRO_HARNESS_UNLOCK unset):
 # construction mode only changes how the drift is reported, never the verdict
 # that CI and Cedric's terminal will give (JOURNAL J-055).
-if MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1; then
-  LOCK_PROBE="scripts/__selftest_lock_probe.sh"
+LOCK_PROBE="scripts/__selftest_lock_probe.sh"
+if MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1 && [ "${SANDBOX_RUNTIME:-}" = 1 ]; then
+  # The drift cannot be planted under the sandbox: the refusal is the result, and
+  # the drift cases run in CI and in Cedric's terminal (J-064).
+  harness_plant "$LOCK_PROBE" "exit 0" || true
+  printf '  - lock drift cases skipped under the sandbox: they run in CI and in a terminal (J-064)\n'
+elif MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1; then
   probe_file "$LOCK_PROBE" "exit 0"
   MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1
   expect_exit 1 $? "a new file in scripts/ turns the lock red (J-029)"
@@ -830,7 +872,9 @@ os.makedirs(os.path.dirname(target), exist_ok=True)
 py_compile.compile(forge_src, cfile=target, dfile=real, doraise=True)
 PY
   # Control: without -X the forge IS loaded, so the case below proves something.
-  FORGE_SEEN="$(python3 -I -B -c 'import sys; sys.path.append("scripts/hooks"); import harness_paths; print(harness_paths.unlocked())' 2>/dev/null)"
+  # Loaded by path (lot B): the source loader reads the same cache entry.
+  FORGE_SEEN="$(python3 -I -B -c "$HP_LOAD
+print(h.unlocked())" 2>/dev/null)"
   if [ "$FORGE_SEEN" = "True" ]; then
     CLAUDECODE=1 MIVRO_HARNESS_UNLOCK='' bash scripts/harness-lock.sh >/dev/null 2>&1
     expect_exit 1 $? "a forged harness_paths .pyc cannot fake the unlock (J-055)"
@@ -908,8 +952,8 @@ PY
     bounded 15 env HOME="$SETTINGS_HOME" CLAUDECODE=1 MIVRO_HARNESS_UNLOCK=1 bash scripts/harness-lock.sh >/dev/null 2>&1
     LOCK_SAYS=$?
     PY_SAYS="$(bounded 15 env HOME="$SETTINGS_HOME" CLAUDE_PROJECT_DIR="$PWD" MIVRO_HARNESS_UNLOCK=1 \
-      python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc -c \
-      'import sys; sys.path.append("scripts/hooks"); import harness_paths; print(harness_paths.unlocked())' 2>/dev/null)"
+      python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc -c "$HP_LOAD
+print(h.unlocked())" 2>/dev/null)"
     # stdout only: with a throwaway HOME, Xcode's python3 launcher (xcrun) warns
     # on stderr about its cache. A Python error leaves PY_SAYS empty: a mismatch.
     case "$fixture:$LOCK_SAYS:$PY_SAYS" in
@@ -983,7 +1027,7 @@ edit_sim 2 "an edit leaving a syntax error in harness_paths is refused (J-056)" 
 edit_sim 2 "an edit making unlocked() false in the unlocked session is refused (J-056)" \
   scripts/hooks/harness_paths.py 'def unlocked() -> bool:' $'def unlocked() -> bool:\n    return False\n\n\ndef _shadowed() -> bool:'
 edit_sim 2 "an edit making the Bash guard refuse everything is refused (J-056)" \
-  scripts/hooks/pre-bash-guard.py 'import harness_paths' $'import harness_paths\nsys.exit(2)'
+  scripts/hooks/pre-bash-guard.py 'harness_paths = _load_harness_paths()' $'harness_paths = _load_harness_paths()\nsys.exit(2)'
 edit_sim 0 "a harmless edit of harness_paths passes the simulation (J-056)" \
   scripts/hooks/harness_paths.py 'fail closed on anything, by design' 'fail closed on anything, by design.'
 # The repair path itself: breaking the edit guard's scripts/hooks branch would
@@ -996,17 +1040,24 @@ edit_sim 2 "an edit breaking the edit guard's own hooks branch is refused (J-056
 # itself broken still lets a harmless hooks edit through (review of lot 3).
 CHECKER_COPY="$(tmp_dir)"
 cp -R scripts/hooks "$CHECKER_COPY/hooks"
-python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc - "$CHECKER_COPY/hooks/pre-edit-guard.py" <<'PY'
-import sys
+# The sabotage drops `sys` from the health check's import line, whatever follows
+# it; finding no such line is a failure, not a silent pass (J-059).
+python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc - "$CHECKER_COPY/hooks/pre-edit-guard.py" <<'PY' ||
+import re, sys
 path = sys.argv[1]
 with open(path, encoding="utf-8") as handle:
     text = handle.read()
-old = "import json, os, subprocess, sys\n\ndef broken"
-if old not in text:
+text, count = re.subn(
+    r"^import json, os, subprocess, sys((?:, \w+)*)\n\ndef broken",
+    r"import json, os, subprocess\1\n\ndef broken",
+    text, count=1, flags=re.M,
+)
+if count != 1:
     sys.exit("health-check import line not found: the case below would prove nothing")
 with open(path, "w", encoding="utf-8") as handle:
-    handle.write(text.replace(old, "import json, os, subprocess\n\ndef broken", 1))
+    handle.write(text)
 PY
+  bad "the health check of the edit guard could not be sabotaged: its broken-checker case proves nothing (J-059)"
 edit_sim 0 "a guard with a broken health check does not lock a harmless hooks edit out (J-056)" \
   scripts/hooks/harness_paths.py 'fail closed on anything, by design' 'fail closed on anything, by design.' \
   "$CHECKER_COPY/hooks/pre-edit-guard.py"
@@ -1186,8 +1237,8 @@ guard BLOCK "ls (README.md)(e:'rm scripts/check.sh':)"
 guard BLOCK "ls ';'(e:'rm scripts/check.sh':)"
 guard ALLOW '(cd src/theme && ls) && echo ok'
 guard ALLOW 'true && (cd src/theme && ls)'
-guard ALLOW 'x=$((n+m)); echo $x'
-guard ALLOW '(( n+=1 )); echo $n'
+guard BLOCK 'x=$((n+m)); echo $x' # review of lot A: a name in arithmetic is evaluated
+guard BLOCK '(( n+=1 )); echo $n'
 # Eleventh review of lot 4: an escaped substitution opener is a literal character
 # followed by a group, which zsh may read as qualifiers.
 guard BLOCK "ls \\\$(e:'rm scripts/check.sh':)"
@@ -1202,6 +1253,556 @@ guard BLOCK '{({(:>scripts/check.sh)})}'
 guard BLOCK 'true;{({(cp /tmp/x .babelrc)})}'
 guard BLOCK '{({(git reset --hard)})}'
 guard ALLOW 'ls src/theme/*(.)'
+
+# Lot B (EN-ATTENTE §2a): harness_paths is loaded by path. A harness_paths/
+# package in scripts/hooks/ — which an import by name picks before the module —
+# changes no verdict. The package is a full stand-in (review of lot B): it
+# carries every function of the real module, so a guard loading by name would
+# not crash into a fail-closed refusal; only unlocked() says True and
+# is_protected() says False. A guard back to an import by name turns these red.
+SHADOW_PKG="scripts/hooks/harness_paths/__init__.py"
+if harness_plant "$SHADOW_PKG" \
+  "import importlib.util as _u, os as _os" \
+  "_real_path = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), 'harness_paths.py')" \
+  "_spec = _u.spec_from_file_location('_real_module', _real_path)" \
+  "_real = _u.module_from_spec(_spec)" \
+  "_spec.loader.exec_module(_real)" \
+  "globals().update({k: v for k, v in vars(_real).items() if not k.startswith('__')})" \
+  "def unlocked():" "    return True" \
+  "def is_protected(*args):" "    return False"; then
+# Control: an import by name picks the package, sees the whole API, and gets a
+# permissive answer: so the cases below can fail. Run from scripts/hooks/,
+# where `python3 -c` (without -I) looks first.
+SHADOW_SEEN="$(cd scripts/hooks && python3 -B -X pycache_prefix=/dev/null/mivro-nopyc -c \
+  'import importlib, sys; m = importlib.import_module(sys.argv[1]); print(m.unlocked(), hasattr(m, "repo_root"), m.is_protected("scripts/check.sh", ".", ".", []))' \
+  harness_paths 2>/dev/null)"
+if [ "$SHADOW_SEEN" = "True True False" ]; then
+  guard BLOCK 'echo x > scripts/check.sh'
+  guard BLOCK 'cp /tmp/x scripts/hooks/pre-bash-guard.py'
+  edit_guard 2 "$REPO/scripts/check.sh"
+  edit_guard 2 "$REPO/scripts/hooks/harness_paths.py"
+  case "$(hp_py 'print(h.__file__)')" in
+    scripts/hooks/harness_paths.py | */scripts/hooks/harness_paths.py) ok "the self-test's own loader ignores the harness_paths/ package (lot B)" ;;
+    *) bad "the self-test's loader picked something else than scripts/hooks/harness_paths.py (lot B)" ;;
+  esac
+else
+  bad "harness_paths/ package control failed: an import by name gave [$SHADOW_SEEN], not [True True False]; the lot B cases prove nothing"
+fi
+rm -f "$SHADOW_PKG"
+rmdir scripts/hooks/harness_paths 2>/dev/null || true
+fi
+# check-scripts refuses an import by name and any sys.path change in the
+# harness code. The forms are built at run time: written plainly here, they
+# would turn this very file red.
+NAME_IMPORT="import harness""_paths as h"
+SYS_PATH_INSERT="sys.path.ins""ert(0, 'scripts/hooks')"
+if harness_plant scripts/lotb-probe.py "$NAME_IMPORT"; then
+  bash scripts/check-scripts.sh >/dev/null 2>&1
+  expect_exit 1 $? "check-scripts refuses '$NAME_IMPORT' in a harness Python file (lot B)"
+  rm -f scripts/lotb-probe.py
+fi
+if harness_plant scripts/lotb-probe.sh '#!/usr/bin/env bash' "python3 -c \"import sys; $SYS_PATH_INSERT\""; then
+  bash scripts/check-scripts.sh >/dev/null 2>&1
+  expect_exit 1 $? "check-scripts refuses a sys.path change in a harness shell script (lot B)"
+  rm -f scripts/lotb-probe.sh
+fi
+if harness_plant scripts/lotb-probe.py "from harness""_paths import unlocked"; then
+  bash scripts/check-scripts.sh >/dev/null 2>&1
+  expect_exit 1 $? "check-scripts refuses the from-form (lot B)"
+  rm -f scripts/lotb-probe.py
+fi
+# An import in a comma list is an import by name too (review of lot B).
+if harness_plant scripts/lotb-probe.py "import os, harness""_paths"; then
+  bash scripts/check-scripts.sh >/dev/null 2>&1
+  expect_exit 1 $? "check-scripts refuses a name import in a comma list (lot B)"
+  rm -f scripts/lotb-probe.py
+fi
+if harness_plant scripts/lotb-probe.sh '#!/usr/bin/env bash' "python3 -m harness""_paths --lockable"; then
+  bash scripts/check-scripts.sh >/dev/null 2>&1
+  expect_exit 1 $? "check-scripts refuses running the module by name with -m (lot B)"
+  rm -f scripts/lotb-probe.sh
+fi
+bash scripts/check-scripts.sh >/dev/null 2>&1
+CHECK_SCRIPTS_CODE=$?
+case "$CHECK_SCRIPTS_CODE" in
+  0 | 3) ok "check-scripts is green again once the lot B probes are gone (exit $CHECK_SCRIPTS_CODE)" ;;
+  *) bad "check-scripts stays red after the lot B probes (exit $CHECK_SCRIPTS_CODE)" ;;
+esac
+# Lot A (EN-ATTENTE §4, closing the harness): the guard followed the current
+# directory too far, read reserved words as command names, and judged zsh
+# qualifiers by a list of forbidden forms. Each hole is closed by an allowlist.
+# a. The directory a `cd` sets ends with its subshell, and is unknown whenever
+#    the `cd` may run in a subshell or not at all.
+guard BLOCK '(cd /tmp); cp /tmp/x .babelrc'
+guard ALLOW '(cd /tmp); cp /tmp/x src/notes.md'
+guard BLOCK 'echo $(cd /tmp); cp /tmp/x .babelrc'
+guard BLOCK "bash -c 'cd /tmp'; cp /tmp/x .babelrc"
+guard BLOCK 'false && cd /tmp; cp /tmp/x .babelrc'
+guard BLOCK 'cd /nonexistent-mivro; cp /tmp/x .babelrc'
+guard BLOCK 'cd /tmp | true; cp /tmp/x .babelrc'
+guard BLOCK '{ cd /tmp; } | cat; cp /tmp/x .babelrc'
+guard BLOCK 'cd /tmp & cp /tmp/x .babelrc'
+guard BLOCK 'f() { cd /tmp; }; cp /tmp/x .babelrc'
+guard BLOCK 'echo /tmp | xargs cd; cp /tmp/x .babelrc'
+guard BLOCK 'find . -maxdepth 0 -exec cd /tmp \; ; cp /tmp/x .babelrc'
+guard BLOCK "$(printf 'if true; then\ncd /tmp\nfi\ncp /tmp/x .babelrc')"
+guard ALLOW 'mkdir -p $TMPDIR/mivro-lot-a && cd $TMPDIR/mivro-lot-a && touch y.txt'
+guard ALLOW 'cd src && echo x > notes.md'
+# b and d. A command name is a plain word: no `$`, braces, glob, leading `=`.
+guard BLOCK "bash -c '(rm\${IFS}scripts/check.sh)'"
+guard BLOCK 'rm${IFS}scripts/check.sh'
+guard BLOCK '{rm,-rf,node_modules}'
+guard BLOCK '{rm,scripts/check.sh}'
+guard BLOCK '=rm scripts/check.sh'
+guard BLOCK '/bin/r? scripts/check.sh'
+guard ALLOW 'node_modules/.bin/jest --version'
+guard ALLOW '[ -f README.md ] && echo y'
+# Reserved words and zsh precommand modifiers: what follows is a command.
+guard BLOCK "if true; then $RM_RF node_modules; fi"
+guard BLOCK "if false; then :; else $RM_RF node_modules; fi"
+guard BLOCK "while false; do $RM_RF node_modules; done"
+guard BLOCK "for x in a; do $RM_RF node_modules; done"
+guard BLOCK "if [[ -n x ]] $RM_RF node_modules"
+guard BLOCK "repeat 1 $RM_RF node_modules"
+guard BLOCK "coproc $RM_RF node_modules"
+guard BLOCK "noglob $RM_RF node_modules"
+guard BLOCK "nocorrect rm scripts/check.sh"
+guard BLOCK "exec -a x $RM_RF node_modules"
+guard BLOCK "caffeinate -t 1 $RM_RF node_modules"
+guard BLOCK "arch -arch x86_64 $RM_RF node_modules"
+guard ALLOW 'if true; then echo ok; fi'
+# c. A group outside command position is a plain qualifier list, or refused.
+guard BLOCK 'ls *(exrm scripts/check.shx)'
+guard BLOCK 'ls *(P:x:)'
+guard BLOCK "ls *(#qe:'rm scripts/check.sh':)"
+guard BLOCK 'ls *(o+cleanup)'
+guard BLOCK "ls *(:e)"
+guard ALLOW 'ls src/*(om[1])'
+guard ALLOW 'ls src/*(.N)'
+guard ALLOW 'ls src/(App|index).tsx'
+# e. mkdir writes its operands.
+guard BLOCK 'mkdir scripts/newdir'
+guard BLOCK 'mkdir -p .github/x'
+guard ALLOW 'mkdir -m 755 -p src/features/lot-a'
+# Second review of lot A: `$'...'` and `#` comments desynchronised the quote
+# model; every `$` expansion now has an allowlist, arithmetic takes literals,
+# `env -P`/`-S`, `[[ -v a[x] ]]`, namerefs and `cd old new` hide nothing.
+# `mkdir` of a target with a variable is a named false positive (J-058).
+guard BLOCK 'echo $'\''\'\'''\'' ; rm -rf scripts/hooks #'\'''
+guard BLOCK 'echo $'\''\'\'''\'' ; echo $(rm -rf scripts/hooks) #'\'''
+guard BLOCK 'cd /tmp; echo $'\''\'\'''\'' ; cd '"$REPO"'/scripts && rm -rf hooks #'\'''
+guard BLOCK "$(printf '%s' 'echo hi #'\''
+rm -rf scripts/hooks
+#'\''')"
+guard BLOCK "$(printf '%s' 'echo hi #'\''
+rm -rf '"$REPO"'/scripts/hooks
+#'\''')"
+guard BLOCK "$(printf '%s' 'echo hi #"
+cp /tmp/x .babelrc
+#"')"
+guard BLOCK 'echo #; rm -rf scripts/hooks'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; a=(1 2); echo ${(@)a[x]}'
+guard BLOCK 'echo ${+a[x]}'
+guard BLOCK 'echo $#a[x]'
+guard BLOCK 'echo $+a[x]'
+guard BLOCK 'echo ${^a[x]}'
+guard BLOCK 'echo ${=a[x]}'
+guard BLOCK 'echo ${${a}[x]}'
+guard BLOCK 'echo "${(@)a[x]}"'
+guard BLOCK 'read "a[x]" <<< 1'
+guard BLOCK 'env -P /bin rm -rf scripts/hooks'
+guard BLOCK 'env -P /bin -S '\''rm -rf scripts/hooks'\'''
+guard BLOCK 'env -P /bin -i true'
+guard BLOCK 'env -S '\''rm\_-rf\_scripts/hooks'\'''
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\'' bash -c '\''[[ ! x -eq 1 ]]'\'''
+guard BLOCK '[[ 1 -eq 1 && x -eq 1 ]]'
+guard BLOCK 'echo ${@:x}'
+guard BLOCK 'echo ${1:x}'
+guard BLOCK 'echo ${!x}'
+guard BLOCK "$(printf '%s' '(( x
+))')"
+guard BLOCK "$(printf '%s' 'echo $((x
+))')"
+guard BLOCK 'echo ${x@P}'
+guard BLOCK 'echo $~x'
+guard BLOCK 'shift x'
+guard BLOCK 'builtin shift x'
+guard BLOCK 'repeat x echo hi'
+guard BLOCK 'noglob unset '\''a[x]'\'''
+guard BLOCK 'printf -v '\''a[x]'\'' 1'
+guard BLOCK 'typeset '\''a[x]=1'\'''
+guard BLOCK 'for d in a b; do mkdir -p "$TMPDIR/$d"; done'
+guard ALLOW 'printf '\''items[%s]\n'\'' a'
+guard ALLOW 'echo ${x:0:3}'
+guard ALLOW 'echo "${PIPESTATUS[0]}" "${arr[@]}"'
+guard ALLOW 'exit 0'
+guard ALLOW 'npm test; exit $?'
+guard ALLOW 'echo $'\''abc'\'''
+guard ALLOW 'echo $# $? $$'
+guard ALLOW 'grep -n '\''#'\'' README.md'
+guard ALLOW 'echo a # comment'
+guard ALLOW 'git log --format='\''%h #%s'\'' -3'
+guard ALLOW 'echo ${HOME}/x ${x:-default} ${x#*/} ${x//a/b} ${#x}'
+guard ALLOW "$(printf '%s' 'git commit -m "$(cat <<'\''EOF'\''
+fix: #12 don'\''t (lot A) $((n)) ${(@)a[x]}
+EOF
+)"')"
+guard ALLOW "$(printf '%s' 'cat > $TMPDIR/s.sh <<'\''EOF'\''
+# heading
+for i in $(seq 3); do echo $((i+1)); done
+EOF')"
+guard ALLOW 'npm run check 2>&1 | tail -20'
+guard ALLOW 'git diff --stat'
+guard BLOCK 'env -S'\''rm\_-rf\_scripts/hooks'\'''
+guard BLOCK 'env -L root rm -rf scripts/hooks'
+guard BLOCK 'env -0 -S '\''rm -rf scripts/hooks'\'''
+guard BLOCK 'env -vS'\''rm -rf scripts/hooks'\'''
+guard BLOCK 'env --split-string='\''rm -rf scripts/hooks'\'''
+guard BLOCK "$(printf '%s' 'x='\''a[$(rm -rf scripts/hooks)]'\''; echo $((x
+))')"
+guard BLOCK "$(printf '%s' 'x='\''a[$(rm -rf scripts/hooks)]'\''; (( x
+))')"
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; [[ 1 -eq 1 && x -eq 1 ]]'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; [[ ! x -eq 1 ]]'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; [[ 1 -eq 1 || x -eq 1 ]]'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; set -- a b; echo ${@:x}'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; set -- a b; echo ${1:x}'
+guard BLOCK 'y='\''$(rm -rf scripts/hooks)'\''; echo ${(e)y}'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; a=(1 2); echo $a[x]'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; a=(1 2); echo ${a[x,2]}'
+guard BLOCK 'source $TMPDIR/c.sh && rm -rf hooks'
+guard BLOCK '. /tmp/c.sh && rm -rf hooks'
+guard BLOCK 'cdpath=('"$REPO"'); cd scripts && rm -rf hooks'
+guard BLOCK 'export CDPATH='"$REPO"'; cd scripts && rm -rf hooks'
+guard BLOCK 'setopt cdablevars; x='"$REPO"'/scripts; cd x && rm -rf hooks'
+guard BLOCK 'shopt -s cdable_vars; x='"$REPO"'/scripts; cd x && rm -rf hooks'
+guard BLOCK 'cd '"$REPO"'/scripts; cd /tmp x; rm -rf hooks'
+guard BLOCK 'cd '"$REPO"'/scripts && cd /tmp x; rm -rf hooks'
+guard BLOCK 'cd '"$REPO"'/scripts; ! cd /tmp && rm -rf hooks'
+guard BLOCK 'cd /tmp; echo \(; cd '"$REPO"'/scripts; echo \); rm -rf hooks'
+guard BLOCK 'cd /tmp; echo "("; cd '"$REPO"'/scripts; echo ")"; rm -rf hooks'
+guard BLOCK 'cd /tmp; echo $"("; cd '"$REPO"'/scripts; echo $")"; rm -rf hooks'
+guard BLOCK 'cd '"$REPO"'/scripts; cd -Z /tmp && rm -rf hooks'
+guard BLOCK 'cd '"$REPO"' && cd scripts 2>/nonexistent/x && rm -rf hooks'
+guard BLOCK ''"$REPO"'/scripts && rm -rf hooks'
+guard BLOCK '~-/x && rm -rf hooks'
+guard BLOCK 'hash -d h='"$REPO"'/scripts; rm -rf ~h/hooks'
+guard BLOCK 'rm -rf ~h/hooks'
+guard BLOCK 'x=1; ls *([x])'
+guard BLOCK 'ls *([$(rm -rf scripts/hooks)])'
+guard BLOCK 'ls *(e:'\''rm -rf scripts/hooks'\'':)'
+guard BLOCK 'ls *(+f)'
+guard BLOCK 'let x'
+guard BLOCK 'typeset -i n; n=x'
+guard BLOCK 'integer n=x'
+guard BLOCK '[ x -eq 1 ]'
+guard BLOCK 'test 1 -eq x'
+guard BLOCK 'echo ${a[x]}'
+guard BLOCK 'echo ${s:x}'
+guard BLOCK 'echo "${a[x]}"'
+guard BLOCK "$(printf '%s' 'cat <<EOF
+$((x))
+EOF')"
+guard BLOCK 'rm${IFS}-rf scripts/hooks'
+guard BLOCK '{rm,-rf,scripts/hooks}'
+guard BLOCK '=rm -rf scripts/hooks'
+guard BLOCK 'then rm -rf scripts/hooks'
+guard BLOCK 'noglob rm -rf scripts/hooks'
+guard BLOCK '- rm -rf scripts/hooks'
+guard BLOCK 'arch -arm64 rm -rf scripts/hooks'
+guard BLOCK 'exec -a foo rm -rf scripts/hooks'
+guard BLOCK 'mkdir scripts/hooks/harness_paths'
+guard BLOCK 'mkdir -p '"$REPO"'/scripts/hooks/harness_paths'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\'' bash -c '\''set -- a b; echo ${@:x}'\'''
+guard BLOCK "$(printf '%s' 'x='\''a[$(rm -rf scripts/hooks)]'\'' bash -c '\''(( x
+))'\''')"
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\'' bash -c '\''[[ 1 -eq 1 && x -eq 1 ]]'\'''
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\'' bash -c '\''echo ${!x}'\'''
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\'' bash -c '\''printf -v "a[x]" %s 1'\'''
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\'' bash -c '\''unset "a[x]"'\'''
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\'' bash -c '\''[[ -v a[x] ]]'\'''
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; echo ${(P)x}'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\'' bash -c '\''declare -n r=x; echo $r'\'''
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; read "a[x]" <<< 1'
+guard BLOCK 'env -S '\''rm\_-rf\_'"$REPO"'/scripts/hooks'\'''
+guard BLOCK 'env -S '\''rm -rf #'\'' '"$REPO"'/scripts/hooks'
+guard BLOCK 'env -S '\''rm -rf ${HOME}/../../..'"$REPO"'/scripts/hooks'\'''
+guard BLOCK 'env -P /bin -i rm -rf scripts/hooks'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; a=(1 2); echo ${+a[x]}'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; a=(1 2); echo $#a[x]'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; a=(1 2); echo $+a[x]'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; a=(1 2); echo ${^a[x]}'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; a=(1 2); echo ${${a}[x]}'
+guard BLOCK 'x='\''a[$(rm -rf scripts/hooks)]'\''; a=(1 2); echo "${(@)a[x]}"'
+guard BLOCK 'bash -c "x='\''a[\$(rm -rf scripts/hooks)]'\''; [[ ! x -eq 1 ]]"'
+guard BLOCK 'bash -c '\''echo ${@:x}'\'''
+guard BLOCK 'zsh -c "echo \$'\''\\'\'''\'' ; rm -rf scripts/hooks #'\''"'
+guard ALLOW 'npm test -- src/features/map'
+guard ALLOW 'npx jest src/shared/foo.test.ts --coverage=false'
+guard ALLOW 'git status && git diff --stat'
+guard ALLOW 'git log --oneline -5 | cat'
+guard ALLOW 'git add -A && git status --short'
+guard ALLOW "$(printf '%s' 'git commit -m "$(cat <<'\''EOF'\''
+fix(i18n): label (I18N-002); see J-058
+
+Body with (parens), a; semicolon and `ticks`.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)"')"
+guard ALLOW 'git commit -m '\''feat: lot A (guard); x | y'\'''
+guard ALLOW 'cd ios && ls'
+guard ALLOW 'cd src && npx jest features'
+guard ALLOW 'cd '"$REPO"' && npm run lint'
+guard ALLOW 'cd "$TMPDIR" && ls'
+guard ALLOW 'mkdir -p $TMPDIR/work && cp src/App.tsx $TMPDIR/work/'
+guard ALLOW 'mkdir -p /private/tmp/claude-928877853/x/scratchpad/a'
+guard ALLOW 'mkdir -p src/features/newfeat/ui'
+guard ALLOW 'echo "$((1+2))"'
+guard ALLOW 'for f in src/*.ts; do echo "$f"; done'
+guard ALLOW '[ -f package.json ] && echo yes'
+guard ALLOW '[ $# -eq 0 ] || echo args'
+guard ALLOW 'while read -r l; do echo "$l"; done < package.json'
+guard ALLOW 'jq '\''.scripts["check"]'\'' package.json'
+guard ALLOW 'grep -n '\''foo('\'' src -r | head'
+guard ALLOW 'awk '\''{print $1}'\'' package.json'
+guard ALLOW 'python3 -c '\''print((1))'\'''
+guard ALLOW 'node -e '\''const a=[1];console.log(a[0])'\'''
+guard ALLOW 'echo "${arr[@]}" "${#arr[@]}" "${HOME:-x}" ${x:0:3}'
+guard ALLOW 'ls src/**/*.tsx(.N)'
+guard ALLOW 'git diff HEAD~1 -- src | head -50'
+guard ALLOW "$(printf '%s' 'gh pr create --title '\''fix: x'\'' --body "$(cat <<'\''EOF'\''
+## Summary
+- a (b); c
+EOF
+)"')"
+guard ALLOW 'npm run test:coverage -- --silent 2>&1 | tail -5'
+guard ALLOW 'cd src && grep -rn useTranslation . | wc -l'
+guard ALLOW '(cd src && ls)'
+guard ALLOW 'find src -name '\''*.tsx'\'' | xargs grep -l '\''Pressable'\'' | head'
+guard ALLOW 'test -d node_modules && echo ok'
+guard ALLOW 'echo '\''a (b) ; c'\'' && echo "d (e)"'
+guard ALLOW "$(printf '%s' 'cat > $TMPDIR/x.json <<'\''EOF'\''
+{"a": [1, 2], "b": "(x)"}
+EOF')"
+guard ALLOW 'npx tsc --noEmit -p . | head -20'
+guard ALLOW 'bash scripts/check.sh --stage check 2>&1 | tail -20'
+guard ALLOW 'git stash list; git branch --show-current'
+guard ALLOW 'sed -n '\''10,40p'\'' src/App.tsx'
+guard ALLOW 'echo done; cd src && ls'
+guard ALLOW 'cd src; ls'
+# Review of lot A: quoted or escaped operators drive no directory stack, a `cd`
+# holds for its `&&` chain only, arithmetic contexts take literals only,
+# `env -S`, `hash` bindings and `~name` paths hide nothing.
+guard BLOCK 'cd /tmp; echo '\''('\''; cd '"$REPO"'/scripts; echo '\'')'\''; rm -rf hooks'
+guard BLOCK 'cd /tmp; echo \(; cd '"$REPO"'/scripts; echo \); cp /tmp/x hooks/x.py'
+guard BLOCK '(cd '"$REPO"'/scripts && echo ")" && mv hooks /tmp/h)'
+guard BLOCK 'cd /tmp x; rm -rf scripts/hooks'
+guard BLOCK 'cd /tmp x; mv scripts/hooks /tmp/h'
+guard BLOCK 'cd -Z /tmp; cp /tmp/x .babelrc'
+guard BLOCK 'cd /tmp 2>/nonexistent/f; cp /tmp/x .babelrc'
+guard BLOCK 'cd /tmp </nonexistent; cp /tmp/x .babelrc'
+guard BLOCK 'echo '\'';'\'' cd /tmp; cp /tmp/x .babelrc'
+guard BLOCK '! cd /tmp x && cp /tmp/x .babelrc'
+guard BLOCK 'x='\''y[$(rm -rf scripts/hooks)]'\''; ls *([x])'
+guard BLOCK 'x='\''y[$(rm -rf scripts/hooks)]'\''; echo $(( x ))'
+guard BLOCK 'echo "$((x))"'
+guard BLOCK 'i=$((i+1))'
+guard BLOCK '(( n+=1 ))'
+guard BLOCK 'for ((i=0; i<n; i++)); do echo; done'
+guard BLOCK 'echo $[x]'
+guard BLOCK 'echo ${arr[$i]}'
+guard BLOCK 'echo $arr[i]'
+guard BLOCK 'a[i]=1'
+guard BLOCK 'echo ${s:$o}'
+guard BLOCK 'let x=y'
+guard BLOCK '[ "$x" -eq 1 ]'
+guard BLOCK '[[ $x -gt 1 ]] && echo y'
+guard BLOCK 'typeset -i n'
+guard BLOCK 'integer n'
+guard BLOCK 'env -S '\''rm -rf scripts/hooks'\'''
+guard BLOCK 'env -u X -S '\''rm scripts/check.sh'\'''
+guard BLOCK 'env -S'\''rm scripts/check.sh'\'''
+guard BLOCK 'env -vS '\''rm scripts/check.sh'\'''
+guard BLOCK 'hash x=/bin/rm; x -rf scripts/hooks'
+guard BLOCK 'hash -p /bin/rm x'
+guard BLOCK 'hash -d h='"$REPO"'/scripts/hooks; cd /tmp; cp /tmp/x ~h/pre-bash-guard.py'
+guard BLOCK 'cp /tmp/x ~h/pre-bash-guard.py'
+guard BLOCK '/bin/rm~x -rf scripts/hooks'
+guard BLOCK 'find scripts/hooks \( -name '\''*.py'\'' \) -delete'
+guard BLOCK 'cd src; echo x > notes.md'
+guard BLOCK "$(printf '%s' 'cat <<EOF > $TMPDIR/x.sh
+echo $((y))
+EOF')"
+guard BLOCK 'cd scripts; cd /tmp; ~-; rm -rf hooks'
+guard BLOCK '(cd /tmp); cp /tmp/x .babelrc'
+guard BLOCK 'if true; then rm -rf node_modules; fi'
+guard BLOCK '{rm,-rf,node_modules}'
+guard BLOCK 'ls *(e:'\''rm scripts/check.sh'\'':)'
+guard ALLOW 'echo "\$(date)"'
+guard ALLOW 'sh -c "echo \$(date)"'
+guard ALLOW "$(printf '%s' 'cat > $TMPDIR/x.sh <<EOF
+echo \$(date)
+EOF')"
+guard ALLOW "$(printf '%s' 'cat > $TMPDIR/x.sh <<'\''EOF'\''
+echo $((y)) ${a[$i]}
+EOF')"
+guard ALLOW 'echo $((1+2))'
+guard ALLOW 'echo ${arr[1]} ${#arr[@]}'
+guard ALLOW '[ $# -eq 0 ] && echo none'
+guard ALLOW '[ -n "$x" ] && echo y'
+guard ALLOW 'cd src && echo x > notes.md'
+guard ALLOW 'git commit -m "fix (a) and b[1]=x"'
+guard ALLOW 'echo '\''('\'' '\'')'\'' '\'';'\'''
+guard ALLOW 'find . -name x -exec grep -l y {} \;'
+guard ALLOW 'ls src/*(om[1,3])'
+guard ALLOW 'npm test 2>&1 | tail -20'
+guard ALLOW 'arr+=(c d)'
+guard ALLOW 'a[1]=x'
+guard ALLOW 'echo ${x:-default} ${y:=z}'
+guard ALLOW 'if true; then(echo done); fi'
+guard ALLOW 'files=(README.md src/App.tsx); echo $files'
+guard ALLOW 'mkdir -p $TMPDIR/mivro-lot-a && cd $TMPDIR/mivro-lot-a && touch y.txt'
+guard ALLOW '(cd /tmp); cp /tmp/x src/notes.md'
+guard ALLOW 'env FOO=1 npx jest --version'
+guard ALLOW "$(printf '%s' 'git commit -m "$(cat <<'\''EOF'\''
+feat: x (lot A) $((n)) a[i]=1
+EOF
+)"')"
+# Third review of lot A: an apostrophe in a comment or a heredoc body hid a
+# `$'\''` from the quote model (it is now read raw); a `<<` in quotes opened a
+# heredoc, and a partly quoted delimiter ended it elsewhere; a comment line and
+# a `case` pattern were refused as command names (J-058).
+guard BLOCK "git status # l'état${NL}echo \$'\\'' ; rm -rf scripts/hooks #'"
+guard BLOCK "cat > docs/x.md <<'EOF'${NL}l'x${NL}EOF${NL}echo \$'\\'' ; rm -rf scripts/hooks #'"
+guard BLOCK "printf 'a\$' \"\\n\"" # named false positive: `$'` then a backslash, read raw
+guard BLOCK "echo \"<<EOF\"${NL}rm -rf scripts/hooks${NL}EOF"
+guard BLOCK "echo '<<EOF'${NL}rm -rf scripts/hooks${NL}EOF"
+guard BLOCK "echo \\<<EOF${NL}rm -rf scripts/hooks${NL}EOF"
+guard BLOCK "cat <<E'OF'${NL}EOF${NL}rm -rf scripts/hooks${NL}EOF"
+guard BLOCK "cat <<EO\\F${NL}EOF${NL}rm -rf scripts/hooks${NL}EOF"
+guard BLOCK "ls # <<EOF${NL}rm -rf scripts/hooks${NL}EOF"
+guard BLOCK 'echo $((1<<2))' # named false positive: its inner `(1<<2)` is judged as a command
+guard ALLOW "echo \"(\" <<EOF${NL}rm -rf scripts/hooks${NL}EOF" # a quoted `(` opens no group
+# A heredoc in a `$(` left open feeds the command inside it; in a `$(` or
+# backticks closed on the line it has no body, and the next lines run.
+guard BLOCK "git commit -m \"\$(sh <<'EOF'${NL}rm -rf scripts/hooks${NL}EOF${NL})\""
+guard BLOCK "x=\"\$(python3 - <<'EOF'${NL}import shutil; shutil.rmtree('scripts/hooks')${NL}EOF${NL})\""
+guard BLOCK "echo \$(cat <<EOF)${NL}rm -rf scripts/hooks${NL}EOF"
+guard BLOCK "echo \`cat <<EOF\`${NL}rm -rf scripts/hooks${NL}EOF"
+guard BLOCK "x=\"\$(<<EOF${NL}a${NL}EOF${NL})\"" # no readable command before the heredoc
+# Fourth review of lot A: a heredoc is read by the command that carries its
+# `<<`, its body ends on the exact delimiter line, and a logical line goes on
+# after a trailing operator or an open `$(`, past the bodies (J-058).
+guard BLOCK "git commit -m \"\$(cat <<'EOF'${NL}msg${NL}EOF${NL})\" && git clean -fdx"
+guard BLOCK "git commit -m \"\$(cat <<'EOF'${NL}msg${NL}EOF${NL})\"; truncate -s 0 scripts/hooks/pre-bash-guard.py"
+guard BLOCK "git commit -m \"\$(cat <<'EOF' | sh${NL}rm -rf scripts/hooks${NL}EOF${NL})\""
+guard BLOCK "printf 'import shutil' |${NL}python3"
+guard BLOCK "cat <<EOF \\${NL}| sh${NL}x${NL}EOF" # a heredoc line continued by a backslash
+guard ALLOW "git commit -m \"\$(cat <<'EOF'${NL}msg${NL}EOF${NL})\" && git log --oneline -1"
+guard ALLOW "bash <<'EOF' 2>&1 | tail -5${NL}ls${NL}EOF"
+guard ALLOW "cat <<'EOF' | wc -l${NL}a${NL}b${NL}EOF"
+guard ALLOW "ls |${NL}${NL}wc -l"
+# The same forms replayed in the real shells, a sentinel in place of the
+# payload: whenever bash or zsh runs it, the guard must refuse the payload.
+# A model of the shell is checked against the shell, not against intuition.
+DIFF_DIR="$(tmp_dir)"
+mkdir -p "$DIFF_DIR/docs"
+shell_diff() { # shell_diff <template where @RUN@ stands for the payload>
+  local ran="" sh
+  # The sentinel leaves a file: an output can be swallowed by a `$(...)`
+  # (sixth review of lot A), a side effect cannot. As data, its text names no file.
+  local sentinel="touch docs/mivro_\"\"ran"
+  for sh in bash zsh; do
+    command -v "$sh" >/dev/null 2>&1 || continue
+    rm -f "$DIFF_DIR/docs/mivro_ran"
+    # Some forms end on `EOF: command not found` (127): only the side effect counts.
+    (cd "$DIFF_DIR" && { "$sh" -c "${1//@RUN@/$sentinel}" >/dev/null 2>&1 </dev/null || true; })
+    [ -e "$DIFF_DIR/docs/mivro_ran" ] && ran="$ran $sh"
+  done
+  rm -f "$DIFF_DIR/docs/mivro_ran"
+  if [ -n "$ran" ]; then
+    guard BLOCK "${1//@RUN@/rm -rf scripts/hooks}"
+  else
+    # Data for every shell: the harmless form must pass, or the guard is
+    # refusing an ordinary command (fifth review of lot A).
+    guard ALLOW "${1//@RUN@/$sentinel}"
+  fi
+}
+CR=$'\r'
+FF=$'\f'
+LSEP="$(printf '\342\200\250')" # U+2028
+NBSP="$(printf '\302\240')"     # U+00A0
+shell_diff "bash <<'EOF' 2>&1 | tail -20${NL}@RUN@${NL}EOF"
+shell_diff "sh <<A | cat${NL}@RUN@${NL}A"
+shell_diff "sh <<A && echo ok${NL}@RUN@${NL}A"
+shell_diff "sh <<A; cat > docs/x.md <<B${NL}@RUN@${NL}A${NL}hello${NL}B"
+shell_diff "x=\"\$(cat <<'EOF' | sh${NL}@RUN@${NL}EOF${NL})\"; echo \"\$x\""
+shell_diff "x=\"\$(sh <<'EOF'${NL}@RUN@${NL}EOF${NL})\"; echo \"\$x\""
+shell_diff "x=\"\$(cat <<'EOF'${NL}msg${NL}EOF${NL})\" && @RUN@"
+shell_diff "cat > docs/x.md <<EOF${NL} EOF${NL}cat > docs/y.md <<ZZZ${NL}EOF${NL}@RUN@${NL}ZZZ"
+shell_diff "cat > docs/x.md <<EOF${NL}EOF ${NL}cat > docs/y.md <<ZZZ${NL}EOF${NL}@RUN@${NL}ZZZ"
+shell_diff "cat > docs/x.md <<-EOF${NL}  EOF${NL}@RUN@${NL}EOF"
+shell_diff "cat <<'EOF' |${NL}@RUN@${NL}EOF${NL}sh"
+shell_diff "printf '%s\\n' '@RUN@' |${NL}${NL}sh"
+shell_diff "echo \$(cat <<EOF)${NL}@RUN@${NL}EOF"
+shell_diff "echo \`cat <<EOF\`${NL}@RUN@${NL}EOF"
+shell_diff "echo \"<<EOF\"${NL}@RUN@${NL}EOF"
+shell_diff "source /dev/stdin <<'EOF'${NL}@RUN@${NL}EOF"
+shell_diff "cat > docs/x.md <<'EOF'${NL}@RUN@${NL}EOF"
+shell_diff "case x in${NL}  x) @RUN@ ;;${NL}esac"
+# Fifth review of lot A: every `<<` of a logical line has a body, wherever it
+# stands; lines end on `\n` only; comments are removed per logical line, once
+# the bodies are cut out (J-058).
+shell_diff "cat <<'A' <<'B' > docs/x.md${NL}a${NL}A${NL}: <<'X'${NL}B${NL}@RUN@${NL}X"
+shell_diff "echo \"a${NL}b\" ; cat <<'X' > docs/x.md${NL}: <<'Y'${NL}X${NL}@RUN@${NL}Y"
+shell_diff ": \\${NL}<<'X'${NL}: <<'Y'${NL}X${NL}@RUN@${NL}Y"
+shell_diff "cat > docs/x.md <<EOF${NL}EOF${CR}: <<'EOG'${NL}EOF${NL}@RUN@${NL}EOG"
+shell_diff "cat > docs/x.md <<EOF${NL}EOF${FF}: <<'EOG'${NL}EOF${NL}@RUN@${NL}EOG"
+shell_diff "cat > docs/x.md <<EOF${NL}EOF${LSEP}: <<'EOG'${NL}EOF${NL}@RUN@${NL}EOG"
+shell_diff "cat > docs/x.md <<'EOF'${NBSP}${NL}EOF${NL}: <<'EOG'${NL}EOF${NBSP}${NL}@RUN@${NL}EOG"
+shell_diff "cat > docs/x.md <<'EOF'${NL}don't${NL}EOF${NL}echo hi # say \"hi${NL}@RUN@${NL}# \""
+shell_diff "echo \"a${NL}b\" ; cat <<'X' > docs/x.md${NL}@RUN@${NL}X"
+shell_diff "cat <<'A' <<'B' > docs/x.md${NL}@RUN@${NL}A${NL}@RUN@${NL}B"
+shell_diff "cat > docs/x.md <<'EOF' # it's${NL}@RUN@${NL}EOF"
+guard BLOCK "ls${CR}${NL}echo ok" # named false positive: CRLF line ends are refused
+# Sixth review of lot A: a quote or `$(` opened after a `<<` delays its body
+# (refused); a newline ends a command in a heredoc's reader text; a `case`
+# inside a substitution is refused; `\` + newline is removed as the shell does.
+shell_diff "cat <<EOF; echo \"${NL}\" ; @RUN@${NL}EOF${NL}\"${NL}\""
+shell_diff "cat <<EOF; echo '${NL}' ; @RUN@${NL}EOF${NL}'${NL}'"
+shell_diff "cat <<EOF; echo \$(${NL}@RUN@${NL})${NL}EOF${NL})"
+shell_diff "echo \"\$(${NL}true${NL}bash <<'EOF'${NL}@RUN@${NL}EOF${NL})\""
+shell_diff "x=\$(true${NL}bash <<EOF${NL}@RUN@${NL}EOF${NL})"
+shell_diff "x=\$(true${NL}cat <<EOF${NL}@RUN@${NL}EOF${NL})"
+shell_diff "echo \"\$(case a in a) true;; esac; @RUN@)\""
+shell_diff "echo \"\$(case a in a) true ;;${NL}esac${NL}@RUN@${NL})\""
+shell_diff "echo a &&\\${NL}@RUN@"
+shell_diff "ls # note \\${NL}@RUN@"
+guard BLOCK "git cl\\${NL}ean -fdx scripts"
+guard BLOCK "git commit --no-ver\\${NL}ify -m x"
+guard ALLOW "git status && \\${NL}  git diff --stat"
+guard ALLOW "echo 'a\\${NL}b'"
+guard BLOCK 'x="$(case $y in a) echo a;; esac)"' # named false positive: no `case` in a substitution
+guard BLOCK 'n=$(grep -c case README.md)' # named false positive: the bare word, even as an argument
+guard ALLOW "n=\$(grep -c 'case' README.md)"
+guard ALLOW "ls |${NL}  # count them${NL}  wc -l"
+guard ALLOW "cat > docs/x.md <<'EOF'${NL}Une phrase${NBSP}: insécable${NL}EOF"
+guard ALLOW "cat > docs/x.md <<\\EOF${NL}hello \$HOME${NL}EOF"
+guard ALLOW "cat > docs/x.md <<-EOF${NL}  hello${NL}  EOF"
+guard ALLOW 'cat <<< hello'
+guard ALLOW "# step 1${NL}ls"
+guard ALLOW "ls${NL}# step 2: list${NL}ls -la"
+guard BLOCK "# x${NL}rm -rf scripts/hooks"
+guard BLOCK '# x > scripts/hooks/pre-bash-guard.py'
+guard ALLOW 'case $x in a) ls;; *) echo other;; esac'
+guard ALLOW 'case $x in a) ls;& b) echo b;| (*) echo c;;& esac'
+guard ALLOW "for f in a b; do${NL}  case \$f in${NL}    a|b) echo A ;;${NL}    *) echo other ;;${NL}  esac${NL}done"
+guard BLOCK 'case $x in a) ls;; *) rm -rf scripts/hooks;; esac'
+guard BLOCK 'case $x in a) ls;; {rm,-rf,scripts}) ls;; esac'
+guard BLOCK "('case' x in${NL}{rm,-rf,scripts})"
+guard BLOCK "case \$x in${NL}  rm) ls ;;${NL}  *) rm -rf scripts/hooks ;;${NL}esac"
+guard BLOCK ';; /bin/r? -rf scripts/hooks)'
 COPY_MSG="$(python3 -c 'import json,sys; json.dump({"tool_name":"Bash","tool_input":{"command":sys.argv[1]},"cwd":sys.argv[2]}, sys.stdout)' 'cp -R src/features src/backup/' "$REPO" |
   CLAUDE_PROJECT_DIR="$REPO" MIVRO_HARNESS_UNLOCK='' python3 -I -B -X pycache_prefix=/dev/null/mivro-nopyc scripts/hooks/pre-bash-guard.py 2>&1 >/dev/null)"
 case "$COPY_MSG" in
@@ -1222,6 +1823,9 @@ guard_unlocked BLOCK 'echo x >> scripts/hooks/harness_paths.py'
 guard_unlocked BLOCK "sed -i '' s/a/b/ scripts/hooks/harness_paths.py"
 guard_unlocked BLOCK 'cp /tmp/x.py scripts/hooks/'
 guard_unlocked ALLOW 'git restore -- scripts/hooks/harness_paths.py'
+# Lot A: a directory may shadow a module (`scripts/hooks/harness_paths/`).
+guard_unlocked BLOCK 'mkdir -p scripts/hooks/harness_paths'
+guard_unlocked ALLOW 'mkdir -p scripts/lot-a'
 # Moving or removing the whole directory takes every guard with it.
 guard_unlocked BLOCK 'mv scripts/hooks scripts/hooks.old'
 guard_unlocked BLOCK 'git rm -r scripts/hooks'
@@ -1234,13 +1838,149 @@ guard_unlocked ALLOW 'echo x > scripts/check.sh'
 guard_unlocked BLOCK '{(echo x >> scripts/hooks/harness_paths.py)}'
 guard_unlocked BLOCK 'cat <=(echo x >> scripts/hooks/harness_paths.py)'
 guard_unlocked BLOCK '{(echo>scripts/hooks/harness_paths.py)}'
+
+# Lot C (EN-ATTENTE §3 and the probing of 2026-11-05, nine points validated by
+# Cedric): the indirect writers are judged locked AND unlocked. Unlocked, what
+# may reach scripts/hooks/ is refused, and so is any target known at run time
+# only; an extraction or a download whose names the archive or the server
+# picks is refused anywhere in the repository.
+# 1. Downloads.
+for cmd in 'curl -o scripts/hooks/x.py https://e.x/a' 'curl -sSLo scripts/hooks/x.py https://e.x/a' \
+  'curl -O --output-dir scripts/hooks https://e.x/pre-bash-guard.py' 'curl -D scripts/hooks/h.txt https://e.x/a' \
+  'curl -K cfg https://e.x/a' 'wget -O scripts/hooks/x.py https://e.x/a' 'wget -P scripts/hooks https://e.x/a.py' \
+  'wget -r -nH https://e.x/src/' 'wget -o scripts/hooks/log.py https://e.x/a' \
+  'wget -e output_document=scripts/hooks/x.py https://e.x/a' 'curl -o $F https://e.x/a'; do
+  guard BLOCK "$cmd"
+  guard_unlocked BLOCK "$cmd"
+done
+guard_unlocked ALLOW 'curl -o /tmp/x https://e.x/a'
+guard_unlocked ALLOW 'curl -O --output-dir /tmp https://e.x/a.py'
+guard_unlocked ALLOW 'wget -q -O - https://e.x/a'
+guard_unlocked ALLOW 'wget -r -e robots=off -P /tmp/m https://e.x/'
+guard ALLOW 'curl -sSL https://e.x/a | head'
+# 2, 7, 8. Archivers: extraction into the repository, archives written, the
+# other extractors; absolute member names (-P, -spf, cpio, pax) land anywhere.
+for cmd in 'tar -xf a.tar -C scripts/' 'tar -xf a.tar' 'tar -xPf a.tar -C /tmp/x' 'unzip a.zip -d scripts/hooks' \
+  'tar -cf scripts/hooks/x.py src' 'tar cf scripts/hooks/x.py src' 'zip scripts/hooks/x.py src/App.tsx' \
+  'zip -m /tmp/x.zip scripts/hooks/harness_paths.py' '7z a scripts/hooks/x.py src' '7z x a.7z' \
+  '7z x a.7z -spf -o/tmp/x' 'unar a.rar' 'jar xf a.jar' 'jar cf scripts/hooks/x.py src' 'ar x a.a' \
+  'ar rcs scripts/hooks/x.py o.o' 'cpio -id < a.cpio' 'pax -r -f a.pax'; do
+  guard BLOCK "$cmd"
+  guard_unlocked BLOCK "$cmd"
+done
+guard BLOCK 'tar -cf scripts/check.sh src'
+guard BLOCK 'zip scripts/check.sh src/App.tsx'
+for cmd in 'tar -xf a.tar -C /tmp/x' 'tar -tf a.tar' 'tar -czf /tmp/x.tgz scripts src' 'tar czf /tmp/x.tgz src' \
+  'unzip -l a.zip' 'unzip a.zip -d /tmp/x' 'zip -r /tmp/x.zip src' '7z l a.7z' '7z x a.7z -o/tmp/x'; do
+  guard ALLOW "$cmd"
+  guard_unlocked ALLOW "$cmd"
+done
+# 3. patch, git apply, git am: their targets are only in the diff.
+for cmd in 'patch -p1 < x.diff' 'git apply x.diff' 'git am x.mbox'; do
+  guard_unlocked BLOCK "$cmd"
+done
+guard_unlocked ALLOW 'git apply --check x.diff'
+guard_unlocked ALLOW 'patch --dry-run -p1 < x.diff'
+# 4. A target known at run time only, unlocked as locked.
+guard_unlocked BLOCK 'X=scripts/hooks && echo x > "$X/y.py"'
+guard_unlocked BLOCK 'cd $D && echo x > y'
+guard_unlocked ALLOW 'echo x > /tmp/y'
+# 5. Inline code writing under scripts/hooks, the path assembled or not, and
+# the very form that rewrote a guard module through Bash during lot C.
+for cmd in "python3 -c \"open('scripts/hooks/x.py','w').write('')\"" \
+  "python3 -c \"import os; open(os.path.join('scripts','hooks','x.py'),'w')\"" \
+  "node -e \"require('fs').writeFileSync(['scripts','hooks','x.py'].join('/'),'')\"" \
+  "$(printf '%s\n' "python3 - <<'PY'" 'p = "scripts/hooks/pre-bash-guard.py"' 'open(p, "w").write("")' 'PY')"; do
+  guard BLOCK "$cmd"
+  guard_unlocked BLOCK "$cmd"
+done
+guard_unlocked ALLOW "python3 -c \"print(open('scripts/check.sh').read())\""
+guard_unlocked ALLOW "python3 -c \"open('/tmp/x','w').write('a')\""
+# 6. Compressors replace their operands.
+for cmd in 'gzip scripts/hooks/harness_paths.py' 'gunzip scripts/hooks/x.py.gz' 'bzip2 scripts/hooks/harness_paths.py' \
+  'xz scripts/hooks/harness_paths.py' 'zstd --rm scripts/hooks/harness_paths.py' 'zstd -o scripts/hooks/x.py /tmp/a' \
+  'xz --files=list.txt'; do
+  guard BLOCK "$cmd"
+  guard_unlocked BLOCK "$cmd"
+done
+guard BLOCK 'gzip scripts/check.sh'
+# Review of lot C: glued values read as letters of the mode, curl --output-dir
+# with -o and its `#1` template, URL globs, long-option prefixes, repeated or
+# grouped -C, case-blind 7-Zip switches, trees removed or walked, and options
+# handed over through the environment.
+for cmd in 'unzip -dtools /tmp/a.zip' 'unzip /tmp/a.zip -dscripts' 'unzip -qd scripts/hooks /tmp/a.zip' \
+  'gzip -S.ct scripts/hooks/pre-bash-guard.py' 'zstd -Ddict.ct scripts/hooks/harness_paths.py' \
+  'gzip -q scripts/hooks/harness_paths.py' \
+  'curl --output-dir scripts/hooks -o evil.py https://e.x/a' \
+  "curl -o '#1' --create-dirs 'https://e.x/{scripts/hooks/pre-bash-guard.py}'" \
+  "curl -O 'https://e.x/{a,b}.py'" 'wget --output-doc=scripts/hooks/x.py https://e.x/a' \
+  'wget --directory-pref=scripts/hooks https://e.x/a.py' 'wget --exec=output_document=scripts/hooks/x.py https://e.x/a' \
+  "tar -xf /tmp/a.tar -C /tmp -C $REPO/scripts/hooks" "cd /tmp && tar -xC $REPO/scripts/hooks -f /tmp/a.tar" \
+  "cd /tmp && tar xCf $REPO/scripts/hooks a.tar" "cd /tmp && bsdtar -x --cd $REPO/scripts/hooks -f a.tar" \
+  "cd /tmp && 7z x a.7z -O$REPO/scripts/hooks" 'gzip -r .' 'zstd -r --rm .' 'zip -rm /tmp/x.zip .' \
+  '7z a -sdel /tmp/x.7z .' 'tar --remove-files -cf /tmp/x.tar scripts/hooks' "cd $REPO/.. && gzip -r Mivro" \
+  'WGETRC=/tmp/rc wget https://e.x/a' 'CURL_HOME=/tmp curl https://e.x/a' \
+  "cd /tmp && UNZIP=-d$REPO/scripts/hooks unzip a.zip" 'TAR_OPTIONS=-C/x gtar -xf a.tar' 'export WGETRC=/tmp/rc' \
+  "python3 -c \"import os; open(os.path.join(os.getcwd(),'scripts','hooks','x.py'),'w')\"" \
+  "python3 -c \"import os; fd = os.open('scripts/hooks/x.py', os.O_WRONLY)\""; do
+  guard BLOCK "$cmd"
+  guard_unlocked BLOCK "$cmd"
+done
+for cmd in 'unzip -qd /tmp/out a.zip' 'gzip -q /tmp/x' 'xz -T0 /tmp/x' 'zstd -T4 -19 /tmp/x' 'cd /tmp && tar xf a.tar' \
+  'gzip -r /tmp/dir' 'curl --output-dir /tmp -o x.py https://e.x/a' 'wget --output-document=/tmp/x https://e.x/a' \
+  "python3 -c \"import json; print(json.load(open('package.json'))['name'])\""; do
+  guard ALLOW "$cmd"
+  guard_unlocked ALLOW "$cmd"
+done
+for cmd in 'gzip -c scripts/check.sh > /tmp/x' 'gzip -dc a.gz > /tmp/x' 'gzip /tmp/x' 'zstd -d /tmp/x.zst' \
+  'gzip -l /tmp/x.gz' 'xz -t /tmp/x.xz'; do
+  guard ALLOW "$cmd"
+  guard_unlocked ALLOW "$cmd"
+done
+# Lot E (EN-ATTENTE §6, validated by Cedric): one case per family of writer the
+# reviews of lot C found open. Each one is ALLOW on the guard of HEAD bcdfebd.
+# 'r+' rewrote a harness file even in a locked session.
+HPY="scripts/hooks/harness_paths.py"
+for cmd in "python3 -c \"open('$HPY','r+').write('x')\"" "python3 -c \"open('$HPY','rb+').write(b'x')\"" \
+  "python3 -c \"import fileinput; [print(l) for l in fileinput.input('$HPY', inplace=True)]\"" \
+  "ruby -e \"File.write('$HPY','')\"" "perl -e \"open(my \\\$f, '>', '$HPY')\"" \
+  "curl -w '%output{$HPY}import os' https://e.x/a" 'curl -w @/tmp/fmt https://e.x/a' \
+  "perl -e \"open F, '>$HPY'\"" "perl -e \"open my \\\$f, '>', '$HPY'\"" \
+  "ruby -e \"File.new('$HPY','w').write('x')\"" "ruby -e \"File.open '$HPY', 'w' do |f| f.write('x') end\"" \
+  "python3 -c \"import io; io.FileIO('$HPY','r+').write(b'x')\""; do
+  guard BLOCK "$cmd"
+  guard_unlocked BLOCK "$cmd"
+done
+# A harness file outside scripts/hooks: refused locked, allowed unlocked.
+for cmd in "python3 -c \"open('scripts/check.sh','r+').write('x')\"" "ruby -e \"IO.write('scripts/check.sh','')\"" \
+  "perl -e \"open(F, '>>scripts/check.sh')\"" "curl -w '%output{>>scripts/check.sh}x' https://e.x/a" \
+  "perl -e \"open my \\\$f, '>>', 'scripts/check.sh'\""; do
+  guard BLOCK "$cmd"
+  guard_unlocked ALLOW "$cmd"
+done
+# Corpus of ordinary commands outside the repository, or reading it: the
+# regressions of lot C were ALLOW turned BLOCK that no case watched (lot E).
+for cmd in "python3 -c \"open('/tmp/x','r+').write('a')\"" "python3 -c \"print(open('scripts/check.sh').read())\"" \
+  "perl -e \"open(F, '<', 'scripts/check.sh'); print <F>\"" "ruby -e \"puts File.read('scripts/check.sh')\"" \
+  "curl -w '%{http_code}' -o /tmp/x https://e.x/a" "curl -w '%output{/tmp/stats}%{http_code}' https://e.x/a" \
+  'cp -r src /tmp/x' 'zip -r /tmp/a.zip src' 'tar -czf /tmp/x.tgz src' 'curl -o /tmp/x https://e.x/a' \
+  'wget -O /tmp/x https://e.x/a' "python3 -c \"open('/tmp/x','w').write('a')\"" \
+  "node -e \"require('fs').writeFileSync('/tmp/x','a')\"" 'cd /tmp && tar -xf /tmp/a.tar' \
+  'cd /tmp && unzip -o /tmp/a.zip' 'gzip -k /tmp/x' \
+  "perl -e \"open my \\\$f, '<', 'scripts/check.sh'; print <\\\$f>\"" "perl -e \"open my \\\$f, '>', '/tmp/x'\"" \
+  "ruby -e \"File.open('scripts/check.sh') { |f| puts f.read }\"" \
+  "python3 -c \"import io; print(io.FileIO('scripts/check.sh').read())\"" \
+  "node -e \"const x = new Map([['a', 'b']]); console.log(x)\""; do
+  guard ALLOW "$cmd"
+  guard_unlocked ALLOW "$cmd"
+done
 (CLAUDECODE=1 bash scripts/harness-lock.sh --update </dev/null >/dev/null 2>&1)
 expect_exit 1 $? "relock refuses to run inside Claude Code"
 # J-043: every file jest loads before the tests is part of the harness.
 JEST_SETUP="$(node -e 'const c=require("./jest.config.js");const f=[].concat(c.setupFiles||[],c.setupFilesAfterEnv||[],c.globalSetup||[],c.globalTeardown||[]);console.log(f.map(x=>x.replace(/^<rootDir>\//,"").replace(/^\.\//,"")).join("\n"))')"
 while IFS= read -r setup; do
   [ -n "$setup" ] || continue
-  if python3 -c 'import sys; sys.path.insert(0, "scripts/hooks"); import harness_paths as h; sys.exit(0 if h.matches(sys.argv[1], h.load_patterns()) else 1)' "$setup"; then
+  if hp_py 'sys.exit(0 if h.matches(sys.argv[1], h.load_patterns()) else 1)' "$setup"; then
     ok "jest setup file $setup is protected (J-043)"
   else
     bad "jest setup file $setup is NOT in scripts/harness-protected.txt (J-043)"
@@ -1510,6 +2250,128 @@ expect_exit 0 $? "an APPROVED delivered by hand-back is sealed (J-045)"
 (cd "$REVIEW_REPO" && git add -A && CLAUDECODE='' bash scripts/review-gate.sh >/dev/null 2>&1)
 expect_exit 0 $? "Cedric's own commits (no CLAUDECODE) are not gated"
 
+# Lot D (end of J-022): the docs sensors. Every sensor below is new, so each
+# red case also fails on HEAD, where the sensor does not exist.
+# docclaims: an absence the repo denies, a dead src/ path, in current-state docs.
+CLAIMS_DIR="$(tmp_dir)"
+mkdir -p "$CLAIMS_DIR/docs/context" "$CLAIMS_DIR/docs/harness" "$CLAIMS_DIR/src/services/infra/realtime"
+: >"$CLAIMS_DIR/.env"
+: >"$CLAIMS_DIR/CLAUDE.md"
+claims_case() { # claims_case <expect> <label> <doc path> <text>
+  find "$CLAIMS_DIR/docs" -name '*.md' -delete
+  printf '%s\n' "$4" >"$CLAIMS_DIR/$3"
+  MIVRO_DOCS_ROOT="$CLAIMS_DIR" python3 -I -B scripts/check-docs-claims.py >/dev/null 2>&1
+  expect_exit "$1" $? "$2"
+}
+claims_case 1 "an existing file said absent is caught (J-022, RUNBOOK of c15b8e1)" \
+  docs/context/RUNBOOK.md '- Aucune config native : `.env` n'"'"'existe pas.'
+claims_case 1 "an absence claim wrapped by Prettier is caught (J-022)" \
+  docs/context/RUNBOOK.md '- Le fichier `.env`'"$NL"'  **est absent** du dépôt.'
+claims_case 0 "an absence about something else than the quoted file is green (INVENTAIRE.md:40)" \
+  docs/harness/INVENTAIRE.md '### Scripts référencés par `CLAUDE.md` mais **absents**'
+claims_case 0 "a true absence is green, and its dead path is not counted twice (J-022)" \
+  docs/harness/INVENTAIRE.md '`src/__tests__/` n'"'"'existe plus depuis le refactor.'
+claims_case 0 "a struck absence claim is green (J-022)" \
+  docs/context/TODO.md '- [ ] Suite : ~~`.env` n'"'"'existe pas~~, créé depuis.'
+claims_case 0 "the failure journal is not read: it quotes the wrong claims (J-022)" \
+  docs/harness/JOURNAL-ECHECS.md '« `.env` n'"'"'existe pas »'
+claims_case 1 "a dead src/ path is caught (POLICIES.md:359 before lot D)" \
+  docs/context/POLICIES.md '- infrastructure (`FirebaseRealtimeService` → `src/infrastructure/realtime/`)'
+claims_case 0 "a live src/ path is green (J-022)" \
+  docs/context/POLICIES.md '- infrastructure (`FirebaseRealtimeService` → `src/services/infra/realtime/`)'
+: >"$CLAIMS_DIR/src/App.tsx"
+claims_case 0 "a path with a line suffix is the file it names (review of lot D)" \
+  docs/context/ARCHITECTURE.md '- Entrée : `src/App.tsx:42`, détail `src/App.tsx#L10-L20`.'
+claims_case 1 "a dead path with a line suffix is still dead (review of lot D)" \
+  docs/context/ARCHITECTURE.md '- Entrée : `src/Gone.tsx:42`.'
+claims_case 0 "a file to create, a template and a checked item are not dead paths (J-022)" \
+  docs/context/RUNBOOK.md '- Créer `src/services/domain/auth/IAuthService.ts`.'"$NL"'- Voir `src/features/<X>/components/`.'"$NL"'- [x] Adapter → `src/infrastructure/realtime/`'"$NL"'      (puis `src/infrastructure/x.ts`)'
+claims_case 0 "PROGRESS.md, a dated log, is not read (J-022)" \
+  docs/context/PROGRESS.md '- Fichiers : `src/core/entities/SharedSession.ts`'
+claims_case 1 "a dead src/ path after a closed checked item is caught (J-022)" \
+  docs/context/TODO.md '- [x] Fait.'"$NL"'- [ ] Voir `src/infrastructure/realtime/`.'
+
+# docmetrics: the test counts of PROGRESS.md against the Jest report of the run.
+METRICS_DIR="$(tmp_dir)"
+mkdir -p "$METRICS_DIR/docs/context"
+METRICS_TABLE='| Suites de tests                    | 87   |'"$NL"'| Tests (cas) — `npm run check`      | 1261 |'
+metrics_case() { # metrics_case <expect> <label> <table> <report JSON, or "" for none>
+  printf '## Métriques actuelles\n\n%s\n' "$3" >"$METRICS_DIR/docs/context/PROGRESS.md"
+  rm -f "$METRICS_DIR/report.json"
+  [ -z "$4" ] || printf '%s\n' "$4" >"$METRICS_DIR/report.json"
+  MIVRO_DOCS_ROOT="$METRICS_DIR" MIVRO_JEST_REPORT="$METRICS_DIR/report.json" \
+    python3 -I -B scripts/check-docs-metrics.py >/dev/null 2>&1
+  expect_exit "$1" $? "$2"
+}
+metrics_case 0 "test counts equal to the Jest report are green (J-022)" \
+  "$METRICS_TABLE" '{"numTotalTestSuites": 87, "numTotalTests": 1261}'
+metrics_case 1 "a stale test count is caught (J-022: 1133 written, 1226 measured)" \
+  "$METRICS_TABLE" '{"numTotalTestSuites": 87, "numTotalTests": 1265}'
+metrics_case 1 "a stale suite count is caught (J-022)" \
+  "$METRICS_TABLE" '{"numTotalTestSuites": 88, "numTotalTests": 1261}'
+metrics_case 1 "a metrics table without its test row is caught (J-022)" \
+  '| Suites de tests | 87 |' '{"numTotalTestSuites": 87, "numTotalTests": 1261}'
+metrics_case 3 "no Jest report from this run is an abstention, never a green (J-022)" "$METRICS_TABLE" ''
+metrics_case 3 "an unreadable Jest report is an abstention, never a green (J-022)" "$METRICS_TABLE" '{"numTotal'
+case "$(grep '^tests|' scripts/sensors.sh)" in
+  *'--json --outputFile="$MIVRO_JEST_REPORT"'*) ok "the tests sensor writes the Jest report that docmetrics reads (J-022)" ;;
+  *) bad "the tests sensor must write its Jest report to \$MIVRO_JEST_REPORT (J-022)" ;;
+esac
+case "$(cat scripts/check.sh)" in
+  *'export MIVRO_JEST_REPORT="$WORK/'*'tests | docmetrics | docs) run_sensor'*) ok "docmetrics runs after tests, on the report of the same run (J-022)" ;;
+  *) bad "check.sh must run docmetrics after tests, on a report in its own work directory (J-022)" ;;
+esac
+
+# contract: the DONE-CONTRACT names the current branch, in agent sessions only.
+CONTRACT_REPO="$(scratch_repo)" || exit 2
+mkdir -p "$CONTRACT_REPO/scripts" "$CONTRACT_REPO/docs/harness"
+cp scripts/check-contract.sh "$CONTRACT_REPO/scripts/"
+contract_case() { # contract_case <expect> <label> <branch> <contract text, or "" for none> [env -u ...]
+  rm -f "$CONTRACT_REPO/docs/harness/DONE-CONTRACT.md"
+  [ -z "$4" ] || printf '%s\n' "$4" >"$CONTRACT_REPO/docs/harness/DONE-CONTRACT.md"
+  (cd "$CONTRACT_REPO" && env "${@:5}" CLAUDECODE="${CONTRACT_CC-1}" MIVRO_CONTRACT_BRANCH="$3" \
+    bash scripts/check-contract.sh >/dev/null 2>&1)
+  expect_exit "$1" $? "$2"
+}
+OWN='**Branche** : `harness/x`, issue de `develop`.'
+contract_case 0 "a contract naming the current branch is green (J-022)" harness/x "$OWN"
+contract_case 1 "a contract naming another branch is stale (J-022, 2026-10-28)" harness/y "$OWN"
+contract_case 1 "the branch name wrapped by Prettier is still read (J-022)" harness/y '**Branche** :'"$NL"'`harness/x`, issue de `develop`.'
+contract_case 0 "a detached HEAD (CI pull_request) is without object (J-022)" HEAD "$OWN"
+contract_case 0 "develop and main are without object (J-022)" develop "$OWN"
+contract_case 0 "no contract is without object (J-022)" harness/y ''
+contract_case 0 "the blank template (no Branche line) is without object (J-022)" harness/y '**Titre** :'
+contract_case 0 "a Branche line left to fill is the blank template (J-022)" harness/y '**Branche** : `<branche>`'
+# A template whose Branche line names a branch: only the comparison with the
+# versioned template can make its copy blank (review of lot E).
+printf '%s\n' "$OWN" >"$CONTRACT_REPO/docs/harness/DONE-CONTRACT.modele.md"
+contract_case 0 "a copy of the versioned template is the blank contract (lot E)" harness/y "$OWN"
+rm -f "$CONTRACT_REPO/docs/harness/DONE-CONTRACT.modele.md"
+CONTRACT_CC='' contract_case 0 "outside an agent session (pre-push, CI) a stale contract is without object (J-022)" \
+  harness/y "$OWN" -u CLAUDE_PROJECT_DIR
+# reset-review.sh tells the reviewer (a SubagentStart hook cannot block).
+cp scripts/check-contract.sh "$REVIEW_REPO/scripts/"
+mkdir -p "$REVIEW_REPO/docs/harness"
+printf '%s\n' "$OWN" >"$REVIEW_REPO/docs/harness/DONE-CONTRACT.md"
+NOTE="$(CLAUDECODE=1 MIVRO_CONTRACT_BRANCH=harness/y reset_review r9 2>/dev/null)"
+case "$NOTE" in
+  *'"hookEventName": "SubagentStart"'*'"additionalContext"'*'NO_CONTRACT'*) ok "a stale contract is told to the reviewer before its first prompt (J-022)" ;;
+  *) bad "reset-review.sh must tell the reviewer that the contract is stale (J-022): got '$NOTE'" ;;
+esac
+NOTE="$(CLAUDECODE=1 MIVRO_CONTRACT_BRANCH=harness/x reset_review r9 2>/dev/null)"
+if [ -z "$NOTE" ]; then ok "a contract of this branch adds nothing to the review (J-022)"; else bad "reset-review.sh printed '$NOTE' for a valid contract"; fi
+rm -rf "$REVIEW_REPO/docs" "$REVIEW_REPO/scripts/check-contract.sh"
+if grep -q 'git show HEAD:docs/harness/DONE-CONTRACT.md' .claude/agents/reviewer.md; then
+  ok "the reviewer reads the contract of HEAD when the diff resets it to its template (J-022)"
+else
+  bad "reviewer.md must read the contract of HEAD when the diff resets it (J-022)"
+fi
+if grep -qx 'src/i18n/locales.keys.test.ts' scripts/harness-protected.txt; then
+  ok "the t() keys sensor test is a protected harness file (J-022)"
+else
+  bad "src/i18n/locales.keys.test.ts must be listed in scripts/harness-protected.txt (J-022)"
+fi
+
 # ---------------------------------------------------------------------------
 section "9. Stop hook - the agent cannot end its turn on a red tree"
 
@@ -1552,7 +2414,7 @@ section "10. Sensor table, CI and configuration wiring"
 bash scripts/check.sh --only nope >/dev/null 2>&1
 expect_exit 2 $? "an unknown sensor id is an error, never a green"
 SENSOR_LIST="$(bash scripts/check.sh --stage push --list)"
-for id in typecheck lint format arch diff lock native deps docrefs docfacts scripts tests docs audit; do
+for id in typecheck lint format arch diff lock native deps docrefs docfacts docclaims contract scripts tests docmetrics docs audit; do
   case "$NL$SENSOR_LIST" in
     *"$NL$id "*) ok "sensor '$id' is in the table" ;;
     *) bad "sensor '$id' missing from scripts/sensors.sh" ;;
@@ -1629,7 +2491,13 @@ pyc_case() { # pyc_case <where> <control output> <hooked output>
     bad "a forged .pyc $1 replaces the source under the hooks' options: got '$3' (J-052)"
   fi
 }
-PYC_IMPORT="import sys; sys.path.insert(0, sys.argv[1]); import mivro_probe; print(mivro_probe.V)"
+# By path, as the hooks load harness_paths (lot B): the source loader reads the
+# same cache entry an import by name would.
+PYC_IMPORT='import importlib.util, os, sys
+spec = importlib.util.spec_from_file_location("mivro_probe", os.path.join(sys.argv[1], "mivro_probe.py"))
+probe = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(probe)
+print(probe.V)'
 PYC_DIR="$(tmp_dir)"
 PYTHONPYCACHEPREFIX="$PYC_DIR/cache" forge_pyc "$PYC_DIR"
 pyc_case "in PYTHONPYCACHEPREFIX" \
@@ -1656,9 +2524,19 @@ for d in ("~/.ssh", "~/.config/gh"):
     if "Read(%s/**)" % d not in deny: fails.append("deny Read(%s/**)" % d)
 for host in ("github.com", "api.github.com"):
     if host not in box.get("network", {}).get("deniedDomains", []): fails.append("deniedDomains " + host)
+# J-064: every protected path is refused in writing to Bash, except .git/ (git
+# writes it; Claude Code guards its hooks and config) and .claude/ (Claude Code
+# guards it itself).
+deny_write = box.get("filesystem", {}).get("denyWrite", [])
+for line in open(sys.argv[2], encoding="utf-8"):
+    path = line.strip()
+    if not path or path.startswith("#") or path.startswith((".git/", ".claude/")):
+        continue
+    path = path[: -len("/**")] if path.endswith("/**") else path
+    if "./" + path not in deny_write: fails.append("denyWrite ./" + path)
 print(" ".join(fails))
-' "$SETTINGS" 2>&1)"
-if [ -z "$SANDBOX_CFG" ]; then ok "$SETTINGS enables the sandbox and denies reading the secrets (J-051)"; else bad "$SETTINGS sandbox incomplete: $SANDBOX_CFG (J-051)"; fi
+' "$SETTINGS" scripts/harness-protected.txt 2>&1)"
+if [ -z "$SANDBOX_CFG" ]; then ok "$SETTINGS enables the sandbox, denies reading the secrets (J-051) and writing the harness (J-064)"; else bad "$SETTINGS sandbox incomplete: $SANDBOX_CFG (J-051)"; fi
 # The real test is the OS: inside the agent's sandbox, the secret directories
 # must be unreadable whatever the command's text. Out of Claude Code (terminal,
 # CI) there is no sandbox to test.
@@ -1677,6 +2555,29 @@ except FileNotFoundError: print("ABSENT")
       *) bad "$secret_dir is readable inside the sandbox (J-051)" ;;
     esac
   done
+  # J-064: the OS refuses writing the harness, whatever writes it. Positive
+  # control first: the same write lands in src/, so a refusal below is denyWrite.
+  WRITE_CTL="src/__selftest_sandbox_write_probe"
+  if (: >"$WRITE_CTL") 2>/dev/null; then
+    rm -f "$WRITE_CTL"
+    for target in scripts/__selftest_sandbox_write_probe .github/__selftest_sandbox_write_probe jest.config.js .babelrc \
+      CLAUDE.md src/__selftest_sandbox_dir/CLAUDE.md; do
+      existed=0
+      [ -e "$target" ] && existed=1
+      [ "$target" = src/__selftest_sandbox_dir/CLAUDE.md ] && mkdir -p src/__selftest_sandbox_dir
+      if python3 -I -B -c 'import sys; open(sys.argv[1], "a").close()' "$target" 2>/dev/null; then
+        # Only a file this probe created is cleaned up, never an existing one.
+        [ "$existed" = 1 ] || PROBES+=("$target")
+        bad "the sandbox lets Python write $target (denyWrite, J-064)"
+      else
+        ok "the sandbox refuses writing $target (denyWrite, J-064)"
+      fi
+    done
+    rm -f src/__selftest_sandbox_dir/CLAUDE.md 2>/dev/null
+    rmdir src/__selftest_sandbox_dir 2>/dev/null || true
+  else
+    bad "sandbox write control failed: src/ is not writable, the denyWrite probe proves nothing (J-064)"
+  fi
   # A token read from the keychain must have nowhere to go: any HTTP answer from
   # GitHub, whatever its status, means the sandbox let the call out (J-054).
   # Positive control first: the network itself works, so a failure below is the

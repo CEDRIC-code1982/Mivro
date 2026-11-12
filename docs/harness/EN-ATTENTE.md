@@ -25,85 +25,162 @@ _Administration_ (permissions relevées le 2026-10-28). GitHub reste refusé au 
 
 **Depuis le 2026-10-12 : mode chantier (J-055).** Cédric a ouvert une session déverrouillée pour
 finir le harness. L'agent y applique lui-même les entrées ci-dessous, avec une revue et un commit
-local par lot. Le relock final et le push restent à Cédric.
+local par lot. Le relock final est fait par Cédric le 2026-11-09 (`4340afe`) : le mode chantier est
+clos, J-055 et J-056 sont RÉSOLU. Le push et la PR restent à Cédric.
 
-## À appliquer en session déverrouillée
+**2026-11-05 : finition close (lots A à E).** Toutes les entrées à appliquer l'ont été. Ce fichier
+ne garde plus que les limites et faux positifs connus, assumés par décision de Cédric (§5 à §7) :
+« fermer par refus » plutôt que modéliser, et nommer ce qui reste. Une limite qu'on décide de
+fermer redevient une entrée à appliquer.
+
+## Appliqué
 
 L'ancien §1 (contrôle positif de la sonde réseau) est appliqué au lot 2 du chantier, le
 2026-10-12.
 
-### 2. Isoler chaque Python du harness (revue du lot 1 de J-055) — le (a) reste à faire
+L'ancien §4 (quatre trous de la garde Bash) est appliqué au lot A de la finition, le 2026-11-02,
+avec les trous voisins trouvés en sondant (J-058).
 
-**a. Ne plus jamais trouver `harness_paths` par son nom.** Les trois revues du lot 1 ont trouvé
-quatre façons de faire mentir un Python du harness qui fait `import harness_paths` :
+L'ancien §2 (isoler chaque Python du harness) est appliqué : le (b) au lot 4 du chantier, le
+2026-10-15 ; le (a) au lot B de la finition, le 2026-11-05. `harness_paths` est chargé par chemin
+partout (gardes, health check, workflow `harness-guard`, self-test), et `check-scripts` refuse un
+import par nom ou un changement de `sys.path` dans le code du harness.
 
-- un module posé à la racine (`python3 -c` y met le dossier courant) ;
-- un module posé dans `scripts/hooks/` (`sys.path.insert(0, …)` le place avant la stdlib) ;
-- un `.pyc` forgé dans `scripts/hooks/__pycache__/` (`-I` ignore l'export `PYTHONPYCACHEPREFIX`) ;
-- un paquet `scripts/hooks/harness_paths/` (ou une extension `.so`), qui passe avant le `.py` dans
-  la recherche de modules.
+L'ancien §3 (les écrivains indirects vers `scripts/hooks/` en session déverrouillée) est appliqué au
+lot C de la finition, le 2026-11-05, avec les trous voisins trouvés en sondant (neuf points validés
+par Cédric). Téléchargeurs, archiveurs (extraction et archive écrite), compresseurs, `patch`,
+`git apply`, `git am` et code inline qui écrit sont jugés verrouillé comme déverrouillé ; une cible
+connue seulement à l'exécution est refusée dans les deux modes. Faux positif hérité et laissé :
+`tar -xOf` (vers stdout) reste refusé dans le repo.
 
-Le lot 1 sort la sonde du verrou de ce jeu : elle refait la règle de déverrouillage en shell pur, et
-ne charge plus rien de `scripts/hooks/`. Mais les deux gardes font encore
-`sys.path.insert(0, scripts/hooks)` puis `import harness_paths`. Un paquet `harness_paths/` posé là
-remplacerait donc aussi leur module. Correctif :
+Au lot E (2026-11-05), les écrivains de code inline nommés en limite au §6 sont fermés, avec la
+variante trouvée par la 1re revue du lot E (Perl sans parenthèses). Celles de la 2e revue restent
+ouvertes : §6, « Restent ouvertes » (J-063).
 
-- charger `harness_paths` par chemin explicite, partout
-  (`importlib.util.spec_from_file_location("harness_paths", <chemin absolu>)`, puis
-  `module_from_spec` et `exec_module`), avec le triplet `-I -B -X pycache_prefix=…` ;
-- règle dans `scripts/check-scripts.sh` : un `import harness_paths` ou un `sys.path.insert(0,` dans
-  le harness rougit le capteur `scripts` ;
-- cas au self-test : un paquet `scripts/hooks/harness_paths/` posé, et la garde refuse toujours
-  `echo x > scripts/check.sh`.
+## Limites connues, assumées
 
-**b.** Appliqué au lot 4 du chantier (2026-10-15) : la garde Bash juge ce qu'une copie, un
-déplacement ou un lien dépose dans un dossier, refuse `mkfifo`/`mknod` sur un chemin protégé, et,
-en session déverrouillée, l'écriture Bash par fichier d'un module des gardes (`git restore`
-excepté). Voir le §3 pour les écrivains indirects.
+**Depuis J-064 (2026-11-05), le sandbox de Claude Code refuse au noyau toute écriture Bash dans
+les chemins de `scripts/harness-protected.txt`** (`sandbox.filesystem.denyWrite`, chaque chemin
+de la liste sauf `.git/` et `.claude/`, que Claude Code garde lui-même). Pour ces chemins, les
+limites d'écriture ci-dessous ne valent plus que hors du sandbox (CI, terminal de Cédric) ;
+dans une session Claude Code, elles sont couvertes, quelle que soit la syntaxe.
 
-### 3. En session déverrouillée, les écrivains indirects vers `scripts/hooks/` (revue du lot 4)
+Ne sont pas couverts : le harness au sens de J-045 hors de cette liste, qui reste protégé par la
+seule garde texte. Ce sont
+`.gitignore`, la configuration de `docs-site/` hors `docusaurus.config.ts`,
+`functions/package.json`, `Gemfile`, et `package.json` avec son lockfile (laissés écrivables
+pour `npm install`). Un écrivain que la garde ne connaît pas les réécrit encore.
 
-En session déverrouillée, `tar -xf … -C scripts/`, `unzip … -d scripts/hooks`, `curl -o scripts/hooks/x.py`,
-`patch`, `git apply` et un interpréteur qui ouvre un module en écriture passent la garde Bash : ces
-chemins sont conditionnés par `self.protect`. Ce ne sont pas des voies d'édition accidentelles, et en
-session déverrouillée l'agent a de toute façon le droit de modifier le harness. Le filet de J-056
-vise les accidents, et l'Edit simulé reste la voie normale. À traiter si l'on veut un filet
-complet : appliquer `_hooks_module` à leurs cibles et dossiers d'extraction, et refuser `patch` et
-`git apply` aux cibles inconnues. Cas au self-test : un `guard_unlocked BLOCK` par écrivain.
+Restent entières les limites qui ne sont pas des écritures du harness : §5 (masquer une
+commande destructive) et §7 (détection textuelle de `check-scripts`).
 
-### 4. Quatre trous de la garde Bash, antérieurs au chantier (cinquième, onzième et dernière revues du lot 4)
+Effet de bord, nouveau avec J-064 : sous le sandbox, `git pull`, `git switch`, `git rebase`,
+une avance rapide ou un `git stash` qui doit réécrire un chemin de la liste échoue en cours de
+route (`unable to unlink`), et peut laisser l'arbre à moitié mis à jour : le produit à la
+nouvelle version, le harness à l'ancienne, verrou compris, donc vert. Un `git add -A` derrière
+commiterait un retour arrière du harness. Même mécanisme sur le chemin d'échec de lint-staged
+(`reset --hard` puis `stash apply`) quand un commit de fichiers du harness échoue au lint. Ces
+opérations se font hors de Claude Code (RUNBOOK, « Au quotidien »).
 
-**a. Le dossier courant après un sous-shell.** `(cd /tmp); cp /tmp/x .babelrc` passe : la garde
-garde `/tmp` comme dossier courant après le `)`, alors que le shell revient au dépôt. La copie
-écrit donc `<dépôt>/.babelrc`. Correctif : sauvegarder `self.cwd` à chaque `(` et le restaurer au
-`)` correspondant, dans la boucle de `_check_line`. À défaut, passer le dossier à inconnu après un
-`)`. Cas au self-test : `guard BLOCK '(cd /tmp); cp /tmp/x .babelrc'`, plus un contrôle `ALLOW`
-avec une cible produit.
+### 5. Garde Bash : trois limites connues laissées par le lot A (J-058, septième revue)
 
-**b. Un `$` au milieu d'un nom de commande.** `bash -c '(rm${IFS}scripts/check.sh)'` passe, parce
-que `${IFS}` découpe le mot à l'exécution. La garde ne juge comme variable qu'un nom de commande qui
-commence par `$`. Correctif : refuser tout nom de commande qui contient `$` ou le marqueur de
-substitution, quelle que soit sa position. Cas au self-test : la commande ci-dessus en
-`guard BLOCK`.
+Elles existaient déjà avant le lot A. Cédric a décidé, après la sixième revue, de ne plus en
+modéliser de nouvelles dans ce lot. Dans les trois cas, bash et zsh exécutent la commande et la
+garde l'accepte :
 
-**c. Les qualificateurs zsh qui exécutent du code.** En zsh, `*(e:'cmd':)` exécute `cmd` pour
-chaque fichier qui correspond, et `*(+fonction)` appelle une fonction. Le lot 4 a posé un filet :
-`deny_code_qualifier`, appliqué par `deny_argument_qualifiers` à tout groupe qui n'ouvre pas une
-commande, ainsi qu'aux `=(…)` collés et aux ouvreurs échappés dans `extract_substitutions`. Mais
-de la septième à la onzième revue, chaque revue a trouvé une nouvelle position d'où le qualificateur
-échappe au filet. Ce n'est donc pas une garantie, et le trou existait déjà à `8fd98f1`. Deux
-pistes :
+- **`\` suivi d'un blanc en fin de ligne** (`echo hi \ ` ⏎ `git clean -fdx`) : tester
+  `ends_with_escape` sur la ligne physique avant d'en retirer les blancs de fin, ou ne retirer que
+  les blancs de tête.
+- **Une `)` entre quotes dans un `$(`** (`echo $(echo ")"; git clean -fdx)`) :
+  `extract_substitutions` doit suivre les quotes dans son comptage de profondeur, ou refuser une
+  `(`/`)` entre quotes dans une substitution.
+- **Un `#` après un blanc échappé** (`echo x\ #"`) : `strip_comments` doit vérifier que le
+  caractère précédent n'est pas lui-même échappé.
 
-- un seul lecteur de quotes et d'échappements, partagé par `extract_substitutions`,
-  `fold_glob_groups` et `deny_argument_qualifiers` ;
-- un exécutable de sonde dédié, approuvé par Cédric, qui lit ses cas depuis un fichier. La garde
-  refuse en effet toute sonde Bash qui contient `e:`, si bien que ni les revues ni l'agent ne
-  peuvent vérifier zsh sur ces formes.
+Chaque correctif entre au self-test par `shell_diff`, avec la forme citée.
 
-Cas au self-test : rejouer chaque ouvreur et chaque point d'arrêt du repli (`*`, quote, nom, `=`,
-`)`, `\;`, `\$`, `\<`) suivi d'un qualificateur `e:`, en `guard BLOCK`.
+### 6. Garde Bash : limites et faux positifs connus du lot C (revues du 2026-11-05)
 
-**d. Une commande formée par l'expansion des accolades.** `{rm,-rf,node_modules}` passe : le shell
-la développe en `rm -rf node_modules`, mais la garde lit un seul mot, sans nom de commande connu.
-`8fd98f1` l'acceptait aussi. Correctif : refuser un nom de commande qui contient `{` suivi d'une
-`,` hors quotes. Cas au self-test : la commande ci-dessus en `guard BLOCK`.
+**Limites** (la garde laisse passer). Toutes existaient avant le lot C, qui ne les aggrave pas :
+
+- un nom assemblé par concaténation dans du code inline (`'ho' + 'oks'`) ;
+- un interpréteur qui lance un fichier (`python3 /tmp/x.py`, `python3 - < /tmp/x.py`) : son contenu
+  n'est pas lu ;
+- un `~/.curlrc` ou un `~/.wgetrc` déjà présent, lu sans option ni variable ;
+- les fichiers annexes que curl et wget écrivent sans option de sortie : `SSLKEYLOGFILE=… curl`, et
+  `wget --hsts-file=…` en session déverrouillée ;
+- `gtar --one-top-level=<dossier>` qui extrait ailleurs que dans le dossier courant.
+
+Fermées au lot E (J-063), dans les formes que le self-test teste : mode `'r+'`, `fileinput` avec
+`inplace=True`, `File.write`/`IO.write`, `File.new`, `io.FileIO`, `open` avec ou sans parenthèses
+(Perl `open F, '>x'` et `open my $f, '>', 'x'`, Ruby `File.open 'x', 'w' do`),
+`curl -w '%output{…}'`.
+
+Restent ouvertes pour la garde texte, même en session verrouillée (elles passaient déjà à
+`bcdfebd`). Depuis J-064, le sandbox les couvre pour Bash sur les chemins de
+`harness-protected.txt`, pas sur le reste du harness (`.gitignore`, `functions/package.json`…) :
+
+- un mode Perl collé au chemin **avec une espace** : `open(F, '> scripts/…')`, `'+> …'`, `'>> …'` ;
+- un mode suivi d'un encodage : Ruby `File.open('scripts/…', 'w:UTF-8')`, `'wb:UTF-8'` ;
+- `curl --expand-write-out '%output{…}'` (le préfixe `--expand-` de curl 8.3 et plus).
+
+Limite de nature : `CODE_WRITE_RE` est une liste d'écrivains connus, pas une liste de ce qui est
+permis. Un écrivain ou une syntaxe qu'elle ne nomme pas passe ; il se ferme en l'ajoutant, avec son
+cas `guard BLOCK`. Exemples vérifiés le 2026-11-05, acceptés verrouillé comme déverrouillé :
+`node -e "require('fs').openSync('scripts/check.sh','w')"` (tronque le fichier), un mode passé par
+une variable (`python3 -c "m='w'; open('scripts/check.sh', m)"`), et Perl `sysopen`
+(`sysopen(F, 'scripts/check.sh', O_WRONLY|O_TRUNC)`).
+
+Nouveaux faux positifs acceptés avec ces fermetures :
+
+- dans du code inline qui cite un fichier du harness, un littéral `'>'` ou `'+<'` après le mot
+  `open`, jusqu'au `;` suivant ou à la fin de la ligne
+  (`print([l for l in open('scripts/…') if '>' in l])` est refusé ; avec `f=open(…);` avant, non) ;
+- dans le même cas, un littéral de mode placé après une virgule, après le **mot nu** `open`, `new`
+  ou `FileIO` (un nom de variable `new` compte), jusqu'au `;` suivant ou à la fin de la ligne ; et,
+  pour `open(` suivi de sa parenthèse, n'importe où plus loin sur la ligne. Un « littéral de mode »
+  est fait des lettres r, b, t, U autour de `w`, `a`, `x` ou `+` : `'tab'`, `'bat'` ou `'rat'` en
+  sont. `new Map(); const x = [1, 'tab']` passe, le `;` coupe. Refusés en session verrouillée :
+  `node -e "const s=new Set(['x', 'a']); …readFileSync('scripts/check.sh')"`,
+  `node -e "const m = new Map([[1, 'tab']]); …readFileSync('scripts/check.sh')"`,
+  `python3 -c "new = 'x'.replace('x', 'w'); print(open('scripts/check.sh').read())"` ;
+- `curl -w @fichier`, refusé partout, `/tmp` compris (`curl -w @/tmp/fmt -o /tmp/x …`) : le format
+  lu dans le fichier peut contenir un `%output{…}`.
+
+**Faux positifs acceptés** (refusés à tort, par prudence). Ce sont des ALLOW de HEAD (`6739939`)
+devenus BLOCK avec le lot C, dans au moins un des deux modes :
+
+- toute cible faite d'une variable, refusée dans les deux modes ; déjà refusée en session
+  verrouillée à HEAD, elle ne l'est nouvellement qu'en session déverrouillée
+  (`for f in a b; do echo x > "$f.txt"; done`, `npm test | tee "$LOG"`, `S=/abs; mkdir -p $S/x`) ;
+- `git am --abort` et `git am --show-current-patch`, refusés avec tout `git am` : nouveau en
+  session déverrouillée seulement, déjà refusés en verrouillée à HEAD ;
+- `gzip -r src`, et tout compresseur récursif dans le repo, en session verrouillée : le harness
+  est aussi sous `src/` (les autres outils récursifs, `cp -r` ou `zip -r` vers `/tmp`, sont
+  inchangés) ;
+- une valeur collée qui contient `r`, `m`, `p`, `x` ou `i` après `wget -O` ou `-o` (`-Ox.html`) :
+  lue comme un téléchargement récursif, donc refusée dans le repo. De même, `wget -np` et `-nd`
+  sont lus lettre à lettre (`-p`) : `wget -nd -np https://e.x/a.tgz` est refusé dans le repo ;
+- du code inline qui lit un fichier du harness et cite plus loin, sur la même ligne, un littéral de
+  mode (`, 'a'`, `, 'x'`) ;
+- du code inline qui écrit, même vers `/tmp`, et contient un littéral `hooks` ou `harness_paths` :
+  `python3 -c "import json; d={'hooks': {}}; open('/tmp/s.json','w').write(json.dumps(d))"` ;
+- une variable d'environnement qui porte des options d'un compresseur, posée quelle que soit sa
+  valeur et sa cible : `XZ_OPT=-T0 tar -cJf /tmp/x.txz src`, `GZIP=-9 tar -czf /tmp/x.tgz src`,
+  `ZSTD_CLEVEL=19 zstd /tmp/x` (cette dernière ne prend qu'un nombre) ;
+- une extraction qui garde les noms absolus ou les `../`, refusée partout, `/tmp` compris :
+  `cpio -i` et `cpio -p`, `pax -r`, `tar -P`, `unzip -:`, `7z x -spf` ;
+- le gabarit `#N` de curl dans un nom de sortie, refusé partout :
+  `curl -o '/tmp/out_#1.html' 'https://e.x/page[1-3].html'`.
+
+### 7. Chargement de `harness_paths` : limites laissées par le lot B (2026-11-05)
+
+`check-scripts` refuse un import par nom et un changement du chemin de recherche dans le code du
+harness, en lisant le texte. Il ne voit pas :
+
+- un nom calculé à l'exécution (`import_module(var)`) ;
+- `import_module (` avec un espace avant la parenthèse ;
+- `os.environ['PYTHONPATH']` (seule la forme `PYTHONPATH=` est refusée).
+
+Et le chargement de `harness_paths` au niveau module, hors du `try` de la garde, sort en 1 s'il
+échoue : une erreur non bloquante pour Claude Code, au lieu du refus (exit 2) attendu.

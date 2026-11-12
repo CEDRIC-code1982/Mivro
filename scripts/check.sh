@@ -11,7 +11,8 @@
 #
 # Every sensor runs even when an earlier one failed, so a single run gives the
 # full picture. Cheap sensors run in parallel, then tests and docs run alone
-# (they are CPU-bound and would only slow each other down).
+# (they are CPU-bound and would only slow each other down), in table order;
+# docmetrics runs right after tests, whose Jest report it reads.
 #
 # Exit 0 only when every selected sensor is green. An abstention (exit 3 from a
 # sensor allowed to abstain) is named in the summary and is NOT a green: it
@@ -102,6 +103,9 @@ fi
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/mivro.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
+# The tests sensor writes its Jest report here and docmetrics reads it: a report
+# of this run only, never one left by an older tree (JOURNAL J-022).
+export MIVRO_JEST_REPORT="$WORK/jest-report.json"
 
 run_sensor() {
   local id="$1" cmd="$2" start end
@@ -116,7 +120,7 @@ run_sensor() {
 PIDS=()
 for row in "${SELECTED[@]}"; do
   IFS='|' read -r id stage abstain label cmd <<<"$row"
-  case "$id" in tests | docs) continue ;; esac
+  case "$id" in tests | docmetrics | docs) continue ;; esac
   run_sensor "$id" "$cmd" &
   PIDS+=($!)
 done
@@ -125,7 +129,7 @@ for pid in "${PIDS[@]:-}"; do
 done
 for row in "${SELECTED[@]}"; do
   IFS='|' read -r id stage abstain label cmd <<<"$row"
-  case "$id" in tests | docs) run_sensor "$id" "$cmd" ;; esac
+  case "$id" in tests | docmetrics | docs) run_sensor "$id" "$cmd" ;; esac
 done
 
 RED=()
