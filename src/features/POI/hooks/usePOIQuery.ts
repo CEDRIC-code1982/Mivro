@@ -8,6 +8,9 @@
  * - Search radius capped at {@link MAX_POI_SEARCH_RADIUS_M}: the zone radius of very distant
  *   participants (e.g. Paris + Tokyo, ~4,900 km) was rejected by SearchPOIUseCase above 100 km
  *   (`invalid_input`), and made Overpass time out between 25 and 100 km
+ * - Search radius floored at {@link MIN_POI_SEARCH_RADIUS_M}: the zone radius of participants
+ *   less than ~200 m apart was rejected by SearchPOIUseCase below 100 m (`invalid_input`), and a
+ *   100 m search would only return a handful of places
  *
  * @file usePOIQuery.ts
  * @module features/POI/hooks/usePOIQuery
@@ -35,11 +38,17 @@ import { getContainer } from '@services/serviceContainer';
 export const MAX_POI_SEARCH_RADIUS_M = 25_000; // [ADDED] "POI rayon géant" fix
 
 /**
+ * Minimum POI search radius in meters (~6 min walk). Only the POI search is floored: the zone
+ * radius (map circle, sharing) is left unchanged.
+ */
+export const MIN_POI_SEARCH_RADIUS_M = 500; // [ADDED] "POI rayon minuscule" fix
+
+/**
  * Input parameters for the usePOIQuery hook.
  *
  * @param center — Midpoint coordinates (null when not computed yet)
- * @param radiusMeters — Search radius in meters (null when not computed yet), capped at
- *   {@link MAX_POI_SEARCH_RADIUS_M}
+ * @param radiusMeters — Search radius in meters (null when not computed yet), clamped between
+ *   {@link MIN_POI_SEARCH_RADIUS_M} and {@link MAX_POI_SEARCH_RADIUS_M}
  * @param categories — Categories to search
  * @param language — Preferred language for names
  * @param enabled — External control to enable/disable the fetch
@@ -71,10 +80,13 @@ export const usePOIQuery = (
   const isReady =
     center !== null && radiusMeters !== null && radiusMeters > 0 && categories.length > 0;
 
-  // [FIXED] Cap the search radius; the capped value is also the cache key, so every zone wider
-  // than the cap shares the same cache entry for a given center
+  // [FIXED] Clamp the search radius between the floor and the cap; the clamped value is also the
+  // cache key, so every zone narrower than the floor (or wider than the cap) shares the same cache
+  // entry for a given center
   const searchRadius =
-    radiusMeters === null ? null : Math.min(radiusMeters, MAX_POI_SEARCH_RADIUS_M);
+    radiusMeters === null
+      ? null
+      : Math.min(Math.max(radiusMeters, MIN_POI_SEARCH_RADIUS_M), MAX_POI_SEARCH_RADIUS_M);
 
   return useQuery<PointOfInterest[], POIError>({
     queryKey: ['poi', center, searchRadius, [...categories].sort(), language],

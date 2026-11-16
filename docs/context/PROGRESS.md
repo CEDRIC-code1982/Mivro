@@ -3,6 +3,21 @@
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
 > Dernière mise à jour : 2026-09-26 (harness v2 — le harness devient une frontière de confiance).
 
+## POI « rayon minuscule » — rayon de recherche plancher à 500 m (2026-11-16, branche `fix/poi-rayon-minuscule`)
+
+Symétrique du « rayon géant » : avec des participants à moins de ~200 m l'un de l'autre, le rayon
+de zone passait sous 100 m et `SearchPOIUseCase` rejetait la recherche (`invalid_input`) → « Recherche
+impossible / Erreur inattendue ». Corrections :
+
+- **Rayon de recherche porté à 500 m au minimum** (`MIN_POI_SEARCH_RADIUS_M`, `usePOIQuery`, ~6 min à
+  pied) : au-dessus de la borne de 100 m du use case, et assez large pour trouver des lieux. Le rayon
+  envoyé à la recherche est donc borné entre 500 m et 25 km ; le rayon de zone ne change pas.
+- **Test d'intégration hook + vrai use case** (`usePOIQuery.integration.test.ts`, seul le service
+  POI mocké) de 1 m à 4 900 km : la jonction que les tests unitaires mockaient (JOURNAL J-065).
+
+Hors périmètre, au TODO : rayon de zone nul (participants à la même adresse), qui affiche « pas de
+calcul » sur la carte et les POI (P2, règle produit à fixer).
+
 ## POI « rayon géant » — erreur typée et rayon plafonné (2026-11-16, branche `fix/poi-rayon-geant`)
 
 Avec des participants très éloignés (Paris + Tokyo, rayon de zone ~4 900 km), la liste affichait
@@ -373,8 +388,8 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 | Métrique                           | Valeur                                                            |
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
-| Suites de tests                    | 88                                                                |
-| Tests (cas) — `npm run check`      | 1281                                                              |
+| Suites de tests                    | 89                                                                |
+| Tests (cas) — `npm run check`      | 1291                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |

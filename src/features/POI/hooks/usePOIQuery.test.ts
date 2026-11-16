@@ -8,7 +8,11 @@
 // [ADDED] usePOIQuery unit tests
 import { renderHook, waitFor } from '@testing-library/react-native';
 import type { PointOfInterest } from '@entities/PointOfInterest';
-import { MAX_POI_SEARCH_RADIUS_M, usePOIQuery } from '@features/POI/hooks/usePOIQuery';
+import {
+  MAX_POI_SEARCH_RADIUS_M,
+  MIN_POI_SEARCH_RADIUS_M,
+  usePOIQuery,
+} from '@features/POI/hooks/usePOIQuery';
 import { POIError } from '@services/domain/poi/IPOIService';
 import { createQueryClientWrapper } from '@test-utils/queryClientWrapper';
 
@@ -48,6 +52,10 @@ const RADIUS = 5000;
 const PARIS_TOKYO_RADIUS = 4_900_000;
 /** Cap value validated by Cédric (2026-11-16). */
 const EXPECTED_CAP = 25_000;
+/** Zone radius of participants ~100 m apart, the "POI rayon minuscule" case. */
+const TINY_ZONE_RADIUS = 50;
+/** Floor value validated by Cédric (2026-11-16). */
+const EXPECTED_FLOOR = 500;
 
 // ─── Tests ──────────────────────────────────────────────────
 
@@ -202,6 +210,51 @@ describe('usePOIQuery', () => {
 
       expect(mockExecute).toHaveBeenCalledWith(
         expect.objectContaining({ radiusMeters: MAX_POI_SEARCH_RADIUS_M - 1 }),
+      );
+    });
+
+    it('floors the search radius at MIN_POI_SEARCH_RADIUS_M for a very narrow zone', async () => {
+      mockExecute.mockResolvedValueOnce(FAKE_POIS);
+
+      const { result } = renderHook(
+        () =>
+          usePOIQuery({
+            center: CENTER,
+            radiusMeters: TINY_ZONE_RADIUS,
+            categories: ['restaurant'],
+          }),
+        { wrapper: createQueryClientWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(result.current.data).toEqual(FAKE_POIS);
+      });
+
+      expect(MIN_POI_SEARCH_RADIUS_M).toBe(EXPECTED_FLOOR);
+      expect(mockExecute).toHaveBeenCalledWith(
+        expect.objectContaining({ radiusMeters: MIN_POI_SEARCH_RADIUS_M }),
+      );
+    });
+
+    it('passes a radius above the floor unchanged', async () => {
+      mockExecute.mockResolvedValueOnce(FAKE_POIS);
+
+      const { result } = renderHook(
+        () =>
+          usePOIQuery({
+            center: CENTER,
+            radiusMeters: MIN_POI_SEARCH_RADIUS_M + 1,
+            categories: ['restaurant'],
+          }),
+        { wrapper: createQueryClientWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(result.current.data).toEqual(FAKE_POIS);
+      });
+
+      expect(mockExecute).toHaveBeenCalledWith(
+        expect.objectContaining({ radiusMeters: MIN_POI_SEARCH_RADIUS_M + 1 }),
       );
     });
   });
