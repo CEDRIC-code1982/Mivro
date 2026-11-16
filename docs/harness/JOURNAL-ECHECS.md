@@ -79,6 +79,7 @@
 | J-062 | La sonde du self-test rougit un hook Stop concurrent                | ACCEPTÉ |
 | J-063 | Les revues du lot C voyaient ce que le self-test ne regardait pas   | RÉSOLU  |
 | J-064 | La garde texte ne fermait jamais l'écriture : le noyau la refuse    | RÉSOLU  |
+| J-065 | Rayon POI hors bornes du use case, invisible au hook mocké          | OUVERT  |
 
 ---
 
@@ -2995,3 +2996,26 @@ l'ancienne version et son verrou cohérent, donc vert. Ces opérations se font h
 **Règle pour la suite.** Une protection qui peut s'écrire au niveau du système ne s'écrit pas en
 analyse de texte. Un chemin ajouté à `harness-protected.txt` reçoit son `denyWrite` dans le même
 commit, sinon le self-test rougit.
+
+## J-065 — Rayon POI hors des bornes du use case, invisible au hook mocké
+
+**Date** : 2026-11-16 · **Statut** : OUVERT — moitié haute corrigée (`fix/poi-rayon-geant`), moitié
+basse au TODO (« POI rayon minuscule »)
+
+**Observé.** Au QA, une session Paris + Tokyo affichait « Erreur inattendue » sur la liste des POI.
+`usePOIQuery` passait le rayon de zone tel quel à `SearchPOIUseCase`, qui rejette tout rayon
+au-dessus de 100 km ou en dessous de 100 m (`invalid_input`). Le diagnostic de départ (timeout
+Overpass) était faux pour ce cas : c'est la revue de `fix/poi-rayon-geant` qui a relu le use case.
+Le même rejet vaut toujours pour deux participants à moins de ~200 m l'un de l'autre.
+
+**Cause.** Le contrat entre le hook et le use case n'est testé nulle part : `usePOIQuery.test.ts`
+mocke `searchPOIUseCase.execute`, et les tests du use case ne savent rien du rayon de zone que lui
+passe l'écran. Chaque côté est vert seul ; la jonction, elle, n'est jamais exécutée.
+
+**Correctif.** Rayon de recherche plafonné à 25 km dans le hook (sous la borne de 100 km). Le
+plancher reste à faire.
+
+**Règle proposée (à appliquer par Cédric).** Un hook qui transforme une valeur métier avant un use
+case portant des bornes reçoit au moins un test d'intégration avec le use case **réel** (l'adapter
+seul mocké), aux valeurs limites des deux côtés. Aucun capteur ne le vérifie : c'est au reviewer de
+le demander quand un use case valide ses entrées.

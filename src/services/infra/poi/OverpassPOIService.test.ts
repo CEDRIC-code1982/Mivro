@@ -319,6 +319,64 @@ describe('OverpassPOIService', () => {
     });
   });
 
+  describe('remark runtime errors (HTTP 200)', () => {
+    it('throws query_timeout when remark reports a timed out query', async () => {
+      fetchSpy.mockResolvedValue(
+        createMockResponse({
+          elements: [],
+          remark: 'runtime error: Query timed out in "query" at line 3 after 25 seconds.',
+        }),
+      );
+
+      await expectPOIError(service.searchNearby(CENTER, RADIUS, CATEGORIES), 'query_timeout');
+    });
+
+    it('throws server_error when remark reports another runtime error', async () => {
+      fetchSpy.mockResolvedValue(
+        createMockResponse({
+          elements: [],
+          remark: 'runtime error: Query run out of memory using about 2048 MB of RAM.',
+        }),
+      );
+
+      await expectPOIError(service.searchNearby(CENTER, RADIUS, CATEGORIES), 'server_error');
+    });
+
+    it('reports the remark runtime error to crashReporter', async () => {
+      fetchSpy.mockResolvedValue(
+        createMockResponse({
+          elements: [],
+          remark: 'runtime error: Query timed out in "query" at line 3 after 25 seconds.',
+        }),
+      );
+
+      await expectPOIError(service.searchNearby(CENTER, RADIUS, CATEGORIES), 'query_timeout');
+
+      expect(crashReporter.captureMessage).toHaveBeenCalledWith(
+        'Overpass runtime error in remark',
+        expect.objectContaining({
+          level: 'warning',
+          tags: { service: 'poi', provider: 'overpass' },
+          extra: { code: 'query_timeout' },
+        }),
+      );
+    });
+
+    it('ignores a remark that is not a runtime error', async () => {
+      fetchSpy.mockResolvedValue(
+        createMockResponse({
+          ...OVERPASS_VALID_RESPONSE,
+          remark: 'Data may be incomplete: the server is under maintenance.',
+        }),
+      );
+
+      const pois = await service.searchNearby(CENTER, RADIUS, CATEGORIES);
+
+      expect(pois.length).toBeGreaterThan(0);
+      expect(crashReporter.captureMessage).not.toHaveBeenCalled();
+    });
+  });
+
   // ─── Parse errors ─────────────────────────────────────
   describe('parse error handling', () => {
     it('throws parse_error on malformed JSON', async () => {

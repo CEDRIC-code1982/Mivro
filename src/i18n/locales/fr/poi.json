@@ -42,10 +42,11 @@
     }
   },
   "errors": {
+    "title": "Recherche impossible",
     "rate_limited": "Trop de requêtes. Attends un peu et réessaie.",
     "network": "Pas de connexion. Vérifie ton réseau.",
     "server_error": "Service POI indisponible. Réessaie plus tard.",
-    "query_timeout": "La recherche a pris trop de temps. Réduis la zone ou les catégories.",
+    "query_timeout": "La recherche a pris trop de temps. Sélectionne moins de catégories ou réessaie plus tard.",
     "parse_error": "Réponse invalide du serveur.",
     "unknown": "Erreur inattendue."
   },

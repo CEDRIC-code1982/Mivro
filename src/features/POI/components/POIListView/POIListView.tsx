@@ -1,8 +1,6 @@
 /**
  * @file POIListView.tsx
- * @description Molecule POIListView — liste FlatList de POICard avec gestion
- *              des états loading, error et empty.
- *              POIListView molecule — FlatList of POICard with loading,
+ * @description POIListView molecule — FlatList of POICard with loading,
  *              error and empty state handling.
  *
  * @example
@@ -19,7 +17,7 @@
  * @module features/POI/components/POIListView/POIListView
  */
 
-// [ADDED] Molecule POIListView — liste de POI triée par distance
+// [ADDED] POIListView molecule — POI list sorted by distance
 
 import { useTheme, type Theme } from '@theme';
 import { AlertCircle, SearchX } from 'lucide-react-native';
@@ -31,37 +29,36 @@ import EmptyState from '@components/molecules/EmptyState';
 import type { Coordinates } from '@entities/Location';
 import type { PointOfInterest } from '@entities/PointOfInterest';
 import POICard from '@features/POI/components/POICard';
+import { POIError } from '@services/domain/poi/IPOIService';
 import { distanceBetween } from '@services/utils/geo';
 
 /**
- * Props du composant POIListView.
  * POIListView component props.
  *
- * @param pois — Liste de POI / POI list
- * @param midpoint — Coordonnées du midpoint (pour calcul distance) / Midpoint coordinates
- * @param onPressPOI — Callback au tap d'un POI / POI tap callback
- * @param isLoading — État de chargement / Loading state
- * @param error — Erreur éventuelle / Optional error
- * @param testID — Identifiant de test / Test identifier
+ * @param pois — POI list
+ * @param midpoint — Midpoint coordinates (used for distance computation)
+ * @param onPressPOI — POI tap callback
+ * @param isLoading — Loading state
+ * @param error — Optional error
+ * @param testID — Test identifier
  */
 export interface POIListViewProps {
-  /** Liste de POI / POI list */
+  /** POI list */
   readonly pois: readonly PointOfInterest[];
-  /** Coordonnées du midpoint / Midpoint coordinates */
+  /** Midpoint coordinates */
   readonly midpoint: Coordinates;
-  /** Callback au tap d'un POI / POI tap callback */
+  /** POI tap callback */
   readonly onPressPOI: (poi: PointOfInterest) => void;
-  /** État de chargement / Loading state */
+  /** Loading state */
   readonly isLoading?: boolean;
-  /** Erreur éventuelle / Optional error */
+  /** Optional error */
   readonly error?: Error | null | undefined;
-  /** Identifiant de test / Test identifier */
+  /** Test identifier */
   readonly testID?: string;
 }
 
 /**
- * POI enrichi avec sa distance au midpoint (pour le tri).
- * POI enriched with distance to midpoint (for sorting).
+ * POI enriched with its distance to the midpoint (for sorting).
  */
 interface POIWithDistance {
   readonly poi: PointOfInterest;
@@ -69,14 +66,45 @@ interface POIWithDistance {
 }
 
 /**
- * Molecule POIListView du Design System Mivro.
+ * Maps a POI search error to a dedicated i18n message key (poi namespace).
+ *
+ * [FIXED] "POI rayon géant": the error state used to show the raw technical message
+ * (`error.message`, in English) under a generic title. `invalid_input` has no dedicated
+ * message: it comes from inputs the user cannot fix (missing center or radius, or a radius
+ * outside the bounds of SearchPOIUseCase — below 100 m is still possible, see TODO "POI rayon
+ * minuscule").
+ *
+ * @param error — Error surfaced by usePOIQuery
+ * @returns i18n key (poi namespace)
+ */
+const poiErrorKey = (error: Error): string => {
+  if (error instanceof POIError) {
+    switch (error.code) {
+      case 'rate_limited':
+        return 'errors.rate_limited';
+      case 'network':
+        return 'errors.network';
+      case 'server_error':
+        return 'errors.server_error';
+      case 'query_timeout':
+        return 'errors.query_timeout';
+      case 'parse_error':
+        return 'errors.parse_error';
+      default:
+        return 'errors.unknown';
+    }
+  }
+  return 'errors.unknown';
+};
+
+/**
  * Mivro Design System POIListView molecule.
  *
- * Affiche les POI triés par distance croissante, avec gestion
- * des 3 états obligatoires : loading, error, empty (ERR-003).
+ * Shows POIs sorted by ascending distance, handling the
+ * 3 mandatory states: loading, error, empty (ERR-003).
  *
  * @param props — {@link POIListViewProps}
- * @returns Composant POIListView / POIListView component
+ * @returns POIListView component
  */
 const POIListView: React.FC<POIListViewProps> = ({
   pois,
@@ -90,7 +118,6 @@ const POIListView: React.FC<POIListViewProps> = ({
   const theme = useTheme();
   const styles = buildStyles(theme);
 
-  // Tri par distance croissante, mémoïsé
   // Sort by ascending distance, memoized
   const sortedPois = useMemo<readonly POIWithDistance[]>(() => {
     const withDistance = pois.map((poi) => ({
@@ -100,7 +127,7 @@ const POIListView: React.FC<POIListViewProps> = ({
     return withDistance.sort((a, b) => a.distance - b.distance);
   }, [pois, midpoint]);
 
-  // ─── État loading ──────────────────────────────────────────
+  // ─── Loading state ─────────────────────────────────────────
   if (isLoading) {
     return (
       <View style={styles.centerContainer} testID={testID ? `${testID}-loading` : undefined}>
@@ -112,21 +139,21 @@ const POIListView: React.FC<POIListViewProps> = ({
     );
   }
 
-  // ─── État error ────────────────────────────────────────────
+  // ─── Error state ───────────────────────────────────────────
   if (error != null) {
     return (
       <View style={styles.centerContainer} {...(testID != null && { testID: `${testID}-error` })}>
         <EmptyState
           icon={AlertCircle}
-          title={t('errors.unknown')}
-          description={error.message}
+          title={t('errors.title')}
+          description={t(poiErrorKey(error))}
           {...(testID != null && { testID: `${testID}-error-state` })}
         />
       </View>
     );
   }
 
-  // ─── État empty ────────────────────────────────────────────
+  // ─── Empty state ───────────────────────────────────────────
   if (sortedPois.length === 0) {
     return (
       <View style={styles.centerContainer} {...(testID != null && { testID: `${testID}-empty` })}>
@@ -140,7 +167,7 @@ const POIListView: React.FC<POIListViewProps> = ({
     );
   }
 
-  // ─── État normal — FlatList de POICard ─────────────────────
+  // ─── Normal state — FlatList of POICard ────────────────────
   return (
     <FlatList<POIWithDistance>
       data={sortedPois}
@@ -161,11 +188,10 @@ const POIListView: React.FC<POIListViewProps> = ({
 };
 
 /**
- * Séparateur stable entre les POICard (extrait pour éviter le warning
- * react/no-unstable-nested-components).
- * Stable separator between POICards.
+ * Stable separator between POICards (extracted to avoid the
+ * react/no-unstable-nested-components warning).
  *
- * @returns Le séparateur rendu / The rendered separator
+ * @returns The rendered separator
  */
 const POIListSeparator: React.FC = () => {
   const theme = useTheme();

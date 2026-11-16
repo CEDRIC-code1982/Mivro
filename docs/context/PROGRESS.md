@@ -3,6 +3,28 @@
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
 > Dernière mise à jour : 2026-09-26 (harness v2 — le harness devient une frontière de confiance).
 
+## POI « rayon géant » — erreur typée et rayon plafonné (2026-11-16, branche `fix/poi-rayon-geant`)
+
+Avec des participants très éloignés (Paris + Tokyo, rayon de zone ~4 900 km), la liste affichait
+« Erreur inattendue » suivi du message technique anglais. Le hook passait le rayon de zone tel quel
+à la recherche : au-dessus de 100 km, `SearchPOIUseCase` la rejetait (`invalid_input`, « Radius must
+not exceed 100000m ») sans appeler Overpass — c'est le cas du QA ; entre 25 et 100 km, Overpass
+expirait. Corrections :
+
+- **Rayon de recherche plafonné à 25 km** (`MAX_POI_SEARCH_RADIUS_M`, `usePOIQuery`), ce qui règle
+  les deux cas. Le rayon de zone (cercle de la carte, partage) ne change pas.
+- **`remark` d'Overpass lue** : une réponse HTTP 200 dont la `remark` signale un `runtime error` lève
+  `query_timeout` (« timed out ») ou `server_error` (autre, ex. mémoire), au lieu d'afficher « Aucun
+  lieu trouvé ». Une `remark` sans erreur est ignorée.
+- **Pas de nouvelle tentative sur `query_timeout`** : elle ne faisait qu'allonger le chargement
+  (jusqu'à ~75 s).
+- **État d'erreur de `POIListView`** : titre « Recherche impossible » (`errors.title`) et message
+  traduit du code ; repli `errors.unknown`. `errors.query_timeout` reformulé (« Sélectionne moins de
+  catégories ou réessaie plus tard »).
+
+Hors périmètre, au TODO : états loading et error de la vue carte (P2), bouton « Réessayer » (P3),
+rayon de zone inférieur à 100 m, rejeté de la même façon par le use case (P2, JOURNAL J-065).
+
 ## Harness v2 — frontière de confiance (2026-09-26, branche `harness/beton`, non commité)
 
 L'audit red-team de ce jour a montré qu'on pouvait contourner le harness de bout en bout : il pouvait
@@ -346,13 +368,13 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 
 ---
 
-## Métriques actuelles (mesurées le 2026-11-05 pour les tests, le 2026-09-26 pour le reste)
+## Métriques actuelles (mesurées le 2026-11-16 pour les tests, le 2026-09-26 pour le reste)
 
 | Métrique                           | Valeur                                                            |
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
 | Suites de tests                    | 88                                                                |
-| Tests (cas) — `npm run check`      | 1267                                                              |
+| Tests (cas) — `npm run check`      | 1281                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |

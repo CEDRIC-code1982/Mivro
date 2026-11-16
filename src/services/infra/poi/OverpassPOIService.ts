@@ -1,13 +1,5 @@
 /**
- * Implémentation IPOIService basée sur Overpass API / OSM.
- *
  * IPOIService implementation based on Overpass API / OSM.
- *
- * Politique d'usage Overpass respectée :
- * - User-Agent custom obligatoire
- * - Pas de bulk queries
- * - Timeout query [out:json][timeout:25]
- * - Cache client 5 min (gérée par TanStack Query)
  *
  * Overpass usage policy respected:
  * - Custom User-Agent required
@@ -20,7 +12,7 @@
  * @see https://wiki.openstreetmap.org/wiki/Overpass_API
  */
 
-// [ADDED] Adapter OverpassPOIService — Overpass API integration
+// [ADDED] OverpassPOIService adapter — Overpass API integration
 
 import { z } from 'zod';
 import type { Coordinates } from '@entities/Location';
@@ -31,19 +23,25 @@ import type { ICrashReporter } from '@services/domain/crash/ICrashReporter';
 import { POIError } from '@services/domain/poi/IPOIService';
 import type { IPOIService, SearchNearbyOptions } from '@services/domain/poi/IPOIService';
 
-/** URL de l'API Overpass / Overpass API URL */
+/** Overpass API URL */
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
-/** User-Agent obligatoire / Required User-Agent */
+/** Required User-Agent */
 const USER_AGENT = 'Mivro/0.0.1 (https://mivro.app)';
-/** Timeout query Overpass en secondes / Overpass query timeout in seconds */
+/** Overpass query timeout in seconds */
 const QUERY_TIMEOUT_SEC = 25;
-/** Limite par défaut de résultats / Default result limit */
+/** Default result limit */
 const DEFAULT_LIMIT = 50;
-/** Limite maximum de résultats / Maximum result limit */
+/** Maximum result limit */
 const MAX_LIMIT = 200;
+/**
+ * Marker of a server-side failure in the `remark` field of an HTTP 200 response, e.g.
+ * `runtime error: Query timed out in "query" at line 3 after 25 seconds.`
+ */
+const REMARK_RUNTIME_ERROR = 'runtime error';
+/** Marker of a timeout among runtime errors */
+const REMARK_TIMED_OUT = 'timed out';
 
 /**
- * Schéma DTO Overpass — validation runtime pour les éléments node.
  * Overpass DTO schema — runtime validation for node elements.
  */
 const OverpassNodeSchema = z.object({
@@ -55,7 +53,6 @@ const OverpassNodeSchema = z.object({
 });
 
 /**
- * Schéma DTO Overpass — validation runtime pour les éléments way.
  * Overpass DTO schema — runtime validation for way elements.
  */
 const OverpassWaySchema = z.object({
@@ -65,33 +62,38 @@ const OverpassWaySchema = z.object({
   tags: z.record(z.string(), z.string()).optional(),
 });
 
-/** Schéma union node | way / Union schema node | way */
+/** Union schema node | way */
 const OverpassElementSchema = z.union([OverpassNodeSchema, OverpassWaySchema]);
 
-/** Schéma de la réponse Overpass / Overpass response schema */
+/**
+ * Overpass response schema.
+ *
+ * [FIXED] `remark`: when a query times out or runs out of memory on the server side, Overpass
+ * may still answer HTTP 200 with empty `elements` and the error in `remark` — which used to
+ * show as "no places found".
+ */
 const OverpassResponseSchema = z.object({
   elements: z.array(OverpassElementSchema),
+  remark: z.string().optional(),
 });
 
 /**
- * Service de recherche de POI via Overpass API.
  * POI search service via Overpass API.
  *
- * @param crashReporter — Reporter de crashs optionnel (Sentry)
+ * @param crashReporter — Optional crash reporter (Sentry)
  */
 export class OverpassPOIService implements IPOIService {
   constructor(private readonly crashReporter?: ICrashReporter) {}
 
   /**
-   * Recherche les POI autour d'un point central via Overpass.
-   * Searches for POI around a central point via Overpass.
+   * Searches for POIs around a central point via Overpass.
    *
-   * @param center — Coordonnées du centre de recherche
-   * @param radiusMeters — Rayon en mètres
-   * @param categories — Catégories à rechercher
-   * @param options — Options de recherche
-   * @returns Liste de POI trouvés
-   * @throws POIError selon le type d'erreur rencontré
+   * @param center — Coordinates of the search center
+   * @param radiusMeters — Radius in meters
+   * @param categories — Categories to search
+   * @param options — Search options
+   * @returns List of POIs found
+   * @throws POIError depending on the error encountered
    */
   async searchNearby(
     center: Coordinates,
@@ -113,8 +115,8 @@ export class OverpassPOIService implements IPOIService {
           Accept: 'application/json',
         },
         body: `data=${encodeURIComponent(query)}`,
-        // TS-002: cast nécessaire — AbortSignal DOM vs React Native sont structurellement
-        // compatibles mais nominalement distincts
+        // TS-002: cast required — the DOM and React Native AbortSignal types are structurally
+        // compatible but nominally distinct
         signal: options.signal as RequestInit['signal'],
       });
 
@@ -161,6 +163,8 @@ export class OverpassPOIService implements IPOIService {
         throw new POIError('Failed to parse Overpass response', 'parse_error', parsed.error);
       }
 
+      this.throwOnRemarkError(parsed.data.remark, duration); // [FIXED]
+
       const pois = this.mapToPOIs(parsed.data.elements, categories);
 
       console.info(
@@ -190,16 +194,43 @@ export class OverpassPOIService implements IPOIService {
   }
 
   /**
-   * Construit la query Overpass QL pour les catégories demandées.
-   * Builds the Overpass QL query for requested categories.
+   * Turns a server-side runtime error reported in `remark` (HTTP 200) into a typed POIError.
+   * A remark that is not a runtime error is informational and ignored.
    *
-   * @param center — Coordonnées du centre
-   * @param radiusMeters — Rayon en mètres
-   * @param categories — Catégories à rechercher
-   * @param limit — Limite de résultats
-   * @returns Query Overpass QL formatée
+   * [ADDED] "POI rayon géant" fix.
    *
-   * @example pour [restaurant, cafe] :
+   * @param remark — `remark` field of the Overpass response, if any
+   * @param duration — Call duration in milliseconds (for the log)
+   * @throws POIError `query_timeout` when the query timed out, `server_error` otherwise
+   */
+  private throwOnRemarkError(remark: string | undefined, duration: number): void {
+    if (remark === undefined) return;
+    const normalized = remark.toLowerCase();
+    if (!normalized.includes(REMARK_RUNTIME_ERROR)) return;
+
+    const code = normalized.includes(REMARK_TIMED_OUT) ? 'query_timeout' : 'server_error';
+    console.warn(
+      `[WARN][OverpassPOIService][searchNearby][?][${this.timestamp()}] ` +
+        `Overpass runtime error in remark (${code}) | duration: ${duration}ms`,
+    );
+    this.crashReporter?.captureMessage('Overpass runtime error in remark', {
+      level: 'warning',
+      tags: { service: 'poi', provider: 'overpass' },
+      extra: { code },
+    });
+    throw new POIError(`Overpass runtime error: ${remark}`, code);
+  }
+
+  /**
+   * Builds the Overpass QL query for the requested categories.
+   *
+   * @param center — Center coordinates
+   * @param radiusMeters — Radius in meters
+   * @param categories — Categories to search
+   * @param limit — Result limit
+   * @returns Formatted Overpass QL query
+   *
+   * @example for [restaurant, cafe]:
    *   [out:json][timeout:25];
    *   (
    *     node["amenity"="restaurant"](around:5000,48.85,2.35);
@@ -235,12 +266,11 @@ export class OverpassPOIService implements IPOIService {
   }
 
   /**
-   * Mappe les éléments Overpass vers des PointOfInterest.
    * Maps Overpass elements to PointOfInterest entities.
    *
-   * @param elements — Éléments Overpass parsés
-   * @param requestedCategories — Catégories demandées (pour le matching)
-   * @returns Liste de POI valides
+   * @param elements — Parsed Overpass elements
+   * @param requestedCategories — Requested categories (for matching)
+   * @returns List of valid POIs
    */
   private mapToPOIs(
     elements: z.infer<typeof OverpassResponseSchema>['elements'],
@@ -251,7 +281,7 @@ export class OverpassPOIService implements IPOIService {
     for (const element of elements) {
       const tags = element.tags ?? {};
       const name = tags.name ?? tags['name:fr'] ?? tags['name:en'];
-      if (!name) continue; // [ADDED] Filtre les POI sans nom
+      if (!name) continue; // [ADDED] Filters out unnamed POIs
 
       const category = this.detectCategory(tags, requestedCategories);
       if (!category) continue;
@@ -263,7 +293,7 @@ export class OverpassPOIService implements IPOIService {
           ? { latitude: element.center.lat, longitude: element.center.lon }
           : null;
 
-      if (!coordinates) continue; // [ADDED] Skip ways sans center
+      if (!coordinates) continue; // [ADDED] Skip ways without center
 
       pois.push({
         externalId: `${element.type}/${element.id}`,
@@ -279,15 +309,12 @@ export class OverpassPOIService implements IPOIService {
   }
 
   /**
-   * Détecte la catégorie Mivro à partir des tags OSM.
-   * Renvoie la PREMIÈRE catégorie demandée qui matche.
-   *
    * Detects the Mivro category from OSM tags.
    * Returns the FIRST requested category that matches.
    *
-   * @param tags — Tags OSM de l'élément
-   * @param requestedCategories — Catégories demandées
-   * @returns Catégorie détectée ou null
+   * @param tags — OSM tags of the element
+   * @param requestedCategories — Requested categories
+   * @returns Detected category or null
    */
   private detectCategory(
     tags: Record<string, string>,
@@ -303,11 +330,10 @@ export class OverpassPOIService implements IPOIService {
   }
 
   /**
-   * Construit l'adresse formatée à partir des tags OSM.
-   * Builds formatted address from OSM tags.
+   * Builds the formatted address from OSM tags.
    *
-   * @param tags — Tags OSM contenant addr:*
-   * @returns Adresse formatée ou undefined
+   * @param tags — OSM tags containing addr:*
+   * @returns Formatted address or undefined
    */
   private buildAddress(tags: Record<string, string>): string | undefined {
     const parts = [
@@ -321,10 +347,9 @@ export class OverpassPOIService implements IPOIService {
   }
 
   /**
-   * Retourne l'heure courante au format HH:mm:ss.
-   * Returns current time in HH:mm:ss format.
+   * Returns the current time in HH:mm:ss format.
    *
-   * @returns Timestamp formaté
+   * @returns Formatted timestamp
    */
   private timestamp(): string {
     return new Date().toISOString().slice(11, 19);

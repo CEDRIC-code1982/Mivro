@@ -8,7 +8,7 @@
 // [ADDED] usePOIQuery unit tests
 import { renderHook, waitFor } from '@testing-library/react-native';
 import type { PointOfInterest } from '@entities/PointOfInterest';
-import { usePOIQuery } from '@features/POI/hooks/usePOIQuery';
+import { MAX_POI_SEARCH_RADIUS_M, usePOIQuery } from '@features/POI/hooks/usePOIQuery';
 import { POIError } from '@services/domain/poi/IPOIService';
 import { createQueryClientWrapper } from '@test-utils/queryClientWrapper';
 
@@ -44,6 +44,10 @@ const FAKE_POIS: PointOfInterest[] = [
 
 const CENTER = { latitude: 48.85, longitude: 2.35 };
 const RADIUS = 5000;
+/** Zone radius of a Paris + Tokyo session (~4,900 km), the "POI rayon géant" case. */
+const PARIS_TOKYO_RADIUS = 4_900_000;
+/** Cap value validated by Cédric (2026-11-16). */
+const EXPECTED_CAP = 25_000;
 
 // ─── Tests ──────────────────────────────────────────────────
 
@@ -155,6 +159,51 @@ describe('usePOIQuery', () => {
         }),
       );
     });
+
+    it('caps the search radius at MAX_POI_SEARCH_RADIUS_M for a very wide zone', async () => {
+      mockExecute.mockResolvedValueOnce(FAKE_POIS);
+
+      const { result } = renderHook(
+        () =>
+          usePOIQuery({
+            center: CENTER,
+            radiusMeters: PARIS_TOKYO_RADIUS,
+            categories: ['restaurant'],
+          }),
+        { wrapper: createQueryClientWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(result.current.data).toEqual(FAKE_POIS);
+      });
+
+      expect(MAX_POI_SEARCH_RADIUS_M).toBe(EXPECTED_CAP);
+      expect(mockExecute).toHaveBeenCalledWith(
+        expect.objectContaining({ radiusMeters: MAX_POI_SEARCH_RADIUS_M }),
+      );
+    });
+
+    it('passes a radius below the cap unchanged', async () => {
+      mockExecute.mockResolvedValueOnce(FAKE_POIS);
+
+      const { result } = renderHook(
+        () =>
+          usePOIQuery({
+            center: CENTER,
+            radiusMeters: MAX_POI_SEARCH_RADIUS_M - 1,
+            categories: ['restaurant'],
+          }),
+        { wrapper: createQueryClientWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(result.current.data).toEqual(FAKE_POIS);
+      });
+
+      expect(mockExecute).toHaveBeenCalledWith(
+        expect.objectContaining({ radiusMeters: MAX_POI_SEARCH_RADIUS_M - 1 }),
+      );
+    });
   });
 
   // ─── retry logic ────────────────────────────────────────
@@ -222,6 +271,30 @@ describe('usePOIQuery', () => {
         // Explicit budget: this test timed out at Jest's default 5 s on a loaded
         // machine while passing 9/9 at rest (JOURNAL J-025). Raised here only, so
         // a real slowdown elsewhere still trips the global default.
+      },
+      LOADED_MACHINE_TIMEOUT_MS,
+    );
+
+    it(
+      'does not retry on query_timeout',
+      async () => {
+        mockExecute.mockRejectedValue(new POIError('Overpass query timeout', 'query_timeout'));
+
+        const { result } = renderHook(
+          () =>
+            usePOIQuery({
+              center: CENTER,
+              radiusMeters: RADIUS,
+              categories: ['restaurant'],
+            }),
+          { wrapper: createQueryClientWrapper() },
+        );
+
+        await waitFor(() => {
+          expect(result.current.isError).toBe(true);
+        });
+
+        expect(mockExecute).toHaveBeenCalledTimes(1);
       },
       LOADED_MACHINE_TIMEOUT_MS,
     );

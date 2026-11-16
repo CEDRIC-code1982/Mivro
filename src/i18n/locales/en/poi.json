@@ -42,10 +42,11 @@
     }
   },
   "errors": {
+    "title": "Search failed",
     "rate_limited": "Too many requests. Wait a moment and try again.",
     "network": "No connection. Check your network.",
     "server_error": "POI service unavailable. Try again later.",
-    "query_timeout": "Search took too long. Reduce the area or categories.",
+    "query_timeout": "Search took too long. Select fewer categories or try again later.",
     "parse_error": "Invalid server response.",
     "unknown": "Unexpected error."
   },
