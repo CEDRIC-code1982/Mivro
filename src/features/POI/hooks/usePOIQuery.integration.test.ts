@@ -14,6 +14,7 @@ import {
   MIN_POI_SEARCH_RADIUS_M,
   usePOIQuery,
 } from '@features/POI/hooks/usePOIQuery';
+import { MIN_ZONE_RADIUS_M } from '@services/domain/midpoint/CalculateMidpointUseCase';
 import { SearchPOIUseCase } from '@services/domain/poi/SearchPOIUseCase';
 import { createQueryClientWrapper } from '@test-utils/queryClientWrapper';
 
@@ -102,4 +103,8 @@ describe('usePOIQuery + real SearchPOIUseCase', () => {
     },
     LOADED_MACHINE_TIMEOUT_MS,
   );
+
+  it('keeps the POI search floor equal to the zone radius floor, so the drawn circle is the searched area', () => {
+    expect(MIN_POI_SEARCH_RADIUS_M).toBe(MIN_ZONE_RADIUS_M);
+  });
 });
