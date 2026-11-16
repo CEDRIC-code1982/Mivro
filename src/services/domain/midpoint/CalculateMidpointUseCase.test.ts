@@ -1,28 +1,34 @@
 /**
  * @file CalculateMidpointUseCase.test.ts
- * @description Tests unitaires du use case CalculateMidpoint.
- *              Unit tests for the CalculateMidpoint use case.
+ * @description Unit tests for the CalculateMidpoint use case.
  *
  * @module services/domain/midpoint/CalculateMidpointUseCase.test
  */
 
-// [ADDED] Tests unitaires CalculateMidpointUseCase
+// [ADDED] CalculateMidpointUseCase unit tests
 
 import type { Coordinates } from '@entities/Location';
-import type { Participant } from '@entities/MidpointSession';
+import { MidpointSessionSchema, type Participant } from '@entities/MidpointSession';
+import { SharedSessionMetaSchema } from '@entities/SharedSession';
 import {
   CalculateMidpointUseCase,
   CalculateMidpointError,
+  MIN_ZONE_RADIUS_M,
 } from '@services/domain/midpoint/CalculateMidpointUseCase';
+import { computeRadius } from '@services/utils/geo';
 import { PARIS, LYON, MARSEILLE } from '@test-utils/coordinates';
 
+/** Latitude offset of ~100 m: two participants this far apart get a computed radius of ~50 m. */
+const LAT_OFFSET_100_M = 0.0009;
+/** Latitude offset of ~1.1 km: computed radius of ~556 m, just above the floor. */
+const LAT_OFFSET_1_1_KM = 0.01;
+
 /**
- * Crée un Participant minimal à partir de coordonnées.
  * Creates a minimal Participant from coordinates.
  *
- * @param name — nom d'affichage / display name
- * @param coords — coordonnées de départ / start coordinates
- * @returns Participant avec location factice / Participant with stub location
+ * @param name — display name
+ * @param coords — start coordinates
+ * @returns Participant with a stub location
  */
 const makeParticipant = (name: string, coords: Coordinates): Participant => ({
   id: '550e8400-e29b-41d4-a716-446655440000',
@@ -34,12 +40,23 @@ const makeParticipant = (name: string, coords: Coordinates): Participant => ({
   },
 });
 
+/**
+ * Returns `coords` moved north by `latOffset` degrees.
+ *
+ * @param coords — reference coordinates
+ * @param latOffset — latitude offset in degrees
+ * @returns the shifted coordinates
+ */
+const shiftNorth = (coords: Coordinates, latOffset: number): Coordinates => ({
+  latitude: coords.latitude + latOffset,
+  longitude: coords.longitude,
+});
+
 describe('CalculateMidpointUseCase', () => {
   let useCase: CalculateMidpointUseCase;
 
   beforeEach(() => {
     useCase = new CalculateMidpointUseCase();
-    // Silence console.info pendant les tests
     // Silence console.info during tests
     jest.spyOn(console, 'info').mockImplementation();
   });
@@ -94,7 +111,6 @@ describe('CalculateMidpointUseCase', () => {
 
       const result = useCase.execute({ participants });
 
-      // Centroïde cartésien = moyenne arithmétique des lat/lng
       // Cartesian centroid = arithmetic mean of lat/lng
       const expectedLat = (PARIS.latitude + LYON.latitude) / 2;
       const expectedLon = (PARIS.longitude + LYON.longitude) / 2;
@@ -102,8 +118,7 @@ describe('CalculateMidpointUseCase', () => {
       expect(result.midpoint.latitude).toBeCloseTo(expectedLat, 4);
       expect(result.midpoint.longitude).toBeCloseTo(expectedLon, 4);
 
-      // Radius ≈ 196 km (chaque ville est à ~196 km du centroïde)
-      // Radius ≈ 196 km (each city is ~196 km from centroid)
+      // Radius ≈ 196 km (each city is ~196 km from the centroid)
       const radiusKm = result.radius / 1000;
       expect(radiusKm).toBeGreaterThan(180);
       expect(radiusKm).toBeLessThan(210);
@@ -124,19 +139,8 @@ describe('CalculateMidpointUseCase', () => {
       expect(result.midpoint.latitude).toBeCloseTo(expectedLat, 4);
       expect(result.midpoint.longitude).toBeCloseTo(expectedLon, 4);
 
-      // Le radius est le MAX des distances au centroïde
-      // Radius is the MAX distance to centroid
+      // Radius is the MAX distance to the centroid
       expect(result.radius).toBeGreaterThan(0);
-    });
-
-    it('should return midpoint = same point and radius = 0 for 2 identical points', () => {
-      const participants = [makeParticipant('Alice', PARIS), makeParticipant('Bob', PARIS)];
-
-      const result = useCase.execute({ participants });
-
-      expect(result.midpoint.latitude).toBe(PARIS.latitude);
-      expect(result.midpoint.longitude).toBe(PARIS.longitude);
-      expect(result.radius).toBe(0);
     });
 
     it('should return the correct participantsCount', () => {
@@ -170,6 +174,50 @@ describe('CalculateMidpointUseCase', () => {
     });
   });
 
+  // [FIXED] "Rayon de zone nul": the zone radius is floored at MIN_ZONE_RADIUS_M
+  describe('minimum zone radius', () => {
+    it('should return midpoint = same point and radius = MIN_ZONE_RADIUS_M for 2 identical points', () => {
+      const participants = [makeParticipant('Alice', PARIS), makeParticipant('Bob', PARIS)];
+
+      const result = useCase.execute({ participants });
+
+      expect(result.midpoint.latitude).toBe(PARIS.latitude);
+      expect(result.midpoint.longitude).toBe(PARIS.longitude);
+      expect(result.radius).toBe(MIN_ZONE_RADIUS_M);
+    });
+
+    it('should floor the radius at MIN_ZONE_RADIUS_M for participants ~100 m apart', () => {
+      const coords = [PARIS, shiftNorth(PARIS, LAT_OFFSET_100_M)];
+      const participants = coords.map((c, i) => makeParticipant(`P${i}`, c));
+
+      const result = useCase.execute({ participants });
+
+      // Guard: the computed radius really is below the floor
+      expect(computeRadius(result.midpoint, coords)).toBeLessThan(MIN_ZONE_RADIUS_M);
+      expect(result.radius).toBe(MIN_ZONE_RADIUS_M);
+    });
+
+    it('should keep a computed radius just above MIN_ZONE_RADIUS_M unchanged', () => {
+      const coords = [PARIS, shiftNorth(PARIS, LAT_OFFSET_1_1_KM)];
+      const participants = coords.map((c, i) => makeParticipant(`P${i}`, c));
+
+      const result = useCase.execute({ participants });
+
+      const computed = computeRadius(result.midpoint, coords);
+      expect(computed).toBeGreaterThan(MIN_ZONE_RADIUS_M);
+      expect(result.radius).toBe(computed);
+    });
+
+    it('should produce a radius accepted by the session schemas (positive) for identical points', () => {
+      const participants = [makeParticipant('Alice', PARIS), makeParticipant('Bob', PARIS)];
+
+      const { radius } = useCase.execute({ participants });
+
+      expect(MidpointSessionSchema.shape.midpointRadius.safeParse(radius).success).toBe(true);
+      expect(SharedSessionMetaSchema.shape.midpointRadius.safeParse(radius).success).toBe(true);
+    });
+  });
+
   describe('logging', () => {
     it('should log INFO with participant count and radius, without raw coordinates', () => {
       const infoSpy = jest.spyOn(console, 'info').mockImplementation();
@@ -181,18 +229,26 @@ describe('CalculateMidpointUseCase', () => {
       expect(infoSpy).toHaveBeenCalledTimes(1);
       const logMessage = infoSpy.mock.calls[0]?.[0] as string;
 
-      // Doit contenir le nombre de participants et le radius
       // Must contain participant count and radius
       expect(logMessage).toContain('Midpoint calculated for 2 participants');
       expect(logMessage).toContain('radius:');
       expect(logMessage).toContain('[INFO][CalculateMidpointUseCase][execute]');
 
-      // NE DOIT PAS contenir les coordonnées brutes (RGPD)
       // Must NOT contain raw coordinates (GDPR)
       expect(logMessage).not.toContain(String(PARIS.latitude));
       expect(logMessage).not.toContain(String(PARIS.longitude));
       expect(logMessage).not.toContain(String(LYON.latitude));
       expect(logMessage).not.toContain(String(LYON.longitude));
+    });
+
+    it('should log the floored radius for identical points', () => {
+      const infoSpy = jest.spyOn(console, 'info').mockImplementation();
+
+      const participants = [makeParticipant('Alice', PARIS), makeParticipant('Bob', PARIS)];
+
+      useCase.execute({ participants });
+
+      expect(infoSpy.mock.calls[0]?.[0]).toContain(`radius: ${MIN_ZONE_RADIUS_M}m`);
     });
   });
 });

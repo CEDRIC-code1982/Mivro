@@ -131,7 +131,7 @@ Toutes les entités sont définies/validées via **Zod** (`z.infer<>` exporté).
 
 | Use Case                    | Rôle                                                                                                                                                                        |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CalculateMidpointUseCase`  | Calcul du midpoint (centroïde + rayon) d'une session                                                                                                                        |
+| `CalculateMidpointUseCase`  | Calcul du midpoint (centroïde + rayon) d'une session ; rayon de zone plancher à 500 m (`MIN_ZONE_RADIUS_M`)                                                                 |
 | `CreateGuestUserUseCase`    | Crée un guest user (UUID + displayName généré)                                                                                                                              |
 | `GetCurrentLocationUseCase` | Position GPS courante (orchestre géoloc + reverse géocode)                                                                                                                  |
 | `SearchAddressUseCase`      | Recherche d'adresse (orchestre `IGeocodeService`)                                                                                                                           |

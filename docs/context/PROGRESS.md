@@ -3,6 +3,20 @@
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
 > Dernière mise à jour : 2026-09-26 (harness v2 — le harness devient une frontière de confiance).
 
+## « Rayon de zone nul » — rayon de zone plancher à 500 m (2026-11-16, branche `fix/rayon-zone-nul`)
+
+Avec des participants à la même adresse, `computeRadius` renvoyait 0 : la carte (`MapScreen`) et les
+POI (`POIScreen`) testent `!midpointRadius` et affichaient « pas de calcul » alors que le calcul
+avait eu lieu, et un rayon 0 partagé aurait été rejeté à la lecture (`positive()` dans
+`MidpointSessionSchema` et `SharedSessionSchema`). Correction :
+
+- **Rayon de zone porté à 500 m au minimum** (`MIN_ZONE_RADIUS_M`, `CalculateMidpointUseCase`) : le
+  cercle est visible et couvre la zone où sont cherchés les lieux (même valeur que le plancher de
+  recherche POI, qui reste en place). Un rayon calculé au-dessus de 500 m ne change pas.
+- Schémas Zod et gardes d'écran inchangés : un rayon 0 n'est plus produit.
+- Tests : points identiques, participants à ~100 m, rayon juste au-dessus du plancher, rayon accepté
+  par les deux schémas, log du rayon plancher.
+
 ## POI « rayon minuscule » — rayon de recherche plancher à 500 m (2026-11-16, branche `fix/poi-rayon-minuscule`)
 
 Symétrique du « rayon géant » : avec des participants à moins de ~200 m l'un de l'autre, le rayon
@@ -389,7 +403,7 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
 | Suites de tests                    | 89                                                                |
-| Tests (cas) — `npm run check`      | 1291                                                              |
+| Tests (cas) — `npm run check`      | 1295                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |

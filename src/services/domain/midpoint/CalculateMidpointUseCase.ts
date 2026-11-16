@@ -1,13 +1,14 @@
 /**
  * @file CalculateMidpointUseCase.ts
- * @description Orchestrateur métier pour le calcul du midpoint d'une session.
- *              Business orchestrator for session midpoint calculation.
+ * @description Business orchestrator for session midpoint calculation.
  *
- *              Stratégie MVP : centroïde cartésien client-side.
- *              Strategy MVP: client-side cartesian centroid.
+ *              MVP strategy: client-side cartesian centroid.
  *
- *              Pour V1 : moyenne géodésique pour grandes distances.
  *              For V1: geodesic mean for long distances.
+ *
+ *              The zone radius is floored at `MIN_ZONE_RADIUS_M`: participants at the same address
+ *              (or a few metres apart) used to get a 0 m radius, which the map and POI screens read
+ *              as "no calculation" (`!midpointRadius`) and the Zod schemas reject (`positive()`).
  *
  * @example
  *   const useCase = new CalculateMidpointUseCase();
@@ -17,7 +18,7 @@
  * @module services/domain/midpoint/CalculateMidpointUseCase
  */
 
-// [ADDED] UseCase CalculateMidpointUseCase — calcul pur sans I/O
+// [ADDED] CalculateMidpointUseCase use case — pure computation, no I/O
 import type { Coordinates } from '@entities/Location';
 import type { Participant } from '@entities/MidpointSession';
 import { computeCentroid, computeRadius } from '@services/utils/geo';
@@ -26,17 +27,21 @@ const MIN_PARTICIPANTS = 2;
 const MAX_PARTICIPANTS = 5;
 
 /**
- * Codes d'erreur pour le calcul du midpoint.
+ * Minimum zone radius, in meters (~6 min walk). Matches the POI search floor
+ * (`MIN_POI_SEARCH_RADIUS_M`), so the circle drawn on the map is the area searched for places.
+ */
+export const MIN_ZONE_RADIUS_M = 500; // [ADDED] "Rayon de zone nul" fix
+
+/**
  * Error codes for midpoint calculation.
  */
 export type CalculateMidpointErrorCode = 'too_few_participants' | 'too_many_participants';
 
 /**
- * Erreur métier levée quand la validation des participants échoue.
  * Business error thrown when participant validation fails.
  *
- * @param message — message descriptif / descriptive message
- * @param code — code d'erreur typé / typed error code
+ * @param message — descriptive message
+ * @param code — typed error code
  */
 export class CalculateMidpointError extends Error {
   constructor(message: string, public readonly code: CalculateMidpointErrorCode) {
@@ -46,36 +51,32 @@ export class CalculateMidpointError extends Error {
 }
 
 /**
- * Entrée du UseCase : liste des participants de la session.
- * UseCase input: session participant list.
+ * Use case input: session participant list.
  *
- * @param participants — liste de participants (2 à 5) / participant list (2 to 5)
+ * @param participants — participant list (2 to 5)
  */
 export interface CalculateMidpointInput {
   readonly participants: readonly Participant[];
 }
 
 /**
- * Résultat du calcul : midpoint + rayon + nombre de participants.
  * Calculation result: midpoint + radius + participant count.
  *
- * @param midpoint — coordonnées du centroïde / centroid coordinates
- * @param radius — rayon de zone en mètres (distance max au centroïde) / zone radius in meters
- * @param participantsCount — nombre de participants utilisés / number of participants used
+ * @param midpoint — centroid coordinates
+ * @param radius — zone radius in meters (max distance to the centroid, at least `MIN_ZONE_RADIUS_M`)
+ * @param participantsCount — number of participants used
  */
 export interface CalculateMidpointResult {
   readonly midpoint: Coordinates;
-  /** Rayon de zone en mètres (distance max du centroïde aux participants) */
+  /** Zone radius in meters (max distance from the centroid to the participants, floored at `MIN_ZONE_RADIUS_M`) */
   readonly radius: number;
-  /** Nombre de participants utilisés / Number of participants used */
+  /** Number of participants used */
   readonly participantsCount: number;
 }
 
 /**
- * Use case : calcul du midpoint à partir des positions de départ.
  * Use case: midpoint calculation from start positions.
  *
- * Calcul pur (pas d'I/O, pas de side-effects, pas de Date.now()).
  * Pure calculation (no I/O, no side-effects, no Date.now()).
  *
  * @example
@@ -86,13 +87,12 @@ export interface CalculateMidpointResult {
  */
 export class CalculateMidpointUseCase {
   /**
-   * Calcule le midpoint et le rayon de zone d'une liste de participants.
    * Computes the midpoint and zone radius from a list of participants.
    *
-   * @param input — participants de la session / session participants
+   * @param input — session participants
    * @returns midpoint + radius + participantsCount
-   * @throws CalculateMidpointError code 'too_few_participants' si < 2
-   * @throws CalculateMidpointError code 'too_many_participants' si > 5
+   * @throws CalculateMidpointError code 'too_few_participants' if < 2
+   * @throws CalculateMidpointError code 'too_many_participants' if > 5
    */
   execute(input: CalculateMidpointInput): CalculateMidpointResult {
     const { participants } = input;
@@ -114,9 +114,11 @@ export class CalculateMidpointUseCase {
     const coords = participants.map((p) => p.startLocation.coordinates);
 
     const midpoint = computeCentroid(coords);
-    const radius = computeRadius(midpoint, coords);
+    // [FIXED] "Rayon de zone nul": participants at the same address gave a 0 m radius, read as
+    // "no calculation" by MapScreen / POIScreen and rejected by the `positive()` Zod schemas.
+    const radius = Math.max(computeRadius(midpoint, coords), MIN_ZONE_RADIUS_M);
 
-    // [ADDED] Log INFO sans coordonnées brutes (RGPD — LOG-001)
+    // [ADDED] INFO log without raw coordinates (GDPR — LOG-001)
     console.info(
       `[INFO][CalculateMidpointUseCase][execute][?][${new Date().toISOString().slice(11, 19)}] ` +
         `Midpoint calculated for ${participants.length} participants | radius: ${Math.round(
