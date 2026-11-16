@@ -3,6 +3,24 @@
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
 > Dernière mise à jour : 2026-09-26 (harness v2 — le harness devient une frontière de confiance).
 
+## Vue carte POI — états loading, error et empty (2026-11-16, branche `fix/poi-carte-etats`)
+
+`POIMapView` ne recevait ni `isLoading` ni `error` : pendant la recherche, ou après un échec, la vue
+carte des POI montrait une carte sans marqueur ni explication (ERR-003). Correction :
+
+- **Bandeau d'état en haut de la carte** : « Recherche des lieux... » avec un indicateur pendant le
+  chargement, « Recherche impossible » et le message traduit du code d'erreur en cas d'échec,
+  « Aucun lieu trouvé » quand la recherche ne renvoie rien. Même priorité que la liste (chargement >
+  erreur > vide), mêmes clés i18n, aucune clé ajoutée. La carte, le cercle et les marqueurs restent
+  affichés et manipulables autour du bandeau.
+- **A11y** : l'erreur est annoncée comme alerte (`accessibilityRole="alert"`), le chargement et le
+  vide passent par une live region polie ; fond opaque `surface.primary`, donc le contraste AA du
+  texte ne dépend pas des tuiles de la carte.
+- **`poiErrorKey` partagé** (`features/POI/utils/poiErrorKey.ts`), utilisé par la liste et la carte,
+  avec ses propres tests.
+- Tests : bandeau par état, priorités, erreur typée et non typée, marqueurs visibles sous l'erreur,
+  `box-none` ; intégration `POIScreen` en vue carte (chargement et erreur).
+
 ## « Rayon de zone nul » — rayon de zone plancher à 500 m (2026-11-16, branche `fix/rayon-zone-nul`)
 
 Avec des participants à la même adresse, `computeRadius` renvoyait 0 : la carte (`MapScreen`) et les
@@ -402,8 +420,8 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 | Métrique                           | Valeur                                                            |
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
-| Suites de tests                    | 89                                                                |
-| Tests (cas) — `npm run check`      | 1296                                                              |
+| Suites de tests                    | 90                                                                |
+| Tests (cas) — `npm run check`      | 1314                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |

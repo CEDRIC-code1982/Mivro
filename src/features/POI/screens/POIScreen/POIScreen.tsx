@@ -222,6 +222,8 @@ const POIScreen: React.FC = () => {
             radius={radius}
             pois={displayPois}
             onPressPOI={handlePressPOI}
+            isLoading={isLoading}
+            error={error ?? null}
             testID="poi-map"
           />
         )}

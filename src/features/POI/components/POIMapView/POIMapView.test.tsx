@@ -13,6 +13,7 @@ import type { Coordinates } from '@entities/Location';
 import type { Participant } from '@entities/MidpointSession';
 import type { PointOfInterest } from '@entities/PointOfInterest';
 import POIMapView from '@features/POI/components/POIMapView';
+import { POIError } from '@services/domain/poi/IPOIService';
 
 // ─── Mock i18n ─────────────────────────────────────────────
 jest.mock('react-i18next', () => ({
@@ -151,6 +152,103 @@ describe('POIMapView', () => {
 
     expect(getByTestId('map')).toBeTruthy();
     expect(queryByTestId('map-poi-node/1')).toBeNull();
+  });
+
+  // ─── Status banner: loading, error, empty (ERR-003) ─────
+  describe('status banner', () => {
+    it('shows no banner when POIs are displayed', () => {
+      const { queryByTestId } = render(<POIMapView {...defaultProps} testID="map" />);
+
+      expect(queryByTestId('map-status-loading')).toBeNull();
+      expect(queryByTestId('map-status-error')).toBeNull();
+      expect(queryByTestId('map-status-empty')).toBeNull();
+    });
+
+    it('shows the loading banner as a polite live region', () => {
+      const { getByTestId, getByText } = render(
+        <POIMapView {...defaultProps} pois={[]} isLoading testID="map" />,
+      );
+
+      const banner = getByTestId('map-status-loading');
+      expect(getByText('list.loading')).toBeTruthy();
+      expect(banner.props.accessibilityRole).toBe('text');
+      expect(banner.props.accessibilityLiveRegion).toBe('polite');
+      expect(banner.props.accessibilityLabel).toBe('list.loading');
+    });
+
+    it('gives loading priority over error and empty', () => {
+      const { getByTestId, queryByTestId } = render(
+        <POIMapView {...defaultProps} pois={[]} isLoading error={new Error('x')} testID="map" />,
+      );
+
+      expect(getByTestId('map-status-loading')).toBeTruthy();
+      expect(queryByTestId('map-status-error')).toBeNull();
+      expect(queryByTestId('map-status-empty')).toBeNull();
+    });
+
+    it('shows the dedicated message of a typed POI error as an alert', () => {
+      const { getByTestId, getByText } = render(
+        <POIMapView
+          {...defaultProps}
+          pois={[]}
+          error={new POIError('offline', 'network')}
+          testID="map"
+        />,
+      );
+
+      const banner = getByTestId('map-status-error');
+      expect(getByText('errors.title')).toBeTruthy();
+      expect(getByText('errors.network')).toBeTruthy();
+      expect(banner.props.accessibilityRole).toBe('alert');
+      expect(banner.props.accessibilityLabel).toBe('errors.title. errors.network');
+    });
+
+    it('falls back to the unknown message for an untyped error', () => {
+      const { getByText, queryByText } = render(
+        <POIMapView {...defaultProps} error={new Error('raw technical message')} testID="map" />,
+      );
+
+      expect(getByText('errors.unknown')).toBeTruthy();
+      expect(queryByText('raw technical message')).toBeNull();
+    });
+
+    it('keeps the zone circle and the markers visible under the error banner', () => {
+      const { getByTestId } = render(
+        <POIMapView {...defaultProps} error={new Error('x')} testID="map" />,
+      );
+
+      expect(getByTestId('map-status-error')).toBeTruthy();
+      expect(getByTestId('map-circle')).toBeTruthy();
+      expect(getByTestId('map-marker-midpoint')).toBeTruthy();
+      expect(getByTestId('map-poi-node/1')).toBeTruthy();
+    });
+
+    it('gives error priority over empty', () => {
+      const { getByTestId, queryByTestId } = render(
+        <POIMapView {...defaultProps} pois={[]} error={new Error('x')} testID="map" />,
+      );
+
+      expect(getByTestId('map-status-error')).toBeTruthy();
+      expect(queryByTestId('map-status-empty')).toBeNull();
+    });
+
+    it('shows the empty banner when the search found nothing', () => {
+      const { getByTestId, getByText } = render(
+        <POIMapView {...defaultProps} pois={[]} testID="map" />,
+      );
+
+      const banner = getByTestId('map-status-empty');
+      expect(getByText('list.empty.title')).toBeTruthy();
+      expect(getByText('list.empty.description')).toBeTruthy();
+      expect(banner.props.accessibilityRole).toBe('text');
+      expect(banner.props.accessibilityLiveRegion).toBe('polite');
+    });
+
+    it('lets map gestures through around the banner', () => {
+      const { getByTestId } = render(<POIMapView {...defaultProps} pois={[]} testID="map" />);
+
+      expect(getByTestId('map-status').props.pointerEvents).toBe('box-none');
+    });
   });
 
   // ─── P0-5 : POI marker View does not intercept touches ──

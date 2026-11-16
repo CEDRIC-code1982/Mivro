@@ -131,7 +131,11 @@ const mockPOIs: PointOfInterest[] = [
 ];
 
 // ─── Mock usePOIQuery ─────────────────────────────────────────
-let mockPOIQueryResult = {
+let mockPOIQueryResult: {
+  data: PointOfInterest[] | undefined;
+  isLoading: boolean;
+  error: Error | null;
+} = {
   data: mockPOIs,
   isLoading: false,
   error: null,
@@ -273,6 +277,29 @@ describe('POIScreen integration', () => {
 
     expect(screen.getByTestId('poi-list-loading')).toBeTruthy();
     expect(screen.getByText('Recherche des lieux...')).toBeTruthy();
+  });
+
+  it('shows the loading banner on the map view', () => {
+    useSessionStore.setState({ session: computedSession });
+    mockPOIQueryResult = { data: undefined, isLoading: true, error: null };
+
+    render(<POIScreen />);
+    fireEvent.press(screen.getByTestId('poi-header-toggle-map'));
+
+    expect(screen.getByTestId('poi-map-status-loading')).toBeTruthy();
+    expect(screen.getByText('Recherche des lieux...')).toBeTruthy();
+  });
+
+  it('shows the error banner on the map view when the search fails', () => {
+    useSessionStore.setState({ session: computedSession });
+    mockPOIQueryResult = { data: undefined, isLoading: false, error: new Error('boom') };
+
+    render(<POIScreen />);
+    fireEvent.press(screen.getByTestId('poi-header-toggle-map'));
+
+    expect(screen.getByTestId('poi-map-status-error')).toBeTruthy();
+    expect(screen.getByText('Erreur inattendue.')).toBeTruthy();
+    expect(screen.getByTestId('poi-map-circle')).toBeTruthy();
   });
 
   it('renders category filter chips', () => {

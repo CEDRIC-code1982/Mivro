@@ -29,7 +29,7 @@ import EmptyState from '@components/molecules/EmptyState';
 import type { Coordinates } from '@entities/Location';
 import type { PointOfInterest } from '@entities/PointOfInterest';
 import POICard from '@features/POI/components/POICard';
-import { POIError } from '@services/domain/poi/IPOIService';
+import { poiErrorKey } from '@features/POI/utils/poiErrorKey';
 import { distanceBetween } from '@services/utils/geo';
 
 /**
@@ -64,38 +64,6 @@ interface POIWithDistance {
   readonly poi: PointOfInterest;
   readonly distance: number;
 }
-
-/**
- * Maps a POI search error to a dedicated i18n message key (poi namespace).
- *
- * [FIXED] "POI rayon géant": the error state used to show the raw technical message
- * (`error.message`, in English) under a generic title. `invalid_input` has no dedicated
- * message: it comes from inputs the user cannot fix (missing center or radius, or a radius
- * outside the bounds of SearchPOIUseCase — below 100 m is still possible, see TODO "POI rayon
- * minuscule").
- *
- * @param error — Error surfaced by usePOIQuery
- * @returns i18n key (poi namespace)
- */
-const poiErrorKey = (error: Error): string => {
-  if (error instanceof POIError) {
-    switch (error.code) {
-      case 'rate_limited':
-        return 'errors.rate_limited';
-      case 'network':
-        return 'errors.network';
-      case 'server_error':
-        return 'errors.server_error';
-      case 'query_timeout':
-        return 'errors.query_timeout';
-      case 'parse_error':
-        return 'errors.parse_error';
-      default:
-        return 'errors.unknown';
-    }
-  }
-  return 'errors.unknown';
-};
 
 /**
  * Mivro Design System POIListView molecule.

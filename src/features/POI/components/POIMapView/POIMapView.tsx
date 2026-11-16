@@ -1,12 +1,11 @@
 /**
  * @file POIMapView.tsx
- * @description Molecule POIMapView — carte avec markers participants,
- *              midpoint, cercle de zone ET markers POI.
- *              POIMapView molecule — map with participant markers,
- *              midpoint, zone circle AND POI markers.
+ * @description POIMapView molecule — map with participant markers,
+ *              midpoint, zone circle AND POI markers, plus a status banner
+ *              for the loading, error and empty states (ERR-003).
  *
- *              Composant indépendant de SessionMapView (Option 2 MVP)
- *              pour éviter le couplage entre F2 et F3.
+ *              Component independent from SessionMapView (MVP option 2)
+ *              to avoid coupling F2 and F3.
  *
  * @example
  * ```tsx
@@ -16,35 +15,40 @@
  *   radius={radius}
  *   pois={filteredPois}
  *   onPressPOI={(poi) => setSelectedPOI(poi)}
+ *   isLoading={isLoading}
+ *   error={error}
  * />
  * ```
  *
  * @module features/POI/components/POIMapView/POIMapView
  */
 
-// [ADDED] Molecule POIMapView — carte avec POI markers
+// [ADDED] POIMapView molecule — map with POI markers
 
 import { useTheme, type Theme } from '@theme';
+import { AlertCircle, SearchX } from 'lucide-react-native';
 import React, { useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Platform, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import MapView, { Circle, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Text } from '@components/atoms';
 import type { Coordinates } from '@entities/Location';
 import type { Participant } from '@entities/MidpointSession';
 import type { PointOfInterest } from '@entities/PointOfInterest';
+import { poiErrorKey } from '@features/POI/utils/poiErrorKey';
 import { getCategoryIcon } from '@features/POI/utils/poiIcons';
 
 /**
- * Props du composant POIMapView.
  * POIMapView component props.
  *
- * @param participants — Liste des participants / Participant list
- * @param midpoint — Coordonnées du midpoint / Midpoint coordinates
- * @param radius — Rayon de zone en mètres / Zone radius in meters
- * @param pois — Liste de POI à afficher / POI list to display
- * @param onPressPOI — Callback au tap d'un marker POI / POI marker tap callback
- * @param testID — Identifiant de test / Test identifier
+ * @param participants — Participant list
+ * @param midpoint — Midpoint coordinates
+ * @param radius — Zone radius in meters
+ * @param pois — POI list to display
+ * @param onPressPOI — POI marker tap callback
+ * @param isLoading — POI search in progress (status banner with a spinner)
+ * @param error — POI search error (status banner with the translated message)
+ * @param testID — Test identifier
  */
 export interface POIMapViewProps {
   readonly participants: readonly Participant[];
@@ -52,29 +56,38 @@ export interface POIMapViewProps {
   readonly radius: number;
   readonly pois: readonly PointOfInterest[];
   readonly onPressPOI: (poi: PointOfInterest) => void;
+  /** POI search in progress */
+  readonly isLoading?: boolean;
+  /** POI search error */
+  readonly error?: Error | null | undefined;
   readonly testID?: string;
 }
 
-/** Taille du marker POI / POI marker size */
+/** POI marker size */
 const POI_MARKER_SIZE = 32;
-/** Taille de l'icône dans le marker POI / Icon size inside POI marker */
+/** Icon size inside the POI marker */
 const POI_ICON_SIZE = 16;
-/** Taille du marker participant / Participant marker size */
+/** Participant marker size */
 const PARTICIPANT_MARKER_SIZE = 36;
-/** Taille du marker midpoint / Midpoint marker size */
+/** Midpoint marker size */
 const MIDPOINT_MARKER_SIZE = 48;
-/** Padding pour fitToCoordinates / Padding for fitToCoordinates */
+/** Padding for fitToCoordinates */
 const EDGE_PADDING = 80;
+/** Icon size inside the status banner */
+const BANNER_ICON_SIZE = 20;
+
+/** Search state shown by the status banner; `null` when POIs are displayed. */
+type MapStatus = 'loading' | 'error' | 'empty' | null;
 
 /**
- * Molecule POIMapView du Design System Mivro.
  * Mivro Design System POIMapView molecule.
  *
- * Carte complète avec participants, midpoint, zone et POI markers.
- * Full map with participants, midpoint, zone and POI markers.
+ * Full map with participants, midpoint, zone and POI markers. While the search runs, fails or
+ * returns nothing, a banner at the top of the map says so, with the same priority and texts as
+ * POIListView (loading > error > empty); the map stays usable underneath.
  *
  * @param props — {@link POIMapViewProps}
- * @returns Composant POIMapView / POIMapView component
+ * @returns POIMapView component
  */
 const POIMapView: React.FC<POIMapViewProps> = ({
   participants,
@@ -82,6 +95,8 @@ const POIMapView: React.FC<POIMapViewProps> = ({
   radius,
   pois,
   onPressPOI,
+  isLoading = false,
+  error = null,
   testID,
 }) => {
   const theme = useTheme();
@@ -89,8 +104,7 @@ const POIMapView: React.FC<POIMapViewProps> = ({
   const { t } = useTranslation('poi');
   const mapRef = useRef<MapView>(null);
 
-  // Centrage automatique sur tous les points
-  // Auto-fit on all points when map is ready
+  // Auto-fit on all points when the map is ready
   const handleMapReady = useCallback(() => {
     if (!mapRef.current || participants.length === 0) return;
 
@@ -111,8 +125,18 @@ const POIMapView: React.FC<POIMapViewProps> = ({
     });
   }, [participants, midpoint, pois]);
 
-  // Couleur du cercle de zone avec 15% opacité
+  // Zone circle fill color, 15% opacity
   const circleFillColor = theme.color.map.strokeFill;
+
+  // [FIXED] "Vue carte POI sans état loading ni error": a failed or empty search left a map
+  // without any marker or explanation (ERR-003).
+  const status: MapStatus = isLoading
+    ? 'loading'
+    : error != null
+    ? 'error'
+    : pois.length === 0
+    ? 'empty'
+    : null;
 
   return (
     <View style={styles.container} testID={testID}>
@@ -128,7 +152,7 @@ const POIMapView: React.FC<POIMapViewProps> = ({
         onMapReady={handleMapReady}
         testID={testID ? `${testID}-map` : undefined}
       >
-        {/* [ADDED] Cercle de zone autour du midpoint */}
+        {/* [ADDED] Zone circle around the midpoint */}
         <Circle
           center={midpoint}
           radius={radius}
@@ -138,7 +162,7 @@ const POIMapView: React.FC<POIMapViewProps> = ({
           testID={testID ? `${testID}-circle` : undefined}
         />
 
-        {/* [ADDED] Markers participants */}
+        {/* [ADDED] Participant markers */}
         {participants.map((participant) => (
           <Marker
             key={participant.id}
@@ -148,7 +172,7 @@ const POIMapView: React.FC<POIMapViewProps> = ({
             testID={testID ? `${testID}-marker-${participant.id}` : undefined}
           >
             <View style={[styles.markerCircle, styles.participantMarker]}>
-              {/* onAccent : le remplissage est teal, le blanc n'y passe pas AA */}
+              {/* onAccent: the fill is teal, white does not pass AA on it */}
               <Text variant="caption" weight="bold" color="onAccent">
                 {participant.displayName.charAt(0).toUpperCase()}
               </Text>
@@ -156,7 +180,7 @@ const POIMapView: React.FC<POIMapViewProps> = ({
           </Marker>
         ))}
 
-        {/* [ADDED] Marker midpoint */}
+        {/* [ADDED] Midpoint marker */}
         <Marker
           coordinate={midpoint}
           anchor={{ x: 0.5, y: 0.5 }}
@@ -170,7 +194,7 @@ const POIMapView: React.FC<POIMapViewProps> = ({
           </View>
         </Marker>
 
-        {/* [ADDED] Markers POI */}
+        {/* [ADDED] POI markers */}
         {pois.map((poi) => {
           const Icon = getCategoryIcon(poi.category);
           return (
@@ -190,6 +214,86 @@ const POIMapView: React.FC<POIMapViewProps> = ({
           );
         })}
       </MapView>
+
+      {/* [ADDED] Status banner over the map; box-none keeps the map pannable around it */}
+      {status !== null && (
+        <View
+          style={styles.bannerContainer}
+          pointerEvents="box-none"
+          testID={testID ? `${testID}-status` : undefined}
+        >
+          <MapStatusBanner status={status} error={error} testID={testID} />
+        </View>
+      )}
+    </View>
+  );
+};
+
+/**
+ * MapStatusBanner props.
+ *
+ * @param status — Search state to show
+ * @param error — Search error (read when status is 'error')
+ * @param testID — Test identifier of the parent map view
+ */
+interface MapStatusBannerProps {
+  readonly status: Exclude<MapStatus, null>;
+  readonly error: Error | null;
+  readonly testID: string | undefined;
+}
+
+/**
+ * Banner shown at the top of the POI map while the search is loading, failed or found nothing.
+ * Same texts as POIListView. The error is announced as an alert; loading and empty go through a
+ * polite live region.
+ *
+ * @param props — {@link MapStatusBannerProps}
+ * @returns The rendered banner
+ */
+const MapStatusBanner: React.FC<MapStatusBannerProps> = ({ status, error, testID }) => {
+  const theme = useTheme();
+  const styles = createStyles(theme);
+  const { t } = useTranslation('poi');
+
+  const title =
+    status === 'loading'
+      ? t('list.loading')
+      : status === 'error'
+      ? t('errors.title')
+      : t('list.empty.title');
+  const description =
+    status === 'error'
+      ? t(poiErrorKey(error ?? new Error()))
+      : status === 'empty'
+      ? t('list.empty.description')
+      : null;
+
+  return (
+    <View
+      style={[styles.banner, status === 'error' && styles.bannerError]}
+      accessible
+      accessibilityRole={status === 'error' ? 'alert' : 'text'}
+      accessibilityLiveRegion="polite"
+      accessibilityLabel={description === null ? title : `${title}. ${description}`}
+      testID={testID ? `${testID}-status-${status}` : undefined}
+    >
+      {status === 'loading' ? (
+        <ActivityIndicator size="small" color={theme.color.text.brand} />
+      ) : status === 'error' ? (
+        <AlertCircle size={BANNER_ICON_SIZE} color={theme.color.text.error} strokeWidth={2} />
+      ) : (
+        <SearchX size={BANNER_ICON_SIZE} color={theme.color.text.secondary} strokeWidth={2} />
+      )}
+      <View style={styles.bannerText}>
+        <Text variant="body" weight="semibold">
+          {title}
+        </Text>
+        {description !== null && (
+          <Text variant="caption" color="secondary">
+            {description}
+          </Text>
+        )}
+      </View>
     </View>
   );
 };
@@ -234,6 +338,31 @@ const createStyles = (theme: Theme) =>
       borderWidth: 1,
       borderColor: theme.color.border.default,
       ...theme.elevation.sm,
+    },
+    bannerContainer: {
+      position: 'absolute',
+      top: theme.spacing.md,
+      left: theme.spacing.md,
+      right: theme.spacing.md,
+    },
+    // Opaque surface: the text keeps its AA contrast whatever map tiles lie underneath
+    banner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+      padding: theme.spacing.md,
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.color.surface.primary,
+      borderWidth: theme.borderWidth.hairline,
+      borderColor: theme.color.border.default,
+      ...theme.elevation.md,
+    },
+    bannerError: {
+      borderColor: theme.color.border.error,
+    },
+    bannerText: {
+      flex: 1,
+      gap: theme.spacing.xxs,
     },
   });
 

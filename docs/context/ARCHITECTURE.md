@@ -41,7 +41,7 @@ Tests : **86** suites, **1226** cas (`npm run check` vert au 2026-08-24).
 src/
 ├── features/                       feature-first : écrans + hooks propres à la feature (tests co-localisés)
 │   ├── Session/    (F1+F2)  screens/{CreateSessionScreen,MapScreen,SessionsScreen}/ · hooks/{useCreateSessionFlow,useMidpointCalculation,useGeocodeQuery}
-│   ├── POI/        (F3)     screens/POIScreen/ · components/{POICard,POIDetailSheet,POIListView,POIMapView,POIScreenHeader} · hooks/{usePOIQuery} · utils/poiIcons
+│   ├── POI/        (F3)     screens/POIScreen/ · components/{POICard,POIDetailSheet,POIListView,POIMapView,POIScreenHeader} · hooks/{usePOIQuery} · utils/{poiIcons,poiErrorKey}
 │   ├── Sharing/    (F4+F5)  screens/JoinSessionScreen/ · hooks/{useSessionShare,useSharedSessionSync,useRealtimeTracking}
 │   ├── Profile/    (F7)     screens/ProfileScreen/ · hooks/{useAuth,useProfilePhoto}
 │   └── Biometric/  (F8)     hooks/{useBiometricLock}
