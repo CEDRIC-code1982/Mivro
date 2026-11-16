@@ -1,15 +1,14 @@
 /**
  * @file POIScreen.test.tsx
- * @description Tests d'intégration du POIScreen (F3).
- *              Integration tests for POIScreen (F3).
+ * @description Integration tests for POIScreen (F3).
  *
- *              Vérifie les états : pas de session, vue liste/carte,
- *              filtres catégories, détail POI.
+ *              Covers the states: no session, list/map view,
+ *              category filters, POI detail.
  *
  * @module features/POI/screens/POIScreen/POIScreen.integration.test
  */
 
-// [ADDED] Tests intégration POIScreen
+// [ADDED] POIScreen integration tests
 
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
@@ -29,6 +28,8 @@ jest.mock('react-i18next', () => ({
         'noSession.title': 'Aucun calcul disponible',
         'noSession.description': 'Crée une session et calcule le midpoint.',
         'noSession.action': 'Retour à la carte',
+        'header.back': 'Revenir à la carte',
+        'header.backHint': 'Revient à la carte de ta session',
         'viewMode.list': 'Liste',
         'viewMode.map': 'Carte',
         'categories.all': 'Tout',
@@ -256,7 +257,7 @@ describe('POIScreen integration', () => {
 
     fireEvent.press(screen.getByTestId('poi-list-card-node/100'));
 
-    // Le nom apparaît dans la liste ET dans le détail
+    // The name appears both in the list AND in the detail sheet
     expect(screen.getAllByText('Le Petit Bistro').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByTestId('poi-detail')).toBeTruthy();
   });
@@ -294,5 +295,17 @@ describe('POIScreen integration', () => {
     fireEvent.press(screen.getByTestId('poi-header-back'));
 
     expect(mockGoBack).toHaveBeenCalled();
+  });
+
+  // The header back button has its own keys, distinct from the empty-state
+  // button's noSession.* keys (the mock gives them different texts on purpose).
+  it('labels the header back button with its own header.* keys', () => {
+    useSessionStore.setState({ session: computedSession });
+
+    render(<POIScreen />);
+
+    const back = screen.getByTestId('poi-header-back');
+    expect(back.props.accessibilityLabel).toBe('Revenir à la carte');
+    expect(back.props.accessibilityHint).toBe('Revient à la carte de ta session');
   });
 });

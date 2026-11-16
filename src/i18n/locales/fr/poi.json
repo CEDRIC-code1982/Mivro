@@ -7,6 +7,10 @@
     "action": "Retour à la carte",
     "actionHint": "Revient à la carte de ta session"
   },
+  "header": {
+    "back": "Retour à la carte",
+    "backHint": "Revient à la carte de ta session"
+  },
   "viewMode": {
     "list": "Liste",
     "listHint": "Affiche les lieux sous forme de liste",

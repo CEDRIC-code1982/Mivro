@@ -20,6 +20,7 @@ jest.mock('react-i18next', () => ({
     t: (key: string) => {
       const translations: Record<string, string> = {
         'mapView.midpointMarker': 'Point de rencontre',
+        'categories.restaurant': 'Restaurants',
       };
       return translations[key] ?? key;
     },
@@ -137,11 +138,12 @@ describe('POIMapView', () => {
     expect(onPressPOI).toHaveBeenCalledWith(POIS[0]);
   });
 
-  it('sets accessibilityLabel on POI markers', () => {
+  // [MODIFIED] The category is announced translated, not as the raw enum value.
+  it('sets accessibilityLabel on POI markers with the translated category', () => {
     const { getByTestId } = render(<POIMapView {...defaultProps} testID="map" />);
 
     const marker = getByTestId('map-poi-node/1');
-    expect(marker.props.accessibilityLabel).toBe('Bistro A, restaurant');
+    expect(marker.props.accessibilityLabel).toBe('Bistro A, Restaurants');
   });
 
   it('renders with empty POIs list', () => {

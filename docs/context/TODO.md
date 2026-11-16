@@ -367,14 +367,16 @@ Détail : `docs/harness/INVENTAIRE.md` · échecs et arbitrages : `docs/harness/
       `ParticipantCard` corrigé (il annonçait le nom et l'adresse, jamais « supprimer »).
 - [ ] **Activer `react-native-a11y/has-accessibility-hint` en `error`** : la règle passe à 0
       signalement, mais la config de lint relève du harness → session déverrouillée, Cédric. (P2)
-- [ ] **Restes relevés pendant A11Y-003** (hors périmètre, P3) :
-  - `POIMapView` : le libellé du marker POI lit l'enum brut (« cafe ») au lieu de
-    `` t(`categories.${…}`) `` (I18N-002) ;
-  - `ParticipantCard` : le `cardLabel` est un gabarit non traduit (I18N-002) ;
-  - `POIScreen` : le bouton retour de l'en-tête emprunte la clé de l'état vide `noSession.action`,
-    une clé commune (ex. `poi:header.back`) serait plus juste ;
-  - EN : `create:autocomplete.addressHint` et `useGpsHint` sont à l'impératif (« Search for… »)
-    au lieu de la 3ᵉ personne du style maison.
+- [x] ~~**Restes relevés pendant A11Y-003**~~ → **FAIT (2026-11-16, branche `fix/a11y-003-hints`)** :
+  - `POIMapView` : le libellé du marker POI annonce la catégorie traduite
+    (`` t(`categories.${…}`) ``), comme POICard ;
+  - `ParticipantCard` : **sans objet** — le `cardLabel` joint deux données (nom, adresse) par une
+    virgule, il n'y a aucun mot à traduire ;
+  - `POIScreen` : le bouton retour de l'en-tête a ses clés `poi:header.back` / `header.backHint` ;
+  - EN : `addressHint`, `useGpsHint` et `profile:avatarPicker.selectHint` passés à la 3ᵉ personne.
+- [ ] **Libellés de catégorie au singulier** (P3) : un seul lieu s'annonce et s'affiche
+      « Le Comptoir, Cafés », car `categories.*` est au pluriel (libellés des filtres). Des clés au
+      singulier toucheraient POICard, POIDetailSheet et POIMapView.
 - [x] ~~**DOC-004 inapplicable**~~ → **FAIT (2026-08-24)** : Docusaurus 3 dans `docs-site/` +
       TypeDoc à la racine. `npm run docs` (11 s) régénère l'API depuis les TSDoc puis construit le
       site, liens morts en erreur ; joué en 4ᵉ garde du pre-push. 96 tags `@module` obsolètes

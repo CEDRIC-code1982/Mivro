@@ -38,7 +38,7 @@
   },
   "avatarPicker": {
     "label": "Choose your avatar",
-    "selectHint": "Select the {{name}} avatar"
+    "selectHint": "Selects the {{name}} avatar"
   },
   "avatarNames": {
     "fox": "Fox",

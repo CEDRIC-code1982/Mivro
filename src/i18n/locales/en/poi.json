@@ -7,6 +7,10 @@
     "action": "Back to map",
     "actionHint": "Returns to your session map"
   },
+  "header": {
+    "back": "Back to map",
+    "backHint": "Returns to your session map"
+  },
   "viewMode": {
     "list": "List",
     "listHint": "Shows the places as a list",

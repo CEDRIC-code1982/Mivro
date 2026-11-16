@@ -181,7 +181,7 @@ const POIMapView: React.FC<POIMapViewProps> = ({
               coordinate={poi.coordinates}
               anchor={{ x: 0.5, y: 0.5 }}
               onPress={() => onPressPOI(poi)}
-              accessibilityLabel={`${poi.name}, ${poi.category}`}
+              accessibilityLabel={`${poi.name}, ${t(`categories.${poi.category}`)}`}
               accessibilityHint={t('mapView.poiMarkerHint')}
               testID={testID ? `${testID}-poi-${poi.externalId}` : undefined}
             >

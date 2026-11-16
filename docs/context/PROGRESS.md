@@ -1,9 +1,19 @@
 # PROGRESS.md — Mivro
 
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-11-16 (A11Y-003 — les 46 `accessibilityHint` manquants).
+> Dernière mise à jour : 2026-11-16 (restes P3 d'A11Y-003).
 
-## A11Y-003 — hints d'accessibilité (2026-11-16, branche `fix/a11y-003-hints`, non commité)
+## Restes P3 d'A11Y-003 (2026-11-16, branche `fix/a11y-003-hints`)
+
+- **Marker POI** de la carte : il annonce la catégorie traduite (« Bistro A, Restaurants »), plus
+  l'enum brut.
+- **Bouton retour** de l'en-tête POI : clés propres `poi:header.back` / `header.backHint`, au lieu
+  d'emprunter celles de l'état vide.
+- **EN** : trois hints passés à la 3ᵉ personne (`addressHint`, `useGpsHint`,
+  `avatarPicker.selectHint`).
+- `cardLabel` de ParticipantCard classé sans objet. Le singulier des catégories est ajouté au TODO.
+
+## A11Y-003 — hints d'accessibilité (2026-11-16, branche `fix/a11y-003-hints`, commité `c6303e1`)
 
 Dette J-013 payée. Les 46 sites signalés par `react-native-a11y/has-accessibility-hint` ont été
 inventoriés, puis tranchés un par un par Cédric : 38 en code produit, 8 dans les tests.
@@ -373,7 +383,7 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
 | Suites de tests                    | 88                                                                |
-| Tests (cas) — `npm run check`      | 1281                                                              |
+| Tests (cas) — `npm run check`      | 1282                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |
