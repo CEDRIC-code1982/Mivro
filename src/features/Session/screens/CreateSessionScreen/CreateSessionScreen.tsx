@@ -178,6 +178,9 @@ const CreateSessionScreen: React.FC = () => {
                 key={item.id}
                 participant={item}
                 onRemove={() => removeParticipant(item.id)}
+                accessibilityHint={t('list.participantHint')}
+                removeAccessibilityLabel={t('list.removeParticipant', { name: item.displayName })}
+                removeAccessibilityHint={t('list.removeParticipantHint')}
                 testID={`create-participant-${item.id}`}
               />
             ))}
@@ -213,6 +216,7 @@ const CreateSessionScreen: React.FC = () => {
           ]}
           accessibilityRole="button"
           accessibilityLabel={t('actions.continue')}
+          accessibilityHint={t('actions.continueHint')}
           accessibilityState={{ disabled: !canContinue }}
           testID="create-continue-button"
         >

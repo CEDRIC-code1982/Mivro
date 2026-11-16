@@ -118,6 +118,7 @@ const BiometricLockScreen: React.FC<BiometricLockScreenProps> = ({
       style={styles.backdrop}
       accessibilityViewIsModal
       accessibilityLabel={t('lock.title')}
+      accessibilityHint={t('lock.titleHint')}
       testID={testID}
     >
       <View style={styles.content}>

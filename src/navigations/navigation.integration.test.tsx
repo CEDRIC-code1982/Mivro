@@ -1,17 +1,14 @@
 /**
  * @file navigation.test.tsx
- * @description Tests d'intégration légers de la navigation.
- *              Lightweight navigation integration tests.
+ * @description Lightweight navigation integration tests.
  *
- *              Vérifie que le RootNavigator affiche les 4 tabs
- *              et que MapScreen est l'écran par défaut.
  *              Verifies RootNavigator displays all 4 tabs
  *              and MapScreen is the default screen.
  *
  * @module navigations/navigation.integration.test
  */
 
-// [ADDED] Tests d'intégration navigation
+// [ADDED] Navigation integration tests
 import '@/i18n';
 import { NavigationContainer } from '@react-navigation/native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'; // [ADDED]
@@ -20,7 +17,7 @@ import React from 'react';
 import RootNavigator from '@navigations/RootNavigator';
 import { useSessionStore } from '@state/useSessionStore'; // [FIXED P0-7]
 
-// [MODIFIED] Mock getContainer pour useGeocodeQuery + getCurrentLocationUseCase + midpoint
+// [MODIFIED] Mock getContainer for useGeocodeQuery + getCurrentLocationUseCase + midpoint
 jest.mock('@services/serviceContainer', () => ({
   getContainer: jest.fn(() => ({
     searchAddressUseCase: { execute: jest.fn().mockResolvedValue([]) },
@@ -29,7 +26,7 @@ jest.mock('@services/serviceContainer', () => ({
   })),
 }));
 
-// [ADDED] QueryClient de test pour les hooks TanStack Query
+// [ADDED] Test QueryClient for the TanStack Query hooks
 const testQueryClient = new QueryClient({
   defaultOptions: { queries: { retry: false } },
 });
@@ -65,20 +62,30 @@ jest.mock('@react-navigation/bottom-tabs', () => {
       }: {
         name: string;
         component: React.FC;
-        options?: { tabBarIcon?: (props: { focused: boolean }) => React.ReactNode };
+        options?: {
+          tabBarAccessibilityLabel?: string;
+          tabBarIcon?: (props: { focused: boolean }) => React.ReactNode;
+        };
       }) =>
         ReactMock.createElement(
           View,
           { testID: `tab-screen-${name}` },
           ReactMock.createElement(Text, null, name),
-          // [ADDED] Rend l'icône de l'onglet dans ses deux états, sinon les
-          // callbacks tabBarIcon du navigator ne sont jamais invoqués.
-          // Renders the tab icon in both states, otherwise the navigator's
+          // [ADDED] Renders the tab icon in both states, otherwise the navigator's
           // tabBarIcon callbacks are never invoked.
+          // [MODIFIED] A11Y-003 — the icons sit inside a tab button carrying
+          // tabBarAccessibilityLabel, as BottomTabItem does in
+          // @react-navigation/bottom-tabs. Only the label is mocked: the real role
+          // depends on the platform ('button' on iOS, 'tab' elsewhere), so no test
+          // may rely on it here.
           options?.tabBarIcon
             ? ReactMock.createElement(
                 View,
-                { testID: `tab-icon-${name}` },
+                {
+                  testID: `tab-icon-${name}`,
+                  accessible: true,
+                  accessibilityLabel: options.tabBarAccessibilityLabel,
+                },
                 options.tabBarIcon({ focused: true }),
                 options.tabBarIcon({ focused: false }),
               )
@@ -112,7 +119,7 @@ jest.mock('@react-navigation/native-stack', () => {
   };
 });
 
-// [MODIFIED] Mock lucide-react-native — Proxy pour supporter toutes les icônes
+// [MODIFIED] Mock lucide-react-native — Proxy to support every icon
 jest.mock('lucide-react-native', () => {
   const ReactMock = require('react');
   const { View } = require('react-native');
@@ -161,8 +168,8 @@ describe('Navigation integration', () => {
     expect(screen.getByTestId('tab-screen-Profile')).toBeOnTheScreen();
   });
 
-  // ─── Icônes d'onglets (A11Y-003 : label sur chaque icône) ─
-  it('renders an accessible icon for each of the 4 tabs, focused and unfocused', () => {
+  // ─── Tab buttons and icons (A11Y-003, D1: decorative icons) ─
+  it('labels the 4 tab buttons only, the icons adding no label of their own', () => {
     render(
       <QueryClientProvider client={testQueryClient}>
         <NavigationContainer>
@@ -175,8 +182,14 @@ describe('Navigation integration', () => {
       expect(screen.getByTestId(`tab-icon-${tab}`)).toBeOnTheScreen();
     }
 
-    // Chaque icône est rendue 2 fois (focused + non focused) → 8 libellés.
-    expect(screen.getAllByLabelText(/Carte|Sessions|Créer|Profil/)).toHaveLength(8);
+    // Each icon is rendered twice (focused + unfocused) but is hidden from
+    // screen readers since D1: only the tab buttons' tabBarAccessibilityLabel
+    // remains, one per tab.
+    expect(screen.getAllByLabelText(/Carte|Sessions|Créer|Profil/)).toHaveLength(4);
+    expect(screen.getByTestId('tab-icon-Map').props.accessibilityLabel).toBe('Carte');
+    expect(screen.getByTestId('tab-icon-Sessions').props.accessibilityLabel).toBe('Sessions');
+    expect(screen.getByTestId('tab-icon-Create').props.accessibilityLabel).toBe('Créer');
+    expect(screen.getByTestId('tab-icon-Profile').props.accessibilityLabel).toBe('Profil');
   });
 
   // ─── Bottom tabs container ────────────────────────────────

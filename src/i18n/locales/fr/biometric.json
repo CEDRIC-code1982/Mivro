@@ -1,6 +1,7 @@
 {
   "lock": {
     "title": "Mivro est verrouillé",
+    "titleHint": "Bloque l'accès à l'app tant que le verrou biométrique est actif",
     "subtitle": "Déverrouille l'app pour continuer.",
     "unlock": "Déverrouiller",
     "unlockHint": "Lance l'authentification biométrique pour déverrouiller l'app",

@@ -145,6 +145,7 @@ const POIMapView: React.FC<POIMapViewProps> = ({
             coordinate={participant.startLocation.coordinates}
             anchor={{ x: 0.5, y: 0.5 }}
             accessibilityLabel={`${participant.displayName}, ${participant.startLocation.formattedAddress}`}
+            accessibilityHint={t('mapView.participantMarkerHint')}
             testID={testID ? `${testID}-marker-${participant.id}` : undefined}
           >
             <View style={[styles.markerCircle, styles.participantMarker]}>
@@ -161,6 +162,7 @@ const POIMapView: React.FC<POIMapViewProps> = ({
           coordinate={midpoint}
           anchor={{ x: 0.5, y: 0.5 }}
           accessibilityLabel={t('mapView.midpointMarker')}
+          accessibilityHint={t('mapView.midpointMarkerHint')}
           testID={testID ? `${testID}-marker-midpoint` : undefined}
         >
           <View style={[styles.markerCircle, styles.midpointMarker]}>
@@ -180,6 +182,7 @@ const POIMapView: React.FC<POIMapViewProps> = ({
               anchor={{ x: 0.5, y: 0.5 }}
               onPress={() => onPressPOI(poi)}
               accessibilityLabel={`${poi.name}, ${poi.category}`}
+              accessibilityHint={t('mapView.poiMarkerHint')}
               testID={testID ? `${testID}-poi-${poi.externalId}` : undefined}
             >
               {/* [FIXED P0-5] pointerEvents="none" prevents View from intercepting Marker touch */}

@@ -1,6 +1,7 @@
 {
   "lock": {
     "title": "Mivro is locked",
+    "titleHint": "Blocks access to the app while the biometric lock is active",
     "subtitle": "Unlock the app to continue.",
     "unlock": "Unlock",
     "unlockHint": "Starts biometric authentication to unlock the app",

@@ -1,7 +1,28 @@
 # PROGRESS.md — Mivro
 
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-09-26 (harness v2 — le harness devient une frontière de confiance).
+> Dernière mise à jour : 2026-11-16 (A11Y-003 — les 46 `accessibilityHint` manquants).
+
+## A11Y-003 — hints d'accessibilité (2026-11-16, branche `fix/a11y-003-hints`, non commité)
+
+Dette J-013 payée. Les 46 sites signalés par `react-native-a11y/has-accessibility-hint` ont été
+inventoriés, puis tranchés un par un par Cédric : 38 en code produit, 8 dans les tests.
+
+- **Hints FR/EN** posés par `t()` dans les écrans et les composants de feature, ou par une prop
+  pour les atoms et molecules du kit. Il y a 33 nouvelles clés, au style maison : tutoiement,
+  verbe à la 3ᵉ personne, sans répéter le libellé. Seuls 11 boutons avaient un libellé qui ne
+  disait pas ce que fait l'action ; pour les autres sites, le hint est demandé par la règle.
+- **Icône d'onglet décorative** : `TabBarIcon` n'a plus de libellé, c'est le bouton d'onglet qui
+  le porte.
+- **Carte de session** : la phrase de renvoi à « Vue liste » sort des libellés
+  `mapLabel`/`liveMapLabel` et devient le hint de la carte.
+- **Bug corrigé** sur le bouton × de `ParticipantCard` : il annonçait le nom et l'adresse, jamais
+  « supprimer ». Il annonce maintenant « Supprimer {{name}} », avec un hint de retrait.
+- **Reste** : passer la règle en `error`, ce qui relève du harness et donc de Cédric. Restes hors
+  périmètre au TODO.
+
+En marge, deux exigences Google Play 2027 sont ajoutées au TODO, adaptées à Mivro : R8/DEX en
+février, Zero-Tap Sign-In Restoration en avril.
 
 ## Harness v2 — frontière de confiance (2026-09-26, branche `harness/beton`, non commité)
 
@@ -352,7 +373,7 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
 | Suites de tests                    | 88                                                                |
-| Tests (cas) — `npm run check`      | 1267                                                              |
+| Tests (cas) — `npm run check`      | 1281                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |

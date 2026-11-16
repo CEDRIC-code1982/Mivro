@@ -1,10 +1,12 @@
 {
   "consent": {
     "title": "Partager ma position",
+    "titleHint": "Demande ton accord avant de rendre ta position visible aux autres participants",
     "question": "Acceptes-tu de partager ta position avec les participants ?",
     "description": "Ta position sera visible en temps réel par les autres participants pendant la session. Elle est supprimée dès que tu quittes la session et n'est jamais conservée.",
     "accept": "Accepter et partager",
     "decline": "Non, juste voir les autres",
+    "declineHint": "Ferme la demande sans partager ta position et affiche quand même les autres participants en direct",
     "note": "Tu peux arrêter le partage à tout moment."
   },
   "status": {
@@ -22,12 +24,15 @@
   },
   "actions": {
     "startSharing": "Partager ma position",
+    "startSharingHint": "Demande ton accord avant de diffuser ta position en direct aux participants",
     "stopSharing": "Arrêter le partage",
+    "stopSharingHint": "Cesse de diffuser ta position sans masquer les autres participants",
     "viewLiveList": "Vue liste (direct)"
   },
   "accessibility": {
-    "liveMapLabel": "Carte en direct avec {{participantCount}} participants. Ouvre la vue liste pour lire les détails en texte.",
+    "liveMapLabel": "Carte en direct avec {{participantCount}} participants.",
     "participantStatus": "{{name}}, {{status}}, à {{distance}} du point de rencontre",
+    "participantStatusHint": "Se met à jour en temps réel pendant la session",
     "viewLiveListHint": "Affiche les participants en direct sous forme de liste textuelle"
   },
   "errors": {

@@ -120,6 +120,7 @@ const POIScreenHeader: React.FC<POIScreenHeaderProps> = ({
           accessibilityRole="tab"
           accessibilityState={{ selected: viewMode === 'list' }}
           accessibilityLabel={t('viewMode.list')}
+          accessibilityHint={t('viewMode.listHint')}
           testID={testID ? `${testID}-toggle-list` : undefined}
         >
           <List
@@ -142,6 +143,7 @@ const POIScreenHeader: React.FC<POIScreenHeaderProps> = ({
           accessibilityRole="tab"
           accessibilityState={{ selected: viewMode === 'map' }}
           accessibilityLabel={t('viewMode.map')}
+          accessibilityHint={t('viewMode.mapHint')}
           testID={testID ? `${testID}-toggle-map` : undefined}
         >
           <Map
@@ -169,6 +171,7 @@ const POIScreenHeader: React.FC<POIScreenHeaderProps> = ({
         {/* Chip "Tout" */}
         <CategoryChip
           label={t('categories.all')}
+          accessibilityHint={t('categories.allHint')}
           selected={allSelected}
           onPress={handleAllPress}
           {...(testID != null && { testID: `${testID}-chip-all` })}
@@ -184,6 +187,7 @@ const POIScreenHeader: React.FC<POIScreenHeaderProps> = ({
             <CategoryChip
               key={category}
               label={t(`categories.${category}`)}
+              accessibilityHint={t('categories.toggleHint')}
               icon={Icon}
               selected={isSelected}
               onPress={() => onToggleCategory(category)}

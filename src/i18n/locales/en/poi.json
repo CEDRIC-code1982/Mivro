@@ -4,14 +4,18 @@
   "noSession": {
     "title": "No calculation available",
     "description": "Create a session and compute the midpoint to see nearby places.",
-    "action": "Back to map"
+    "action": "Back to map",
+    "actionHint": "Returns to your session map"
   },
   "viewMode": {
     "list": "List",
-    "map": "Map"
+    "listHint": "Shows the places as a list",
+    "map": "Map",
+    "mapHint": "Shows the places on a map"
   },
   "categories": {
     "all": "All",
+    "allHint": "Selects or clears all place categories",
     "restaurant": "Restaurants",
     "cafe": "Cafés",
     "bar": "Bars",
@@ -20,7 +24,8 @@
     "museum": "Museums",
     "shop": "Shops",
     "sport": "Sport",
-    "hotel": "Hotels"
+    "hotel": "Hotels",
+    "toggleHint": "Shows or hides places in this category"
   },
   "list": {
     "loading": "Searching for places...",
@@ -38,7 +43,9 @@
     "address": "Address: {{address}}",
     "actions": {
       "navigate": "Navigate",
-      "close": "Close"
+      "navigateHint": "Opens your maps app to guide you to this place",
+      "close": "Close",
+      "closeHint": "Closes this place's details"
     }
   },
   "errors": {
@@ -50,6 +57,9 @@
     "unknown": "Unexpected error."
   },
   "mapView": {
-    "midpointMarker": "Meeting point"
+    "participantMarkerHint": "Shows this participant's starting point",
+    "midpointMarker": "Meeting point",
+    "midpointMarkerHint": "Marks the center of the area where places are searched",
+    "poiMarkerHint": "Opens this place's details"
   }
 }

@@ -117,6 +117,7 @@ class AppErrorBoundaryClass extends Component<ErrorBoundaryClassProps, ErrorBoun
         style={styles.container}
         accessibilityRole="alert"
         accessibilityLabel={t('errors.boundary.title')}
+        accessibilityHint={t('errors.boundary.titleHint')}
       >
         <Text variant="h2" weight="bold" align="center">
           {t('errors.boundary.title')}

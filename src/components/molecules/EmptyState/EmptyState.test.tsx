@@ -69,4 +69,22 @@ describe('EmptyState', () => {
 
     expect(getByTestId('empty').props.accessibilityLabel).toBe('Aucun résultat');
   });
+
+  it('sets accessibilityHint on the root view when provided', () => {
+    const { getByTestId } = render(
+      <EmptyState
+        title="Aucun résultat"
+        accessibilityHint="Ajoute un point pour commencer"
+        testID="empty"
+      />,
+    );
+
+    expect(getByTestId('empty').props.accessibilityHint).toBe('Ajoute un point pour commencer');
+  });
+
+  it('sets no accessibilityHint when none is provided', () => {
+    const { getByTestId } = render(<EmptyState title="Aucun résultat" testID="empty" />);
+
+    expect(getByTestId('empty').props.accessibilityHint).toBeUndefined();
+  });
 });

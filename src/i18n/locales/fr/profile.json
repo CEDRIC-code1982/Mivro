@@ -3,6 +3,7 @@
   "placeholder": "Gère ton avatar, ton nom et tes préférences.",
   "notSignedIn": "Pas encore connecté",
   "signedInAs": "Connecté en tant que {{name}}",
+  "signedInAsHint": "Ton nom affiché et ta photo se modifient dans les sections suivantes",
   "guestBadge": "Invité",
   "currentTheme": "Thème : {{mode}}",
   "themeLabels": {
@@ -27,6 +28,7 @@
     "remove": "Supprimer la photo",
     "removeHint": "Retire ta photo de profil actuelle",
     "loading": "Traitement de la photo…",
+    "loadingHint": "Les actions sur la photo restent indisponibles jusqu'à la fin du traitement",
     "errors": {
       "permission_denied": "Accès à l'appareil photo ou à la galerie refusé. Autorise-le dans les réglages pour ajouter une photo.",
       "camera_unavailable": "L'appareil photo n'est pas disponible sur cet appareil.",

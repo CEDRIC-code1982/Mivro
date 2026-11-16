@@ -16,6 +16,7 @@
   },
   "actions": {
     "viewPOI": "Voir les lieux à proximité",
+    "viewPOIHint": "Affiche les lieux autour du point de rencontre, filtrables par catégorie",
     "viewList": "Vue liste",
     "viewMap": "Vue carte",
     "recenter": "Recentrer",
@@ -23,11 +24,14 @@
   },
   "list": {
     "title": "Participants",
+    "participantHint": "Indique le point de départ de ce participant",
     "midpoint": "Point de rencontre",
-    "close": "Fermer"
+    "close": "Fermer",
+    "closeHint": "Ramène à la carte"
   },
   "accessibility": {
-    "mapLabel": "Carte du point de rencontre avec {{participantCount}} participants. Touchez « Vue liste » pour consulter le détail en texte.",
+    "mapLabel": "Carte du point de rencontre avec {{participantCount}} participants.",
+    "mapHint": "Renvoie à « Vue liste » pour lire les participants et le point de rencontre en texte",
     "viewListHint": "Affiche les participants et le point de rencontre sous forme de liste textuelle"
   },
   "errors": {
@@ -35,6 +39,8 @@
     "unknown": "Erreur inattendue."
   },
   "markers": {
-    "midpoint": "Point de rencontre"
+    "participantHint": "Indique le point de départ de ce participant",
+    "midpoint": "Point de rencontre",
+    "midpointHint": "Situe le centre calculé entre les points de départ"
   }
 }

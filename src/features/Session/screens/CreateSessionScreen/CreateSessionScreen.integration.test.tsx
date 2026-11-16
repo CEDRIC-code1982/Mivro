@@ -47,6 +47,8 @@ jest.mock('react-i18next', () => ({
         'list.empty.title': 'Aucun point ajouté',
         'list.empty.description': 'Ajoute un point en tapant une adresse ou avec ta position GPS',
         'list.removeParticipant': `Supprimer ${String(opts?.name ?? '')}`,
+        'list.removeParticipantHint': 'Retire ce point de départ de la session',
+        'list.participantHint': 'Indique le point de départ de ce participant',
         'actions.continue': 'Continuer',
         'actions.continueDisabled': 'Ajoute au moins 2 points pour continuer',
         'errors.gps_permission_denied':
@@ -186,6 +188,26 @@ describe('CreateSessionScreen integration', () => {
 
     expect(screen.getByText('Participant 1')).toBeTruthy();
     expect(screen.queryByText('Aucun point ajouté')).toBeNull();
+  });
+
+  it('passes the translated card hint and remove label + hint to ParticipantCard', async () => {
+    renderScreen();
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('create-autocomplete-gps-button'));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Participant 1')).toBeTruthy();
+    });
+
+    expect(
+      screen.getByLabelText('Participant 1, 1 Rue de Rivoli, Paris, France').props
+        .accessibilityHint,
+    ).toBe('Indique le point de départ de ce participant');
+
+    const removeButton = screen.getByLabelText('Supprimer Participant 1');
+    expect(removeButton.props.accessibilityHint).toBe('Retire ce point de départ de la session');
   });
 
   it('enables Continue button after 2 participants added', async () => {

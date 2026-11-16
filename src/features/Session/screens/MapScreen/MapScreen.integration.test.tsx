@@ -53,6 +53,8 @@ jest.mock('react-i18next', () => ({
         'list.close': 'Fermer',
         // [ADDED] F4 — namespace realtime:* + accessibilité
         'accessibility.mapLabel': `Carte avec ${String(opts?.participantCount ?? '')} participants`,
+        'accessibility.mapHint':
+          'Renvoie à « Vue liste » pour lire les participants et le point de rencontre en texte',
         'realtime:accessibility.liveMapLabel': `Carte en direct avec ${String(
           opts?.participantCount ?? '',
         )} participants`,
@@ -284,6 +286,18 @@ describe('MapScreen integration', () => {
     expect(screen.getByTestId('map-session')).toBeTruthy();
     expect(screen.getByTestId('map-footer')).toBeTruthy();
     expect(screen.getByText('Point de rencontre suggéré')).toBeTruthy();
+  });
+
+  it('passes the translated label and hint to the map', () => {
+    useSessionStore.setState({ session: computedSession });
+
+    render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+
+    const map = screen.getByTestId('map-session');
+    expect(map.props.accessibilityLabel).toBe('Carte avec 2 participants');
+    expect(map.props.accessibilityHint).toBe(
+      'Renvoie à « Vue liste » pour lire les participants et le point de rencontre en texte',
+    );
   });
 
   it('shows masked coordinates in footer summary', () => {

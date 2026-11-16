@@ -3,6 +3,7 @@
   "placeholder": "Manage your avatar, name and preferences.",
   "notSignedIn": "Not signed in yet",
   "signedInAs": "Signed in as {{name}}",
+  "signedInAsHint": "Your display name and photo can be changed in the sections below",
   "guestBadge": "Guest",
   "currentTheme": "Theme: {{mode}}",
   "themeLabels": {
@@ -27,6 +28,7 @@
     "remove": "Remove photo",
     "removeHint": "Removes your current profile photo",
     "loading": "Processing photo…",
+    "loadingHint": "Photo actions stay unavailable until processing finishes",
     "errors": {
       "permission_denied": "Camera or library access denied. Allow it in Settings to add a photo.",
       "camera_unavailable": "The camera is not available on this device.",

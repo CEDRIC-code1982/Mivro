@@ -356,6 +356,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
               style={styles.sheetTextInput}
               autoFocus
               accessibilityLabel={t('autocomplete.addressLabel')}
+              accessibilityHint={t('autocomplete.addressHint')}
               {...(testID != null && { testID: `${testID}-sheet-input` })}
             />
           </View>

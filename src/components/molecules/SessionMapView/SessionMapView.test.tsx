@@ -20,6 +20,8 @@ jest.mock('react-i18next', () => ({
     t: (key: string) => {
       const translations: Record<string, string> = {
         'markers.midpoint': 'Point de rencontre',
+        'markers.participantHint': 'Indique le point de départ de ce participant',
+        'markers.midpointHint': 'Situe le centre calculé entre les points de départ',
       };
       return translations[key] ?? key;
     },
@@ -111,6 +113,26 @@ describe('SessionMapView', () => {
     expect(midpointMarker.props.accessibilityLabel).toBe('Point de rencontre');
   });
 
+  // A11Y-003 — each marker carries a translated hint next to its label
+  it('sets the translated accessibilityHint on every participant marker', () => {
+    const { getByTestId } = render(<SessionMapView {...defaultProps} testID="map" />);
+
+    expect(getByTestId('map-marker-p-alice').props.accessibilityHint).toBe(
+      'Indique le point de départ de ce participant',
+    );
+    expect(getByTestId('map-marker-p-bob').props.accessibilityHint).toBe(
+      'Indique le point de départ de ce participant',
+    );
+  });
+
+  it('sets the translated accessibilityHint on the midpoint marker', () => {
+    const { getByTestId } = render(<SessionMapView {...defaultProps} testID="map" />);
+
+    expect(getByTestId('map-marker-midpoint').props.accessibilityHint).toBe(
+      'Situe le centre calculé entre les points de départ',
+    );
+  });
+
   it('renders participant initials in uppercase', () => {
     const { getByText } = render(<SessionMapView {...defaultProps} testID="map" />);
 
@@ -124,6 +146,7 @@ describe('SessionMapView', () => {
       <SessionMapView
         {...defaultProps}
         accessibilityLabel="Carte du point de rencontre avec 2 participants."
+        accessibilityHint="Renvoie à la vue liste"
         testID="map"
       />,
     );
@@ -134,6 +157,18 @@ describe('SessionMapView', () => {
     expect(container.props.accessibilityLabel).toBe(
       'Carte du point de rencontre avec 2 participants.',
     );
+    expect(container.props.accessibilityHint).toBe('Renvoie à la vue liste');
+  });
+
+  // A11Y-003 — the container is an accessible element only when labelled, so a
+  // hint passed without a label must not be applied to it
+  it('ignores accessibilityHint when no accessibilityLabel is provided', () => {
+    const { getByTestId } = render(
+      <SessionMapView {...defaultProps} accessibilityHint="Renvoie à la vue liste" testID="map" />,
+    );
+
+    expect(getByTestId('map').props.accessible).toBeUndefined();
+    expect(getByTestId('map').props.accessibilityHint).toBeUndefined();
   });
 
   it('is not marked accessible when no accessibilityLabel is provided', () => {

@@ -20,17 +20,21 @@
     "noResults": "Aucun résultat",
     "noResultsHint": "Essaie une autre formulation",
     "minLength": "Tape au moins 3 caractères",
-    "loading": "Recherche..."
+    "loading": "Recherche...",
+    "resultHint": "Ajoute cette adresse comme point de départ d'un participant"
   },
   "list": {
     "empty": {
       "title": "Aucun point ajouté",
       "description": "Ajoute un point en tapant une adresse ou avec ta position GPS"
     },
-    "removeParticipant": "Supprimer {{name}}"
+    "participantHint": "Indique le point de départ de ce participant",
+    "removeParticipant": "Supprimer {{name}}",
+    "removeParticipantHint": "Retire ce point de départ de la session"
   },
   "actions": {
     "continue": "Continuer",
+    "continueHint": "Calcule le point de rencontre et ouvre la carte",
     "continueDisabled": "Ajoute au moins 2 points pour continuer"
   },
   "notices": {

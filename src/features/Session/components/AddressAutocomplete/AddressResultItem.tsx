@@ -19,6 +19,7 @@
 import { useTheme, type Theme } from '@theme';
 import { MapPin } from 'lucide-react-native';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Text from '@components/atoms/Text';
 import type { GeocodeResult } from '@entities/GeocodeResult';
@@ -50,6 +51,7 @@ export interface AddressResultItemProps {
 const AddressResultItem: React.FC<AddressResultItemProps> = ({ result, onPress, testID }) => {
   const theme = useTheme();
   const styles = buildStyles(theme);
+  const { t } = useTranslation('create');
 
   return (
     <Pressable
@@ -57,6 +59,7 @@ const AddressResultItem: React.FC<AddressResultItemProps> = ({ result, onPress, 
       style={({ pressed }) => [styles.container, pressed ? styles.pressed : undefined]}
       accessibilityRole="button"
       accessibilityLabel={result.displayName}
+      accessibilityHint={t('autocomplete.resultHint')}
       testID={testID}
     >
       <View style={styles.iconContainer}>

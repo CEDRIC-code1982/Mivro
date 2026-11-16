@@ -197,6 +197,7 @@ const POIDetailSheet: React.FC<POIDetailSheetProps> = ({
                   ]}
                   accessibilityRole="button"
                   accessibilityLabel={t('detail.actions.navigate')}
+                  accessibilityHint={t('detail.actions.navigateHint')}
                   testID={testID ? `${testID}-navigate` : undefined}
                 >
                   <Navigation
@@ -217,6 +218,7 @@ const POIDetailSheet: React.FC<POIDetailSheetProps> = ({
                   ]}
                   accessibilityRole="button"
                   accessibilityLabel={t('detail.actions.close')}
+                  accessibilityHint={t('detail.actions.closeHint')}
                   testID={testID ? `${testID}-close` : undefined}
                 >
                   <Text variant="body" weight="semibold" color="brand">

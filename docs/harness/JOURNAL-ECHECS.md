@@ -27,7 +27,7 @@
 | J-010 | Scripts `test:unit` / `test:integration` morts                      | RÉSOLU  |
 | J-011 | DOC-004 inapplicable : pas de Docusaurus ni TypeDoc                 | RÉSOLU  |
 | J-012 | Thème : 15 paires échouent WCAG AA                                  | RÉSOLU  |
-| J-013 | 46 `accessibilityHint` manquants                                    | OUVERT  |
+| J-013 | 46 `accessibilityHint` manquants                                    | PARTIEL |
 | J-014 | Couplage `components/` → `features/` préexistant                    | RÉSOLU  |
 | J-015 | TS-002 : 127 casts idiomatiques en tests                            | ARBITRÉ |
 | J-016 | Imports de hooks entre features                                     | ARBITRÉ |
@@ -377,7 +377,7 @@ Les commentaires de ratio du thème ont été corrigés là où ils mentaient (`
 
 ## J-013 — 46 `accessibilityHint` manquants
 
-**Date** : 2026-08-21 · **Statut** : OUVERT — dette produit
+**Date** : 2026-08-21 · **Statut** : PARTIEL — dette payée le 2026-11-16, règle encore `off`
 
 **Observé.** `plugin:react-native-a11y/basic` active 11 règles. 10 passent d'emblée ;
 `has-accessibility-hint` remonte **46** éléments qui ont un `accessibilityLabel` sans `hint`.
@@ -386,6 +386,20 @@ Les commentaires de ratio du thème ont été corrigés là où ils mentaient (`
 désormais mécanisée). `has-accessibility-hint` reste `off` : un hint est de la **copie
 utilisateur**, à écrire et à traduire, pas à générer. La charge passe au reviewer, avec le critère
 « le libellé seul dit-il ce que l'action fait ? ».
+
+**Suite (2026-11-16, branche `fix/a11y-003-hints`).** Les 46 sites ont été inventoriés, puis
+tranchés un par un par Cédric. Seuls 11 boutons avaient un libellé qui ne disait pas ce que
+l'action fait : leur hint est utile. Les autres sont des boutons déjà clairs ou des éléments
+non activables (marqueurs, conteneurs, indicateurs de chargement), où la règle exige quand même un
+hint dès qu'il y a un `accessibilityLabel`. Pour ceux-là, on a écrit un hint qui apporte une
+information, ou retiré le libellé quand il doublait le texte affiché ou le bouton parent (icône
+d'onglet rendue décorative, thème du profil). `EmptyState` reçoit une prop optionnelle que ses
+parents ne renseignent pas : l'état vide n'a pas d'action et sa description dit déjà quoi faire.
+Résultat : 0 signalement avec la règle forcée en `error`.
+
+**Reste.** Passer `has-accessibility-hint` en `error` dans la config de lint : c'est le harness,
+donc une session déverrouillée, par Cédric. Tant que ce n'est pas fait, un nouveau libellé sans
+hint passe, et la charge reste au reviewer. L'entrée passe à `RÉSOLU` avec cette activation.
 
 ---
 

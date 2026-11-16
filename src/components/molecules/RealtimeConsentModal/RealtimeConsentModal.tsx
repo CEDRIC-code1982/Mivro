@@ -81,6 +81,7 @@ const RealtimeConsentModal: React.FC<RealtimeConsentModalProps> = ({
           style={styles.card}
           accessibilityViewIsModal
           accessibilityLabel={t('consent.title')}
+          accessibilityHint={t('consent.titleHint')}
           testID={testID ? `${testID}-card` : undefined}
         >
           <Text variant="h3" weight="bold">
@@ -126,6 +127,7 @@ const RealtimeConsentModal: React.FC<RealtimeConsentModalProps> = ({
               ]}
               accessibilityRole="button"
               accessibilityLabel={t('consent.decline')}
+              accessibilityHint={t('consent.declineHint')}
               testID={testID ? `${testID}-decline` : undefined}
             >
               <Text variant="body" weight="semibold" color="brand">

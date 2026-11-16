@@ -16,6 +16,7 @@
   },
   "actions": {
     "viewPOI": "View nearby places",
+    "viewPOIHint": "Shows the places around the meeting point, filterable by category",
     "viewList": "List view",
     "viewMap": "Map view",
     "recenter": "Recenter",
@@ -23,11 +24,14 @@
   },
   "list": {
     "title": "Participants",
+    "participantHint": "Shows this participant's starting point",
     "midpoint": "Meeting point",
-    "close": "Close"
+    "close": "Close",
+    "closeHint": "Returns to the map"
   },
   "accessibility": {
-    "mapLabel": "Meeting point map with {{participantCount}} participants. Tap \"List view\" to read the details as text.",
+    "mapLabel": "Meeting point map with {{participantCount}} participants.",
+    "mapHint": "Points to \"List view\" to read the participants and the meeting point as text",
     "viewListHint": "Shows participants and the meeting point as a text list"
   },
   "errors": {
@@ -35,6 +39,8 @@
     "unknown": "Unexpected error."
   },
   "markers": {
-    "midpoint": "Meeting point"
+    "participantHint": "Marks this participant's starting point",
+    "midpoint": "Meeting point",
+    "midpointHint": "Marks the computed center between the starting points"
   }
 }

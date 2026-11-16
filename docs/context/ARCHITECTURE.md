@@ -186,6 +186,8 @@ Persistance via `zustand-mmkv-adapter` (infrastructure) câblé dans le containe
 ## Atomic Design (`src/components/`)
 
 - **Atoms** : `Text`, `Screen`, `TabBarIcon`, `CategoryChip`, `Avatar`
+  - `TabBarIcon` est **décoratif** (A11Y-003, 2026-11-16) : caché aux lecteurs d'écran, sans libellé ni rôle. C'est le bouton d'onglet qui porte le libellé (`tabBarAccessibilityLabel`). `@react-navigation/bottom-tabs` n'a pas d'option de hint pour ce bouton.
+  - **Hints d'accessibilité** : un atom ou une molecule n'appelle pas `t()` pour un texte qui dépend de l'écran. Il reçoit son `accessibilityHint` par prop, comme son libellé (`CategoryChip`, `EmptyState`, `ParticipantCard` et son bouton ×, `SessionMapView`). Les molecules qui ont déjà leur namespace (`BiometricLockScreen`, `LiveParticipantsList`, `RealtimeConsentModal`) posent leurs hints elles-mêmes.
   - `Avatar` (F7) : ordre de rendu **photo (`photoUri`, `<Image>`) > emoji (`avatarId`) > initiale (`fallbackName`)**. Source unique de la logique d'initiale (réutilisée par `ParticipantCard`). Photo ajoutée en passe 2.
   - ⚠️ `Button`, `Input`, `IconButton`, `Card`, `Spinner` **n'existent pas** — à créer au besoin (skill `create-atom`).
 - **Molecules partagées** (`src/components/molecules/`) : `AvatarPicker`, `BiometricLockScreen`, `EmptyState`, `LiveParticipantsList`, `ParticipantCard`, `RealtimeConsentModal`, `SessionMapView`

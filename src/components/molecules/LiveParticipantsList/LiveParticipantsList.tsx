@@ -99,6 +99,7 @@ const LiveParticipantsList: React.FC<LiveParticipantsListProps> = ({
               status: statusLabel,
               distance: distanceLabel,
             })}
+            accessibilityHint={t('accessibility.participantStatusHint')}
             testID={testID ? `${testID}-item-${live.participantId}` : undefined}
           >
             <View

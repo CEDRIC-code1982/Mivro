@@ -1,8 +1,6 @@
 /**
  * @file ParticipantCard.tsx
- * @description Molecule ParticipantCard — affiche un participant avec avatar,
- *              nom, adresse et bouton de suppression optionnel.
- *              ParticipantCard molecule — displays a participant with avatar,
+ * @description ParticipantCard molecule — displays a participant with avatar,
  *              name, address and optional remove button.
  *
  * @example
@@ -10,13 +8,16 @@
  * <ParticipantCard
  *   participant={participant}
  *   onRemove={() => removeParticipant(participant.id)}
+ *   accessibilityHint={t('list.participantHint')}
+ *   removeAccessibilityLabel={t('list.removeParticipant', { name: participant.displayName })}
+ *   removeAccessibilityHint={t('list.removeParticipantHint')}
  * />
  * ```
  *
  * @module components/molecules/ParticipantCard/ParticipantCard
  */
 
-// [ADDED] Molecule ParticipantCard
+// [ADDED] ParticipantCard molecule
 
 import { useTheme, type Theme } from '@theme';
 import { X } from 'lucide-react-native';
@@ -27,38 +28,48 @@ import Text from '@components/atoms/Text';
 import type { Participant } from '@entities/MidpointSession';
 
 /**
- * Props du composant ParticipantCard.
  * ParticipantCard component props.
  *
- * @param participant - Données du participant / Participant data
- * @param onRemove - Callback de suppression (si fourni, bouton × visible) / Remove callback
- * @param accessibilityLabelOverride - Override du label a11y / a11y label override
- * @param testID - ID de test / Test ID
+ * @param participant - Participant data
+ * @param onRemove - Remove callback (if provided, × button visible)
+ * @param accessibilityLabelOverride - a11y label override
+ * @param accessibilityHint - Translated a11y hint of the card (A11Y-003)
+ * @param removeAccessibilityLabel - Translated a11y label of the × button (falls back to the name)
+ * @param removeAccessibilityHint - Translated a11y hint of the × button (A11Y-003)
+ * @param testID - Test ID
  */
 export interface ParticipantCardProps {
-  /** Données du participant / Participant data */
+  /** Participant data */
   participant: Participant;
-  /** Callback de suppression (si fourni, bouton × visible) / Remove callback (if provided, × button visible) */
+  /** Remove callback (if provided, × button visible) */
   onRemove?: () => void;
-  /** Override du label a11y / a11y label override */
+  /** a11y label override */
   accessibilityLabelOverride?: string;
-  /** ID de test / Test ID */
+  /** Translated a11y hint of the card (A11Y-003) */
+  accessibilityHint?: string;
+  /** Translated a11y label of the × button; falls back to the participant name */
+  removeAccessibilityLabel?: string;
+  /** Translated a11y hint of the × button (A11Y-003) */
+  removeAccessibilityHint?: string;
+  /** Test ID */
   testID?: string;
 }
 
 /**
- * Molecule ParticipantCard du Design System Mivro.
  * Mivro Design System ParticipantCard molecule.
  *
- * Layout horizontal : [Avatar] [Nom + Adresse] [× optionnel]
+ * Horizontal layout: [Avatar] [Name + Address] [optional ×]
  *
  * @param props - {@link ParticipantCardProps}
- * @returns Composant ParticipantCard / ParticipantCard component
+ * @returns ParticipantCard component
  */
 const ParticipantCard: React.FC<ParticipantCardProps> = ({
   participant,
   onRemove,
   accessibilityLabelOverride,
+  accessibilityHint,
+  removeAccessibilityLabel,
+  removeAccessibilityHint,
   testID,
 }) => {
   const theme = useTheme();
@@ -73,10 +84,11 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
     <View
       style={styles.container}
       accessibilityLabel={cardLabel}
+      accessibilityHint={accessibilityHint}
       accessibilityRole="none"
       testID={testID}
     >
-      {/* [MODIFIED] F7 — Avatar emoji choisi (fallback initiale via l'atome Avatar) */}
+      {/* [MODIFIED] F7 — Chosen emoji avatar (initial fallback via the Avatar atom) */}
       <Avatar
         avatarId={avatarId}
         fallbackName={displayName}
@@ -84,7 +96,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
         testID={testID ? `${testID}-avatar` : undefined}
       />
 
-      {/* [ADDED] Nom + adresse */}
+      {/* [ADDED] Name + address */}
       <View style={styles.textContainer}>
         <Text variant="body" weight="semibold" numberOfLines={1}>
           {displayName}
@@ -94,7 +106,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
         </Text>
       </View>
 
-      {/* [ADDED] Bouton × de suppression (si onRemove fourni) */}
+      {/* [ADDED] × remove button (if onRemove provided) */}
       {onRemove != null && (
         <Pressable
           onPress={onRemove}
@@ -103,8 +115,8 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             pressed ? styles.removeButtonPressed : undefined,
           ]}
           accessibilityRole="button"
-          accessibilityLabel={`${displayName}`}
-          accessibilityHint={address}
+          accessibilityLabel={removeAccessibilityLabel ?? displayName}
+          accessibilityHint={removeAccessibilityHint}
           hitSlop={styles.hitSlop}
           testID={testID ? `${testID}-remove` : undefined}
         >

@@ -1,23 +1,22 @@
 /**
  * @file TabBarIcon.tsx
- * @description Atome TabBarIcon — wrapper Lucide pour les icônes de tab bar.
- *              TabBarIcon atom — Lucide wrapper for tab bar icons.
+ * @description TabBarIcon atom — Lucide wrapper for tab bar icons.
  *
- *              Applique les couleurs focused/unfocused depuis le thème
- *              et ajuste le strokeWidth pour l'état actif.
  *              Applies focused/unfocused colors from theme
  *              and adjusts strokeWidth for active state.
  *
+ *              The icon is decorative: it is hidden from screen readers,
+ *              since the tab button already carries its own label
+ *              (`tabBarAccessibilityLabel` in the navigator).
+ *
  * @example
  * ```tsx
- * // FR: Icône de tab active
- * // EN: Active tab icon
+ * // Active tab icon
  * import { MapPin } from 'lucide-react-native';
- * <TabBarIcon icon={MapPin} focused={true} accessibilityLabel={t('navigation:tabs.map')} />
+ * <TabBarIcon icon={MapPin} focused={true} />
  *
- * // FR: Icône de tab inactive, taille custom
- * // EN: Inactive tab icon, custom size
- * <TabBarIcon icon={User} focused={false} size={28} accessibilityLabel={t('navigation:tabs.profile')} />
+ * // Inactive tab icon, custom size
+ * <TabBarIcon icon={User} focused={false} size={28} />
  * ```
  *
  * @module components/atoms/TabBarIcon/TabBarIcon
@@ -32,24 +31,21 @@ import { View } from 'react-native';
 // TYPES
 // ═══════════════════════════════════════════════════════════════
 
-// [ADDED] StrokeWidth pour état focused/unfocused
+// [ADDED] StrokeWidth for focused/unfocused state
 const STROKE_WIDTH_FOCUSED = 2.5;
 const STROKE_WIDTH_DEFAULT = 2;
 
 /**
- * Props du composant TabBarIcon.
  * TabBarIcon component props.
  *
- * @param icon - Composant icône Lucide / Lucide icon component
- * @param focused - État actif de l'onglet / Tab active state
- * @param size - Taille de l'icône / Icon size (default: 24)
- * @param accessibilityLabel - Label a11y OBLIGATOIRE / Required a11y label
+ * @param icon - Lucide icon component
+ * @param focused - Tab active state
+ * @param size - Icon size (default: 24)
  */
 export interface TabBarIconProps {
   icon: LucideIcon;
   focused: boolean;
   size?: number;
-  accessibilityLabel: string;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -57,34 +53,31 @@ export interface TabBarIconProps {
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Atome TabBarIcon du Design System Mivro.
  * Mivro Design System TabBarIcon atom.
  *
- * Wrapper léger autour des icônes Lucide, appliquant les couleurs
- * et épaisseurs de trait du thème selon l'état focused.
  * Lightweight wrapper around Lucide icons, applying theme colors
  * and stroke widths based on focused state.
  *
  * @param props - {@link TabBarIconProps}
- * @returns Composant TabBarIcon stylé / Styled TabBarIcon component
+ * @returns Styled TabBarIcon component
  */
-const TabBarIcon: React.FC<TabBarIconProps> = ({
-  icon: Icon,
-  focused,
-  size = 24,
-  accessibilityLabel,
-}) => {
+const TabBarIcon: React.FC<TabBarIconProps> = ({ icon: Icon, focused, size = 24 }) => {
   const theme = useTheme();
 
-  // [ADDED] Couleur selon l'état focused — tokens thème (DS-001)
+  // [ADDED] Color based on focused state — theme tokens (DS-001)
   const color = focused ? theme.color.text.brand : theme.color.text.tertiary;
 
-  // [ADDED] StrokeWidth plus épais quand actif — effet visuel
+  // [ADDED] Thicker strokeWidth when active — visual effect
   const strokeWidth = focused ? STROKE_WIDTH_FOCUSED : STROKE_WIDTH_DEFAULT;
 
   return (
-    // [ADDED] View wrapper pour a11y — accessibilityLabel obligatoire (A11Y-003)
-    <View accessibilityLabel={accessibilityLabel} accessibilityRole="image">
+    // [MODIFIED] A11Y-003 — Decorative icon: hidden from screen readers (iOS and
+    // Android), the tab button announces its own label (tabBarAccessibilityLabel).
+    <View
+      accessible={false}
+      importantForAccessibility="no-hide-descendants"
+      accessibilityElementsHidden
+    >
       <Icon size={size} color={color} strokeWidth={strokeWidth} />
     </View>
   );

@@ -1,11 +1,8 @@
 /**
  * @file EmptyState.tsx
- * @description Molecule EmptyState — placeholder visuel pour les listes vides,
- *              écrans sans données ou résultats de recherche vides.
- *              EmptyState molecule — visual placeholder for empty lists,
+ * @description EmptyState molecule — visual placeholder for empty lists,
  *              no-data screens or empty search results.
  *
- *              Réutilisable pour F1 (participants), F2 (POI), F3 (carte), etc.
  *              Reusable for F1 (participants), F2 (POI), F3 (map), etc.
  *
  * @example
@@ -20,7 +17,7 @@
  * @module components/molecules/EmptyState/EmptyState
  */
 
-// [ADDED] Molecule EmptyState
+// [ADDED] EmptyState molecule
 
 import { useTheme, type Theme } from '@theme';
 import type { LucideIcon } from 'lucide-react-native';
@@ -29,35 +26,42 @@ import { StyleSheet, View } from 'react-native';
 import Text from '@components/atoms/Text';
 
 /**
- * Props du composant EmptyState.
  * EmptyState component props.
  *
- * @param icon - Icône Lucide optionnelle / Optional Lucide icon
- * @param title - Titre du placeholder / Placeholder title
- * @param description - Description optionnelle / Optional description
- * @param testID - ID de test / Test ID
+ * @param icon - Optional Lucide icon
+ * @param title - Placeholder title
+ * @param description - Optional description
+ * @param accessibilityHint - Optional translated a11y hint (A11Y-003)
+ * @param testID - Test ID
  */
 export interface EmptyStateProps {
-  /** Icône Lucide optionnelle / Optional Lucide icon */
+  /** Optional Lucide icon */
   icon?: LucideIcon;
-  /** Titre du placeholder / Placeholder title */
+  /** Placeholder title */
   title: string;
-  /** Description optionnelle / Optional description */
+  /** Optional description */
   description?: string;
-  /** ID de test / Test ID */
+  /** Optional translated a11y hint, read after the title and description (A11Y-003) */
+  accessibilityHint?: string;
+  /** Test ID */
   testID?: string;
 }
 
 /**
- * Molecule EmptyState du Design System Mivro.
  * Mivro Design System EmptyState molecule.
  *
- * Layout vertical centré avec icône optionnelle, titre et description.
+ * Centered vertical layout with optional icon, title and description.
  *
  * @param props - {@link EmptyStateProps}
- * @returns Composant EmptyState / EmptyState component
+ * @returns EmptyState component
  */
-const EmptyState: React.FC<EmptyStateProps> = ({ icon: Icon, title, description, testID }) => {
+const EmptyState: React.FC<EmptyStateProps> = ({
+  icon: Icon,
+  title,
+  description,
+  accessibilityHint,
+  testID,
+}) => {
   const theme = useTheme();
   const styles = buildStyles(theme);
 
@@ -67,6 +71,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({ icon: Icon, title, description,
     <View
       style={styles.container}
       accessibilityLabel={label}
+      accessibilityHint={accessibilityHint}
       accessibilityRole="none"
       testID={testID}
     >

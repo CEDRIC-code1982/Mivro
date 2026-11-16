@@ -20,17 +20,21 @@
     "noResults": "No results",
     "noResultsHint": "Try a different search",
     "minLength": "Type at least 3 characters",
-    "loading": "Searching..."
+    "loading": "Searching...",
+    "resultHint": "Adds this address as a participant's starting point"
   },
   "list": {
     "empty": {
       "title": "No points added",
       "description": "Add a point by typing an address or using your GPS location"
     },
-    "removeParticipant": "Remove {{name}}"
+    "participantHint": "Shows this participant's starting point",
+    "removeParticipant": "Remove {{name}}",
+    "removeParticipantHint": "Removes this starting point from the session"
   },
   "actions": {
     "continue": "Continue",
+    "continueHint": "Calculates the meeting point and opens the map",
     "continueDisabled": "Add at least 2 points to continue"
   },
   "notices": {

@@ -4,14 +4,18 @@
   "noSession": {
     "title": "Aucun calcul disponible",
     "description": "Crée une session et calcule le midpoint pour voir les lieux.",
-    "action": "Retour à la carte"
+    "action": "Retour à la carte",
+    "actionHint": "Revient à la carte de ta session"
   },
   "viewMode": {
     "list": "Liste",
-    "map": "Carte"
+    "listHint": "Affiche les lieux sous forme de liste",
+    "map": "Carte",
+    "mapHint": "Affiche les lieux sur une carte"
   },
   "categories": {
     "all": "Tout",
+    "allHint": "Sélectionne ou désélectionne toutes les catégories de lieux",
     "restaurant": "Restaurants",
     "cafe": "Cafés",
     "bar": "Bars",
@@ -20,7 +24,8 @@
     "museum": "Musées",
     "shop": "Boutiques",
     "sport": "Sport",
-    "hotel": "Hôtels"
+    "hotel": "Hôtels",
+    "toggleHint": "Affiche ou masque les lieux de cette catégorie"
   },
   "list": {
     "loading": "Recherche des lieux...",
@@ -38,7 +43,9 @@
     "address": "Adresse : {{address}}",
     "actions": {
       "navigate": "Y aller",
-      "close": "Fermer"
+      "navigateHint": "Ouvre ton application de cartes pour te guider jusqu'à ce lieu",
+      "close": "Fermer",
+      "closeHint": "Ferme la fiche de ce lieu"
     }
   },
   "errors": {
@@ -50,6 +57,9 @@
     "unknown": "Erreur inattendue."
   },
   "mapView": {
-    "midpointMarker": "Point de rencontre"
+    "participantMarkerHint": "Indique le point de départ de ce participant",
+    "midpointMarker": "Point de rencontre",
+    "midpointMarkerHint": "Marque le centre de la zone où sont cherchés les lieux",
+    "poiMarkerHint": "Ouvre la fiche détaillée de ce lieu"
   }
 }

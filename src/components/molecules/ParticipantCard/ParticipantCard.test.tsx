@@ -1,12 +1,11 @@
 /**
  * @file ParticipantCard.test.tsx
- * @description Tests unitaires de la molecule ParticipantCard.
- *              Unit tests for the ParticipantCard molecule.
+ * @description Unit tests for the ParticipantCard molecule.
  *
  * @module components/molecules/ParticipantCard/ParticipantCard.test
  */
 
-// [ADDED] Tests unitaires ParticipantCard
+// [ADDED] ParticipantCard unit tests
 
 import { render, fireEvent } from '@testing-library/react-native';
 import React from 'react';
@@ -50,7 +49,7 @@ describe('ParticipantCard', () => {
   });
 
   it('renders the correct initial in avatar', () => {
-    // includeHiddenElements car l'avatar est masqué de l'arbre a11y
+    // includeHiddenElements because the avatar is hidden from the a11y tree
     const { getByText } = render(
       <ParticipantCard participant={makeParticipant({ displayName: 'Sophie' })} />,
     );
@@ -66,18 +65,18 @@ describe('ParticipantCard', () => {
     expect(getByText('A', { includeHiddenElements: true })).toBeTruthy();
   });
 
-  // [ADDED] F7 — avatar emoji
+  // [ADDED] F7 — emoji avatar
   it('renders the avatar emoji when participant has an avatarId', () => {
     const { getByText, queryByText } = render(
       <ParticipantCard participant={makeParticipant({ displayName: 'Léa', avatarId: 'fox' })} />,
     );
 
     expect(getByText('🦊', { includeHiddenElements: true })).toBeTruthy();
-    // L'initiale ne doit pas être rendue quand un avatar emoji est présent
+    // The initial must not be rendered when an emoji avatar is present
     expect(queryByText('L', { includeHiddenElements: true })).toBeNull();
   });
 
-  // [ADDED] F7 — fallback initiale si avatarId absent
+  // [ADDED] F7 — initial fallback when avatarId is missing
   it('falls back to the name initial when participant has no avatarId', () => {
     const { getByText } = render(
       <ParticipantCard participant={makeParticipant({ displayName: 'Bruno' })} />,
@@ -134,5 +133,56 @@ describe('ParticipantCard', () => {
     expect(getByTestId('card').props.accessibilityLabel).toBe(
       'Cédric, 1 Rue de Rivoli, Paris, France',
     );
+  });
+
+  // ─── A11Y-003 — hints ─────────────────────────────────────
+
+  it('sets accessibilityHint on the card when provided', () => {
+    const { getByTestId } = render(
+      <ParticipantCard
+        participant={makeParticipant()}
+        accessibilityHint="Indique le point de départ de ce participant"
+        testID="card"
+      />,
+    );
+
+    expect(getByTestId('card').props.accessibilityHint).toBe(
+      'Indique le point de départ de ce participant',
+    );
+  });
+
+  it('sets no accessibilityHint on the card when none is provided', () => {
+    const { getByTestId } = render(
+      <ParticipantCard participant={makeParticipant()} testID="card" />,
+    );
+
+    expect(getByTestId('card').props.accessibilityHint).toBeUndefined();
+  });
+
+  it('uses removeAccessibilityLabel and removeAccessibilityHint on the remove button', () => {
+    const { getByTestId } = render(
+      <ParticipantCard
+        participant={makeParticipant()}
+        onRemove={jest.fn()}
+        removeAccessibilityLabel="Supprimer Cédric"
+        removeAccessibilityHint="Retire ce point de départ de la session"
+        testID="card"
+      />,
+    );
+
+    const removeButton = getByTestId('card-remove');
+    expect(removeButton.props.accessibilityLabel).toBe('Supprimer Cédric');
+    expect(removeButton.props.accessibilityHint).toBe('Retire ce point de départ de la session');
+  });
+
+  it('falls back to displayName and sets no hint on the remove button without remove props', () => {
+    const { getByTestId } = render(
+      <ParticipantCard participant={makeParticipant()} onRemove={jest.fn()} testID="card" />,
+    );
+
+    const removeButton = getByTestId('card-remove');
+    expect(removeButton.props.accessibilityLabel).toBe('Cédric');
+    // Non-regression (D5): the address used to be announced as the hint of the × button
+    expect(removeButton.props.accessibilityHint).toBeUndefined();
   });
 });

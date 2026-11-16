@@ -1,16 +1,10 @@
 /**
  * @file SessionMapView.tsx
- * @description Vue cartographique d'une session de calcul midpoint.
- *              Map view for a midpoint calculation session.
+ * @description Map view for a midpoint calculation session.
  *
- *              Affiche les markers des participants, le marker midpoint
- *              et un cercle de zone autour du midpoint.
  *              Displays participant markers, midpoint marker,
  *              and a zone circle around the midpoint.
  *
- *              Note a11y : la carte n'est pas accessible aux lecteurs
- *              d'écran. Une vue liste alternative DOIT être proposée
- *              au niveau de l'écran parent (MapScreen — A11Y-006).
  *              A11y note: the map is not accessible to screen readers.
  *              A textual list alternative MUST be provided by the parent
  *              screen (MapScreen — A11Y-006).
@@ -25,7 +19,7 @@
  * @module components/molecules/SessionMapView/SessionMapView
  */
 
-// [ADDED] Molecule SessionMapView — carte interactive session
+// [ADDED] SessionMapView molecule — interactive session map
 import { useTheme, type Theme } from '@theme';
 import React, { useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -37,52 +31,52 @@ import type { Participant } from '@entities/MidpointSession';
 import type { RealtimeParticipant } from '@entities/RealtimeParticipant';
 
 /**
- * Props du composant SessionMapView.
  * SessionMapView component props.
  *
- * @param participants — liste des participants / participant list
- * @param midpoint — coordonnées du midpoint / midpoint coordinates
- * @param radius — rayon de zone en mètres / zone radius in meters
- * @param edgePadding — padding pour fitToCoordinates (défaut 80) / padding for fitToCoordinates (default 80)
- * @param testID — identifiant de test / test identifier
+ * @param participants — participant list
+ * @param midpoint — midpoint coordinates
+ * @param radius — zone radius in meters
+ * @param edgePadding — padding for fitToCoordinates (default 80)
+ * @param accessibilityHint — translated hint read after the map label (A11Y-003)
+ * @param testID — test identifier
  */
 export interface SessionMapViewProps {
   readonly participants: readonly Participant[];
   readonly midpoint: Coordinates;
   readonly radius: number;
   /**
-   * Positions live des participants (F4 — temps réel Firebase).
    * Live participant positions (F4 — Firebase real-time).
    *
-   * Affichées par des markers distincts (pulsation/halo) des points de départ.
-   * Vides ou absentes = aucun marker live (rétro-compatible F2).
-   * Rendered with markers distinct (halo) from start points.
+   * Rendered with markers distinct (pulse/halo) from start points.
    * Empty or absent = no live markers (backward-compatible with F2).
    */
   readonly liveParticipants?: readonly RealtimeParticipant[];
-  /** Padding pour fitToCoordinates (défaut 80) / Padding for fitToCoordinates (default 80) */
+  /** Padding for fitToCoordinates (default 80) */
   readonly edgePadding?: number;
   /**
-   * Label d'accessibilité résumant le contenu de la carte (A11Y-006).
    * Accessibility label summarizing the map content (A11Y-006).
    *
-   * Si fourni, la carte est annoncée comme un élément unique par les
-   * lecteurs d'écran (les markers ne sont pas explorables — la vue liste
-   * du parent est l'alternative textuelle).
    * If provided, the map is announced as a single element by screen
    * readers (markers are not explorable — the parent list view is the
    * textual alternative).
    */
   readonly accessibilityLabel?: string;
+  /**
+   * Translated accessibility hint read after the map label (A11Y-003).
+   *
+   * Only applied together with `accessibilityLabel`, since the container is
+   * an accessible element only in that case. The parent uses it to point to
+   * its textual alternative (list view).
+   */
+  readonly accessibilityHint?: string;
   readonly testID?: string;
 }
 
 /**
- * Vue cartographique d'une session avec markers et cercle de zone.
  * Map view of a session with markers and zone circle.
  *
  * @param props — SessionMapViewProps
- * @returns Composant SessionMapView / SessionMapView component
+ * @returns SessionMapView component
  */
 const SessionMapView: React.FC<SessionMapViewProps> = ({
   participants,
@@ -91,6 +85,7 @@ const SessionMapView: React.FC<SessionMapViewProps> = ({
   liveParticipants = [],
   edgePadding = 80,
   accessibilityLabel,
+  accessibilityHint,
   testID,
 }) => {
   const theme = useTheme();
@@ -98,7 +93,6 @@ const SessionMapView: React.FC<SessionMapViewProps> = ({
   const { t } = useTranslation('map');
   const mapRef = useRef<MapView>(null);
 
-  // Centrage automatique sur tous les points + midpoint
   // Auto-fit on all points + midpoint when map is ready
   const handleMapReady = useCallback(() => {
     if (!mapRef.current || participants.length === 0) return;
@@ -116,7 +110,6 @@ const SessionMapView: React.FC<SessionMapViewProps> = ({
     });
   }, [participants, midpoint, edgePadding]);
 
-  // Couleur du cercle de zone avec 15% opacité (hex 26)
   // Zone circle color with 15% opacity (hex 26)
   const circleFillColor = theme.color.map.strokeFill;
 
@@ -128,6 +121,7 @@ const SessionMapView: React.FC<SessionMapViewProps> = ({
         accessible: true,
         accessibilityRole: 'image' as const,
         accessibilityLabel,
+        ...(accessibilityHint != null && { accessibilityHint }),
       })}
     >
       <MapView
@@ -142,7 +136,7 @@ const SessionMapView: React.FC<SessionMapViewProps> = ({
         onMapReady={handleMapReady}
         testID={testID ? `${testID}-map` : undefined}
       >
-        {/* [ADDED] Cercle de zone autour du midpoint */}
+        {/* [ADDED] Zone circle around the midpoint */}
         <Circle
           center={midpoint}
           radius={radius}
@@ -152,17 +146,18 @@ const SessionMapView: React.FC<SessionMapViewProps> = ({
           testID={testID ? `${testID}-circle` : undefined}
         />
 
-        {/* [ADDED] Markers participants */}
+        {/* [ADDED] Participant markers */}
         {participants.map((participant) => (
           <Marker
             key={participant.id}
             coordinate={participant.startLocation.coordinates}
             anchor={{ x: 0.5, y: 0.5 }}
             accessibilityLabel={`${participant.displayName}, ${participant.startLocation.formattedAddress}`}
+            accessibilityHint={t('markers.participantHint')}
             testID={testID ? `${testID}-marker-${participant.id}` : undefined}
           >
             <View style={[styles.markerCircle, styles.participantMarker]}>
-              {/* onAccent : le remplissage est teal, le blanc n'y passe pas AA */}
+              {/* onAccent: the fill is teal, white does not pass AA on it */}
               <Text variant="caption" weight="bold" color="onAccent">
                 {participant.displayName.charAt(0).toUpperCase()}
               </Text>
@@ -170,11 +165,12 @@ const SessionMapView: React.FC<SessionMapViewProps> = ({
           </Marker>
         ))}
 
-        {/* [ADDED] Marker midpoint (distinctif — étoile, plus gros) */}
+        {/* [ADDED] Midpoint marker (distinctive — star, larger) */}
         <Marker
           coordinate={midpoint}
           anchor={{ x: 0.5, y: 0.5 }}
           accessibilityLabel={t('markers.midpoint')}
+          accessibilityHint={t('markers.midpointHint')}
           testID={testID ? `${testID}-marker-midpoint` : undefined}
         >
           <View style={[styles.markerCircle, styles.midpointMarker]}>
@@ -184,21 +180,19 @@ const SessionMapView: React.FC<SessionMapViewProps> = ({
           </View>
         </Marker>
 
-        {/* [ADDED] F4 — Markers live des participants (temps réel).
-            Distincts des points de départ : halo coloré online/offline. */}
+        {/* [ADDED] F4 — Live participant markers (real-time).
+            Distinct from the start points: colored online/offline halo. */}
         {liveParticipants.map((live) => (
           <Marker
             key={`live-${live.participantId}`}
             coordinate={{ latitude: live.latitude, longitude: live.longitude }}
             anchor={{ x: 0.5, y: 0.5 }}
-            // [FIXED][I18N-001] Aucun accessibilityLabel sur le marker live : la
-            // carte est annoncée comme une image unique (accessibilityLabel posé
-            // sur le conteneur parent, qui est `accessible`) et les markers ne
-            // sont pas explorables individuellement. L'alternative textuelle a11y
-            // est LiveParticipantsList (A11Y-006). On évite ainsi d'exposer un
-            // UUID brut et une string non i18n (cohérent avec la doc du composant).
-            // No accessibilityLabel on the live marker: the map is a single
-            // image; LiveParticipantsList is the a11y text alternative.
+            // [FIXED][I18N-001] No accessibilityLabel on the live marker: the
+            // map is announced as a single image (accessibilityLabel set on the
+            // parent container, which is `accessible`) and the markers are not
+            // individually explorable. The a11y textual alternative is
+            // LiveParticipantsList (A11Y-006). This avoids exposing a raw UUID
+            // and a non-i18n string (consistent with the component doc).
             testID={testID ? `${testID}-live-marker-${live.participantId}` : undefined}
           >
             <View
@@ -246,7 +240,7 @@ const createStyles = (theme: Theme) =>
       height: theme.size.marker.lg,
       backgroundColor: theme.color.interactive.brand.default,
     },
-    // [ADDED] F4 — Marker live (halo) distinct des points de départ
+    // [ADDED] F4 — Live marker (halo) distinct from the start points
     liveMarker: {
       width: theme.size.marker.sm,
       height: theme.size.marker.sm,

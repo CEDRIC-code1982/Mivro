@@ -14,11 +14,15 @@
     "loadingTitle": "Connexion à la session…",
     "loadingDescription": "On récupère le point de rencontre et les participants.",
     "loadingAccessibilityLabel": "Connexion à la session en cours",
+    "loadingAccessibilityHint": "T'ajoute à la session et recalcule le point de rencontre",
     "successTitle": "Tu as rejoint la session",
     "successDescription": "Le point de rencontre a été recalculé avec ta position.",
     "openMap": "Voir la carte",
+    "openMapHint": "Ouvre la carte de la session que tu viens de rejoindre",
     "retry": "Réessayer",
-    "cancel": "Annuler"
+    "retryHint": "Tente à nouveau de rejoindre la session partagée",
+    "cancel": "Annuler",
+    "cancelHint": "Abandonne l'invitation et ramène à la création de session"
   },
   "errors": {
     "title": "Impossible de rejoindre la session",

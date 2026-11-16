@@ -221,6 +221,7 @@ const ProfileScreen: React.FC = () => {
               style={styles.identity}
               accessibilityRole="text"
               accessibilityLabel={t('signedInAs', { name: user.displayName })}
+              accessibilityHint={t('signedInAsHint')}
             >
               <Avatar
                 photoUri={photoUri ?? undefined}
@@ -319,6 +320,7 @@ const ProfileScreen: React.FC = () => {
                   <ActivityIndicator
                     color={theme.color.text.brand}
                     accessibilityLabel={t('photo.loading')}
+                    accessibilityHint={t('photo.loadingHint')}
                     testID="profile-photo-loading"
                   />
                   <Text variant="caption" color="secondary">
@@ -466,12 +468,7 @@ const ProfileScreen: React.FC = () => {
         )}
 
         {/* Thème courant */}
-        <Text
-          variant="body"
-          color="secondary"
-          accessibilityRole="text"
-          accessibilityLabel={t('currentTheme', { mode: themeModeLabel })}
-        >
+        <Text variant="body" color="secondary" accessibilityRole="text">
           {t('currentTheme', { mode: themeModeLabel })}
         </Text>
 

@@ -11,6 +11,7 @@
   "errors": {
     "boundary": {
       "title": "Oops, something went wrong",
+      "titleHint": "Reports an unexpected error and offers to reload the screen",
       "message": "An unexpected error occurred. You can try to continue.",
       "retry": "Retry",
       "retryHint": "Attempts to reload the screen"

@@ -217,6 +217,7 @@ const MapScreen: React.FC = () => {
               })
         }
         testID="map-session"
+        accessibilityHint={t('accessibility.mapHint')}
       />
 
       {/* [ADDED] Footer overlay — résumé + actions */}
@@ -262,6 +263,7 @@ const MapScreen: React.FC = () => {
               ]}
               accessibilityRole="button"
               accessibilityLabel={t('actions.viewPOI')}
+              accessibilityHint={t('actions.viewPOIHint')}
               testID="map-btn-poi"
             >
               <Text variant="small" weight="semibold" color="onBrand">
@@ -305,6 +307,11 @@ const MapScreen: React.FC = () => {
                   ? t('realtime:actions.stopSharing')
                   : t('realtime:actions.startSharing')
               }
+              accessibilityHint={
+                hasSharingConsent
+                  ? t('realtime:actions.stopSharingHint')
+                  : t('realtime:actions.startSharingHint')
+              }
               testID="map-btn-share"
             >
               <Text variant="small" weight="semibold" color="brand">
@@ -344,6 +351,7 @@ const MapScreen: React.FC = () => {
               style={styles.modalCloseButton}
               accessibilityRole="button"
               accessibilityLabel={t('list.close')}
+              accessibilityHint={t('list.closeHint')}
               testID="map-list-close"
             >
               <Text variant="body" weight="semibold" color="brand">
@@ -400,6 +408,7 @@ const MapScreen: React.FC = () => {
               <ParticipantCard
                 key={participant.id}
                 participant={participant}
+                accessibilityHint={t('list.participantHint')}
                 testID={`map-list-participant-${participant.id}`}
               />
             ))}

@@ -14,11 +14,15 @@
     "loadingTitle": "Connecting to the session…",
     "loadingDescription": "Fetching the meeting point and participants.",
     "loadingAccessibilityLabel": "Connecting to the session",
+    "loadingAccessibilityHint": "Adds you to the session and recomputes the meeting point",
     "successTitle": "You joined the session",
     "successDescription": "The meeting point was recomputed with your location.",
     "openMap": "View map",
+    "openMapHint": "Opens the map of the session you just joined",
     "retry": "Try again",
-    "cancel": "Cancel"
+    "retryHint": "Tries again to join the shared session",
+    "cancel": "Cancel",
+    "cancelHint": "Drops the invitation and takes you back to session creation"
   },
   "errors": {
     "title": "Could not join the session",

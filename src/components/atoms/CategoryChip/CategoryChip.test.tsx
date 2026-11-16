@@ -107,9 +107,35 @@ describe('CategoryChip', () => {
 
   it('uses custom accessibilityLabel when provided', () => {
     const { getByTestId } = render(
-      <CategoryChip {...defaultProps} accessibilityLabel="Custom label" testID="chip" />,
+      <CategoryChip
+        {...defaultProps}
+        accessibilityLabel="Custom label"
+        accessibilityHint="Custom hint"
+        testID="chip"
+      />,
     );
 
     expect(getByTestId('chip').props.accessibilityLabel).toBe('Custom label');
+    expect(getByTestId('chip').props.accessibilityHint).toBe('Custom hint');
+  });
+
+  it('passes accessibilityHint to the pressable', () => {
+    const { getByTestId } = render(
+      <CategoryChip
+        {...defaultProps}
+        accessibilityHint="Affiche ou masque les lieux de cette catégorie"
+        testID="chip"
+      />,
+    );
+
+    expect(getByTestId('chip').props.accessibilityHint).toBe(
+      'Affiche ou masque les lieux de cette catégorie',
+    );
+  });
+
+  it('sets no accessibilityHint when none is provided', () => {
+    const { getByTestId } = render(<CategoryChip {...defaultProps} testID="chip" />);
+
+    expect(getByTestId('chip').props.accessibilityHint).toBeUndefined();
   });
 });

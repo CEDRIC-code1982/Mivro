@@ -141,6 +141,7 @@ const POIScreen: React.FC = () => {
           style={styles.backButton}
           accessibilityRole="button"
           accessibilityLabel={t('noSession.action')}
+          accessibilityHint={t('noSession.actionHint')}
           testID="poi-btn-back"
         >
           <Text variant="body" weight="semibold" color="brand">
@@ -164,6 +165,7 @@ const POIScreen: React.FC = () => {
           style={styles.headerBackButton}
           accessibilityRole="button"
           accessibilityLabel={t('noSession.action')}
+          accessibilityHint={t('noSession.actionHint')}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           testID="poi-header-back"
         >

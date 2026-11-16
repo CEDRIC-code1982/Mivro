@@ -11,6 +11,7 @@
   "errors": {
     "boundary": {
       "title": "Oups, quelque chose s'est mal passé",
+      "titleHint": "Signale une erreur inattendue et propose de recharger l'écran",
       "message": "Une erreur inattendue est survenue. Tu peux essayer de continuer.",
       "retry": "Réessayer",
       "retryHint": "Tente de recharger l'écran"

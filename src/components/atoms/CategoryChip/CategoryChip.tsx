@@ -1,8 +1,6 @@
 /**
  * @file CategoryChip.tsx
- * @description Atome CategoryChip — chip de filtre catégorie avec icône,
- *              label et badge optionnel.
- *              CategoryChip atom — category filter chip with icon,
+ * @description CategoryChip atom — category filter chip with icon,
  *              label and optional badge.
  *
  * @example
@@ -19,7 +17,7 @@
  * @module components/atoms/CategoryChip/CategoryChip
  */
 
-// [ADDED] Atome CategoryChip — filtre catégorie POI
+// [ADDED] CategoryChip atom — POI category filter
 
 import { useTheme, type Theme } from '@theme';
 import type { LucideIcon } from 'lucide-react-native';
@@ -28,48 +26,48 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import Text from '@components/atoms/Text';
 
 /**
- * Props du composant CategoryChip.
  * CategoryChip component props.
  *
- * @param label — Texte affiché / Display text
- * @param icon — Icône Lucide optionnelle / Optional Lucide icon
- * @param selected — État sélectionné / Selected state
- * @param onPress — Callback au tap / Tap callback
- * @param count — Nombre de résultats (badge) / Result count (badge)
- * @param accessibilityLabel — Override a11y label / a11y label override
- * @param testID — Identifiant de test / Test identifier
+ * @param label — Display text
+ * @param icon — Optional Lucide icon
+ * @param selected — Selected state
+ * @param onPress — Tap callback
+ * @param count — Result count (badge)
+ * @param accessibilityLabel — a11y label override
+ * @param accessibilityHint — Translated a11y hint describing what the tap does (A11Y-003)
+ * @param testID — Test identifier
  */
 export interface CategoryChipProps {
-  /** Texte affiché / Display text */
+  /** Display text */
   readonly label: string;
-  /** Icône Lucide optionnelle / Optional Lucide icon */
+  /** Optional Lucide icon */
   readonly icon?: LucideIcon;
-  /** État sélectionné / Selected state */
+  /** Selected state */
   readonly selected: boolean;
-  /** Callback au tap / Tap callback */
+  /** Tap callback */
   readonly onPress: () => void;
-  /** Nombre de résultats (badge) / Result count (badge) */
+  /** Result count (badge) */
   readonly count?: number;
-  /** Override a11y label / a11y label override */
+  /** a11y label override */
   readonly accessibilityLabel?: string;
-  /** Identifiant de test / Test identifier */
+  /** Translated a11y hint describing what the tap does (A11Y-003) */
+  readonly accessibilityHint?: string;
+  /** Test identifier */
   readonly testID?: string;
 }
 
-/** Taille de l'icône dans le chip / Icon size inside chip */
+/** Icon size inside chip */
 const CHIP_ICON_SIZE = 16;
-/** Hauteur du chip / Chip height */
+/** Chip height */
 const CHIP_HEIGHT = 36;
 
 /**
- * Atome CategoryChip du Design System Mivro.
  * Mivro Design System CategoryChip atom.
  *
- * Chip sélectionnable avec icône optionnelle et badge de comptage.
  * Selectable chip with optional icon and count badge.
  *
  * @param props — {@link CategoryChipProps}
- * @returns Composant CategoryChip / CategoryChip component
+ * @returns CategoryChip component
  */
 const CategoryChip: React.FC<CategoryChipProps> = ({
   label,
@@ -78,6 +76,7 @@ const CategoryChip: React.FC<CategoryChipProps> = ({
   onPress,
   count,
   accessibilityLabel: a11yLabel,
+  accessibilityHint,
   testID,
 }) => {
   const theme = useTheme();
@@ -92,6 +91,7 @@ const CategoryChip: React.FC<CategoryChipProps> = ({
       accessibilityRole="button"
       accessibilityState={{ selected }}
       accessibilityLabel={computedA11yLabel}
+      accessibilityHint={accessibilityHint}
       hitSlop={{ top: 6, bottom: 6 }}
       testID={testID}
     >

@@ -81,6 +81,7 @@ const JoinSessionScreen: React.FC = () => {
           color={theme.color.text.brand}
           accessibilityRole="progressbar"
           accessibilityLabel={t('join.loadingAccessibilityLabel')}
+          accessibilityHint={t('join.loadingAccessibilityHint')}
         />
         <Text variant="h3" weight="bold" style={styles.title}>
           {t('join.loadingTitle')}
@@ -116,6 +117,7 @@ const JoinSessionScreen: React.FC = () => {
           ]}
           accessibilityRole="button"
           accessibilityLabel={t('join.openMap')}
+          accessibilityHint={t('join.openMapHint')}
           testID="join-btn-open-map"
         >
           <Text variant="body" weight="semibold" color="onBrand">
@@ -151,6 +153,7 @@ const JoinSessionScreen: React.FC = () => {
         ]}
         accessibilityRole="button"
         accessibilityLabel={t('join.retry')}
+        accessibilityHint={t('join.retryHint')}
         testID="join-btn-retry"
       >
         <Text variant="body" weight="semibold" color="onBrand">
@@ -162,6 +165,7 @@ const JoinSessionScreen: React.FC = () => {
         style={styles.linkButton}
         accessibilityRole="button"
         accessibilityLabel={t('join.cancel')}
+        accessibilityHint={t('join.cancelHint')}
         testID="join-btn-cancel"
       >
         <Text variant="body" weight="semibold" color="brand">

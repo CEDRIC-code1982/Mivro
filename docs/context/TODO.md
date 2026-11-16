@@ -142,6 +142,8 @@ _Estimation : M. Dépendances : `@react-native-google-signin/google-signin`, `@i
 - [ ] Brancher les signatures no-op de `useAuthStore` sur les libs réelles
 - [ ] Login Google + Apple, persistance de l'état
 - [ ] Conserver le guest-first (ADR-004)
+- [ ] Android : Zero-Tap Sign-In Restoration, exigence Play d'avril 2027 (voir § Exigences Google
+      Play 2027). Elle demande un serveur de vérification WebAuthn.
 - [ ] Tests + update docs
 
 ## P2 — ADR rattrapage — ✅ FAIT (2026-07-14)
@@ -184,6 +186,56 @@ _Estimation : L. Dépendances : comptes stores._
       (`entities`, `services/domain`, `services/utils`, `theme`), 70 % (`services/infra`), 50 %
       (`features`, `components`, `state`, `hooks`, `navigations`), et 70 % en global.
 - [ ] Upload TestFlight + Play Console (piste interne)
+
+---
+
+## P3 — Exigences Google Play 2027 (avant toute publication Android)
+
+_Source : Play Console Help « Play Console technical quality requirements »
+(<https://support.google.com/googleplay/android-developer/answer/17492799>), lue le 2026-11-12.
+Les deux exigences ont été remontées par Cédric depuis ses tickets FDI et adaptées ici à Mivro._
+
+- [ ] **Optimisation du code DEX (R8), exigée à partir de février 2027.** Une app dont le DEX dépasse 10 Mo
+      doit être réduite, optimisée et obscurcie à au moins 25 % sur chacun des trois axes, pour tout
+      bundle envoyé sur Play. Sinon : visibilité et capacité de publication réduites.
+      État de Mivro : `android/app/build.gradle` (l. 76) contient `enableProguardInReleaseBuilds = false`,
+      donc 0 %. Le fichier par défaut est `proguard-android.txt`, et non la variante `-optimize` comme
+      chez FDI. `proguard-rules.pro` est vide (commentaires seulement).
+  - [ ] Mesurer la taille du DEX sur un AAB de release : `./gradlew bundleRelease`, puis la taille des
+        `base/dex/*.dex`. Sous 10 Mo, rien n'est obligatoire, mais R8 reste recommandé.
+  - [ ] Passer `enableProguardInReleaseBuilds = true` avec `proguard-android-optimize.txt`, et
+        `shrinkResources true`.
+  - [ ] Ajouter les règles keep nécessaires. RN, Firebase, MMKV, Sentry et react-native-maps
+        livrent leurs règles consommateur ; les manques n'apparaissent qu'à l'exécution.
+  - [ ] Envoyer le mapping R8 à **Sentry**, pas à Crashlytics : Mivro n'a pas Crashlytics (ADR-010).
+        Il faut pour ça le plugin Gradle Sentry (`autoUploadProguardMapping`). Aucune intégration
+        Gradle Sentry n'existe aujourd'hui (sourcemaps JS comprises). Le jeton Sentry est un secret
+        géré par Cédric.
+  - [ ] Tester toute l'app en build de release.
+  - [ ] Contrôler les pourcentages dans Play Console, onglet App bundle explorer, sur chaque bundle.
+- [ ] **Zero-Tap Sign-In Restoration, exigée à partir d'avril 2027.** Une app qui propose une connexion,
+      même optionnelle, doit reconnecter l'utilisateur sur un nouveau téléphone (transfert ou
+      sauvegarde cloud) sans qu'il ressaisisse quoi que ce soit, via l'API Restore Credentials
+      (<https://developer.android.com/identity/sign-in/restore-credentials-implementation>).
+      L'exigence ne vise que la partie authentifiée : un invité doit rester invité.
+      **Mivro aujourd'hui** : app guest-first sans compte (ADR-004), donc hors périmètre (« apps that
+      do not offer user accounts or login functionality are not affected »). **Dès que F6
+      (Google/Apple) sera livré sur Android, Mivro entre dans le périmètre.** La page parle de « toute
+      méthode d'authentification » et ne nomme ni Firebase Auth ni Apple.
+  - [ ] ⚠️ À SPÉCIFIER AVEC CÉDRIC : en faire un critère d'acceptation de F6, ou décaler F6 sur Android.
+        L'exemption est réservée aux contraintes réglementaires (finance, santé), ce qui est peu
+        probable ici. La sortie « app privée » ne s'applique pas : Mivro est publique.
+  - [ ] Prérequis techniques : Android 9+, Play services 24.22+, `androidx.credentials` 1.5.0+.
+        La restore key est une clé WebAuthn, il faut donc un **serveur relying party** qui vérifie
+        l'enregistrement et l'assertion, puis ouvre une session. Mivro n'a pas de backend (Firebase
+        RTDB seul) : il faudra par exemple une Cloud Function qui émet un custom token Firebase Auth.
+        Décision d'architecture, donc ADR.
+  - [ ] Le module natif partagé `i0124_*` appartient à FDI et ne se reprend pas tel quel. Il faut
+        choisir entre une lib RN existante et un module natif Mivro (dépendance à valider).
+  - [ ] Côté app : créer la clé après la connexion, et au démarrage si elle manque. La demander au
+        premier lancement sans session (Activity de lancement ou `BackupAgent`). La supprimer à la
+        déconnexion et quand la session est invalidée.
+  - [ ] Tester un vrai transfert d'un appareil à l'autre.
 
 ---
 
@@ -308,9 +360,21 @@ Détail : `docs/harness/INVENTAIRE.md` · échecs et arbitrages : `docs/harness/
       danger au step 600, et nouveau token `text.onAccent` (encre) car le teal accent est trop
       lumineux pour porter du blanc (2,17:1 → 7,87:1). `PENDING_DESIGN_DECISION` est vide :
       **44 paires vérifiées, 0 dette** (J-012).
-- [ ] **A11Y-003 — 46 `accessibilityHint` manquants** (J-013). Les 10 autres règles
-      `react-native-a11y/basic` sont actives et vertes. Un hint est de la copie utilisateur à
-      écrire + traduire → reste au reviewer. (P2)
+- [x] ~~**A11Y-003 — 46 `accessibilityHint` manquants**~~ → **FAIT (2026-11-16, branche
+      `fix/a11y-003-hints`)** (J-013). Liste validée par Cédric élément par élément : hints FR/EN
+      posés par `t()` ou par prop, icône d'onglet rendue décorative (le bouton porte déjà le
+      libellé), libellé redondant du thème retiré, prop optionnelle sur `EmptyState`, bouton × de
+      `ParticipantCard` corrigé (il annonçait le nom et l'adresse, jamais « supprimer »).
+- [ ] **Activer `react-native-a11y/has-accessibility-hint` en `error`** : la règle passe à 0
+      signalement, mais la config de lint relève du harness → session déverrouillée, Cédric. (P2)
+- [ ] **Restes relevés pendant A11Y-003** (hors périmètre, P3) :
+  - `POIMapView` : le libellé du marker POI lit l'enum brut (« cafe ») au lieu de
+    `` t(`categories.${…}`) `` (I18N-002) ;
+  - `ParticipantCard` : le `cardLabel` est un gabarit non traduit (I18N-002) ;
+  - `POIScreen` : le bouton retour de l'en-tête emprunte la clé de l'état vide `noSession.action`,
+    une clé commune (ex. `poi:header.back`) serait plus juste ;
+  - EN : `create:autocomplete.addressHint` et `useGpsHint` sont à l'impératif (« Search for… »)
+    au lieu de la 3ᵉ personne du style maison.
 - [x] ~~**DOC-004 inapplicable**~~ → **FAIT (2026-08-24)** : Docusaurus 3 dans `docs-site/` +
       TypeDoc à la racine. `npm run docs` (11 s) régénère l'API depuis les TSDoc puis construit le
       site, liens morts en erreur ; joué en 4ᵉ garde du pre-push. 96 tags `@module` obsolètes

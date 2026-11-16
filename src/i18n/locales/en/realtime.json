@@ -1,10 +1,12 @@
 {
   "consent": {
     "title": "Share my location",
+    "titleHint": "Asks for your consent before making your location visible to the other participants",
     "question": "Do you agree to share your location with the participants?",
     "description": "Your location will be visible in real time to the other participants during the session. It is deleted as soon as you leave the session and is never stored.",
     "accept": "Accept and share",
     "decline": "No, just view others",
+    "declineHint": "Closes the request without sharing your location and still shows the other participants live",
     "note": "You can stop sharing at any time."
   },
   "status": {
@@ -22,12 +24,15 @@
   },
   "actions": {
     "startSharing": "Share my location",
+    "startSharingHint": "Asks for your consent before broadcasting your live location to participants",
     "stopSharing": "Stop sharing",
+    "stopSharingHint": "Stops broadcasting your location without hiding the other participants",
     "viewLiveList": "List view (live)"
   },
   "accessibility": {
-    "liveMapLabel": "Live map with {{participantCount}} participants. Open the list view to read the details as text.",
+    "liveMapLabel": "Live map with {{participantCount}} participants.",
     "participantStatus": "{{name}}, {{status}}, {{distance}} from the meeting point",
+    "participantStatusHint": "Updates in real time during the session",
     "viewLiveListHint": "Shows live participants as a text list"
   },
   "errors": {

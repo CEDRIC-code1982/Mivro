@@ -41,31 +41,23 @@ const BottomTabsNavigator: React.FC = () => {
 
   // [ADDED] Extracted tabBarIcon render functions to avoid unstable nested components
   const renderMapIcon = React.useCallback(
-    ({ focused }: { focused: boolean }) => (
-      <TabBarIcon icon={MapPin} focused={focused} accessibilityLabel={t('tabs.map')} />
-    ),
-    [t],
+    ({ focused }: { focused: boolean }) => <TabBarIcon icon={MapPin} focused={focused} />,
+    [],
   );
 
   const renderSessionsIcon = React.useCallback(
-    ({ focused }: { focused: boolean }) => (
-      <TabBarIcon icon={List} focused={focused} accessibilityLabel={t('tabs.sessions')} />
-    ),
-    [t],
+    ({ focused }: { focused: boolean }) => <TabBarIcon icon={List} focused={focused} />,
+    [],
   );
 
   const renderCreateIcon = React.useCallback(
-    ({ focused }: { focused: boolean }) => (
-      <TabBarIcon icon={PlusCircle} focused={focused} accessibilityLabel={t('tabs.create')} />
-    ),
-    [t],
+    ({ focused }: { focused: boolean }) => <TabBarIcon icon={PlusCircle} focused={focused} />,
+    [],
   );
 
   const renderProfileIcon = React.useCallback(
-    ({ focused }: { focused: boolean }) => (
-      <TabBarIcon icon={User} focused={focused} accessibilityLabel={t('tabs.profile')} />
-    ),
-    [t],
+    ({ focused }: { focused: boolean }) => <TabBarIcon icon={User} focused={focused} />,
+    [],
   );
 
   return (
