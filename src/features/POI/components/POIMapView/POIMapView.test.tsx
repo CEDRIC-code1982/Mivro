@@ -220,6 +220,7 @@ describe('POIMapView', () => {
       expect(getByTestId('map-status-error')).toBeTruthy();
       expect(getByTestId('map-circle')).toBeTruthy();
       expect(getByTestId('map-marker-midpoint')).toBeTruthy();
+      expect(getByTestId('map-marker-p-alice')).toBeTruthy();
       expect(getByTestId('map-poi-node/1')).toBeTruthy();
     });
 

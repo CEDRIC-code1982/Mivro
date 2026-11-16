@@ -76,8 +76,10 @@ const EDGE_PADDING = 80;
 /** Icon size inside the status banner */
 const BANNER_ICON_SIZE = 20;
 
-/** Search state shown by the status banner; `null` when POIs are displayed. */
-type MapStatus = 'loading' | 'error' | 'empty' | null;
+/** Search state shown by the status banner; the error state carries its i18n message key. */
+type MapStatus =
+  | { readonly status: 'loading' | 'empty' }
+  | { readonly status: 'error'; readonly errorKey: string };
 
 /**
  * Mivro Design System POIMapView molecule.
@@ -130,12 +132,13 @@ const POIMapView: React.FC<POIMapViewProps> = ({
 
   // [FIXED] "Vue carte POI sans état loading ni error": a failed or empty search left a map
   // without any marker or explanation (ERR-003).
-  const status: MapStatus = isLoading
-    ? 'loading'
+  // `null` when POIs are displayed: no banner.
+  const mapStatus: MapStatus | null = isLoading
+    ? { status: 'loading' }
     : error != null
-    ? 'error'
+    ? { status: 'error', errorKey: poiErrorKey(error) }
     : pois.length === 0
-    ? 'empty'
+    ? { status: 'empty' }
     : null;
 
   return (
@@ -216,13 +219,13 @@ const POIMapView: React.FC<POIMapViewProps> = ({
       </MapView>
 
       {/* [ADDED] Status banner over the map; box-none keeps the map pannable around it */}
-      {status !== null && (
+      {mapStatus !== null && (
         <View
           style={styles.bannerContainer}
           pointerEvents="box-none"
           testID={testID ? `${testID}-status` : undefined}
         >
-          <MapStatusBanner status={status} error={error} testID={testID} />
+          <MapStatusBanner {...mapStatus} testID={testID} />
         </View>
       )}
     </View>
@@ -233,14 +236,10 @@ const POIMapView: React.FC<POIMapViewProps> = ({
  * MapStatusBanner props.
  *
  * @param status — Search state to show
- * @param error — Search error (read when status is 'error')
+ * @param errorKey — i18n key of the error message (error state only)
  * @param testID — Test identifier of the parent map view
  */
-interface MapStatusBannerProps {
-  readonly status: Exclude<MapStatus, null>;
-  readonly error: Error | null;
-  readonly testID: string | undefined;
-}
+type MapStatusBannerProps = MapStatus & { readonly testID: string | undefined };
 
 /**
  * Banner shown at the top of the POI map while the search is loading, failed or found nothing.
@@ -250,7 +249,8 @@ interface MapStatusBannerProps {
  * @param props — {@link MapStatusBannerProps}
  * @returns The rendered banner
  */
-const MapStatusBanner: React.FC<MapStatusBannerProps> = ({ status, error, testID }) => {
+const MapStatusBanner: React.FC<MapStatusBannerProps> = (props) => {
+  const { status, testID } = props;
   const theme = useTheme();
   const styles = createStyles(theme);
   const { t } = useTranslation('poi');
@@ -262,8 +262,8 @@ const MapStatusBanner: React.FC<MapStatusBannerProps> = ({ status, error, testID
       ? t('errors.title')
       : t('list.empty.title');
   const description =
-    status === 'error'
-      ? t(poiErrorKey(error ?? new Error()))
+    props.status === 'error'
+      ? t(props.errorKey)
       : status === 'empty'
       ? t('list.empty.description')
       : null;
