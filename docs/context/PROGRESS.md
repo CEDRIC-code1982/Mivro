@@ -20,6 +20,11 @@ autres participants posait `connected` et l'effaçait, alors que ma position n'�
   revient).
 - 11 tests de plus (store 3, hook 5, `MapScreen` 3) ; les tests d'erreur GPS du hook vérifient
   désormais l'erreur de suivi.
+- Courses des publications en vol (MINEURS du reviewer) : le résultat d'une publication est ignoré
+  si le watch a été arrêté depuis son lancement (arrêt, redémarrage sur la même session,
+  changement de session, retrait du consentement), et son succès n'efface pas une erreur posée
+  après son lancement (une coupure GPS signalée pendant qu'elle était en vol reste affichée).
+  4 tests de plus, qui rougissent sans le correctif.
 
 ## Erreurs du temps réel affichées sur la carte (2026-11-19, branche `fix/erreurs-temps-reel-carte`)
 
@@ -510,7 +515,7 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
 | Suites de tests                    | 91                                                                |
-| Tests (cas) — `npm run check`      | 1376                                                              |
+| Tests (cas) — `npm run check`      | 1380                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |

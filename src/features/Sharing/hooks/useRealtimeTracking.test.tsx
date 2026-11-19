@@ -417,6 +417,102 @@ describe('useRealtimeTracking', () => {
       expect(useRealtimeStore.getState().trackingErrorCode).toBeNull();
     });
 
+    it('keeps a GPS error reported while an older publish was in flight', async () => {
+      let resolvePublish: () => void = () => undefined;
+      mockPublish.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            resolvePublish = resolve;
+          }),
+      );
+      let emitError: (error: GeolocationError) => void = () => undefined;
+      mockWatchPosition.mockImplementation(
+        (onSample: WatchPositionCallback, onError: (error: GeolocationError) => void) => {
+          emitSample = onSample;
+          emitError = onError;
+          return clearWatch;
+        },
+      );
+      const { result } = renderHook(() => useRealtimeTracking());
+      act(() => result.current.start(SESSION_ID, PARTICIPANT_ID));
+      act(() => useRealtimeStore.getState().setSharingConsent(true));
+      act(() => emitSample(makeSample({ speed: 20 })));
+
+      act(() => emitError(new GeolocationError('gps', 'unavailable')));
+      await act(async () => {
+        resolvePublish();
+        await Promise.resolve();
+      });
+
+      expect(useRealtimeStore.getState().trackingErrorCode).toBe('unavailable');
+    });
+
+    it('drops a publish failure that settles after sharing consent is revoked', async () => {
+      let rejectPublish: (error: unknown) => void = () => undefined;
+      mockPublish.mockImplementation(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            rejectPublish = reject;
+          }),
+      );
+      const { result } = renderHook(() => useRealtimeTracking());
+      act(() => result.current.start(SESSION_ID, PARTICIPANT_ID));
+      act(() => useRealtimeStore.getState().setSharingConsent(true));
+      act(() => emitSample(makeSample({ speed: 20 })));
+
+      act(() => useRealtimeStore.getState().setSharingConsent(false));
+      await act(async () => {
+        rejectPublish(new RealtimeError('denied', 'permission_denied'));
+        await Promise.resolve();
+      });
+
+      expect(useRealtimeStore.getState().trackingErrorCode).toBeNull();
+    });
+
+    it('drops a publish failure that settles after a restart on the same session', async () => {
+      let rejectPublish: (error: unknown) => void = () => undefined;
+      mockPublish.mockImplementation(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            rejectPublish = reject;
+          }),
+      );
+      const { result } = renderHook(() => useRealtimeTracking());
+      act(() => result.current.start(SESSION_ID, PARTICIPANT_ID));
+      act(() => useRealtimeStore.getState().setSharingConsent(true));
+      act(() => emitSample(makeSample({ speed: 20 })));
+
+      act(() => result.current.start(SESSION_ID, PARTICIPANT_ID));
+      await act(async () => {
+        rejectPublish(new RealtimeError('net', 'network'));
+        await Promise.resolve();
+      });
+
+      expect(useRealtimeStore.getState().trackingErrorCode).toBeNull();
+    });
+
+    it('drops a publish failure that settles after a session switch', async () => {
+      let rejectPublish: (error: unknown) => void = () => undefined;
+      mockPublish.mockImplementation(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            rejectPublish = reject;
+          }),
+      );
+      const { result } = renderHook(() => useRealtimeTracking());
+      act(() => result.current.start(SESSION_ID, PARTICIPANT_ID));
+      act(() => useRealtimeStore.getState().setSharingConsent(true));
+      act(() => emitSample(makeSample({ speed: 20 })));
+
+      act(() => result.current.start('session-002', PARTICIPANT_ID));
+      await act(async () => {
+        rejectPublish(new RealtimeError('net', 'network'));
+        await Promise.resolve();
+      });
+
+      expect(useRealtimeStore.getState().trackingErrorCode).toBeNull();
+    });
+
     it('sets a tracking error when the GPS watch cannot start', () => {
       mockWatchPosition.mockImplementation(() => {
         throw new GeolocationError('gps', 'unavailable');

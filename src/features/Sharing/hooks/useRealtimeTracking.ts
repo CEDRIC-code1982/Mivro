@@ -134,6 +134,25 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
   const sessionRef = useRef<string | null>(null);
   const participantRef = useRef<string | null>(null);
   const isForegroundRef = useRef<boolean>(AppState.currentState === 'active');
+  // Bumped each time the GPS watch is stopped (stop, restart, session switch, consent revoked):
+  // a publish launched under an earlier generation no longer describes the current tracking.
+  const watchGenerationRef = useRef<number>(0);
+  // Bumped each time a tracking error is set: a publish launched before that error cannot clear it.
+  const trackingErrorSeqRef = useRef<number>(0);
+
+  /**
+   * Sets a tracking error and records that it happened, so that an older in-flight publish
+   * does not clear it when it settles.
+   *
+   * @param error - The GPS or publish failure
+   */
+  const reportTrackingError = useCallback(
+    (error: unknown): void => {
+      trackingErrorSeqRef.current += 1;
+      setTrackingError(toErrorCode(error));
+    },
+    [setTrackingError],
+  );
 
   /**
    * Publishes a sample if: consent OK + app foregrounded + throttle interval respected (5s moving
@@ -166,6 +185,12 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
       if (now - lastPublishAtRef.current < interval) return;
       lastPublishAtRef.current = now;
 
+      // [FIXED] "Courses des publications en vol": the outcome of a publish is only applied if
+      // the watch has not been stopped since it was launched (a stop, a restart on the same
+      // session, a session switch or a revoked consent), and its success only clears an error
+      // set before it was launched (a GPS failure reported while it was in flight stays shown).
+      const generation = watchGenerationRef.current;
+      const errorSeq = trackingErrorSeqRef.current;
       const { trackParticipantsUseCase } = getContainer();
       trackParticipantsUseCase
         .publish(sessionId, participantId, {
@@ -176,21 +201,26 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
         })
         .then(() => {
           // A published position ends a previous sharing failure (GPS back, network back).
-          if (sessionRef.current === sessionId) setTrackingError(null);
+          if (
+            watchGenerationRef.current === generation &&
+            trackingErrorSeqRef.current === errorSeq
+          ) {
+            setTrackingError(null);
+          }
         })
         .catch((error: unknown) => {
           // [FIXED] "Erreur de suivi effacée par le prochain instantané": a sharing failure is a
           // tracking error, not a connection status the next snapshot would overwrite. A failure
-          // settling after stop() or a session switch is dropped: it no longer describes the
-          // current tracking.
-          if (sessionRef.current === sessionId) setTrackingError(toErrorCode(error));
+          // settling after the watch was stopped is dropped: it no longer describes the current
+          // tracking.
+          if (watchGenerationRef.current === generation) reportTrackingError(error);
           console.error(
             `[ERROR][useRealtimeTracking][maybePublish][?][${timestamp()}] ` +
               `Publish failed | code: ${toErrorCode(error)}`,
           );
         });
     },
-    [setTrackingError],
+    [setTrackingError, reportTrackingError],
   );
 
   /**
@@ -204,7 +234,7 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
       clearWatchRef.current = geolocationService.watchPosition(
         maybePublish,
         (error) => {
-          setTrackingError(toErrorCode(error));
+          reportTrackingError(error);
         },
         { accuracyMeters: 50, distanceFilterMeters: 10 },
       );
@@ -212,18 +242,20 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
         `[INFO][useRealtimeTracking][startWatch][?][${timestamp()}] GPS watch started (sharing)`,
       );
     } catch (error: unknown) {
-      setTrackingError(toErrorCode(error));
+      reportTrackingError(error);
       console.error(
         `[ERROR][useRealtimeTracking][startWatch][?][${timestamp()}] ` +
           `Failed to start GPS watch | code: ${toErrorCode(error)}`,
       );
     }
-  }, [maybePublish, setTrackingError]);
+  }, [maybePublish, reportTrackingError]);
 
   /**
-   * Stops the local GPS watch (no more GPS usage). Idempotent.
+   * Stops the local GPS watch (no more GPS usage). Idempotent. Always ends the current watch
+   * generation, so that in-flight publishes are ignored when they settle.
    */
   const stopWatch = useCallback((): void => {
+    watchGenerationRef.current += 1;
     if (clearWatchRef.current === null) return;
     clearWatchRef.current();
     clearWatchRef.current = null;

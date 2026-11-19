@@ -11,30 +11,27 @@
 
 ## Tâche
 
-**Titre** : Erreur de suivi durable sur la carte
+**Titre** : Courses des publications en vol sur l'erreur de suivi
 
-**Demande d'origine** : « Ok, on suit ta reco » (reco : item TODO P2 « Erreur de suivi effacée par le prochain instantané » ; séparer l'erreur de suivi de l'état de connexion ; le bouton reste sur « Arrêter le partage » pendant l'erreur)
+**Demande d'origine** : « Ok, on suit ta reco » (reco : corriger les trois MINEURS du reviewer sur `de42b6b` — une publication ancienne efface une erreur GPS plus récente ; la garde compare la session, pas le cycle de suivi ; changement de session et redémarrage non testés côté hook)
 
-**Branche** : `fix/erreur-suivi-durable`, issue de `fix/erreurs-temps-reel-carte` (`f365aa7`), la pile n'étant pas encore fusionnée dans `develop`.
+**Branche** : `fix/erreur-suivi-durable`, à la suite de `de42b6b`.
 
 **Hors périmètre explicite** :
 
-- L'annonce VoiceOver d'un refus répété (TODO P3, à confirmer sur appareil).
-- Un bouton « Réessayer » sur le message.
-- Le sort de la session locale de l'invité (« ⚠️ À SPÉCIFIER AVEC CÉDRIC »).
+- Un utilisateur immobile garde le message jusqu'à son prochain déplacement de 10 m (comportement du contrat précédent, « Réessayer » hors périmètre).
+- La piste « test de mutation » dans JOURNAL-ECHECS (le reviewer a attrapé le trou, rien n'a échappé au harness).
 
 ---
 
 ## Conditions de fin
 
-| #   | Condition                                                                                                                                                                                                                    | Comment on le vérifie              |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| 1   | `useRealtimeStore` porte l'erreur de suivi (`trackingErrorCode`, `setTrackingError`) à part de l'état de connexion (`status`, `errorCode`) ; `startTracking` et `stopTracking` la remettent à `null`                         | tests de `useRealtimeStore`        |
-| 2   | Les erreurs du watch GPS (callback et lancement) et de la publication posent l'erreur de suivi, plus le `status` ; un instantané des participants (`setStatus('connected')`) ne l'efface pas                                 | tests de `useRealtimeTracking`     |
-| 3   | L'erreur de suivi s'efface à la première publication réussie, au retrait du consentement, au redémarrage et à l'arrêt du suivi ; une erreur de publication arrivée après l'arrêt ou le changement de session n'est pas posée | tests de `useRealtimeTracking`     |
-| 4   | `MapScreen` affiche l'erreur de suivi en priorité, sinon l'erreur de connexion ; le message reste affiché quand un instantané pose `connected`, et le bouton reste « Arrêter le partage »                                    | tests d'intégration de `MapScreen` |
-| 5   | Commentaires de `useRealtimeStore.ts` tous en anglais (règle du fichier entier)                                                                                                                                              | `git diff`                         |
-| 6   | TODO (item P2 coché), PROGRESS (section, métrique de tests) et ARCHITECTURE (store temps réel) à jour                                                                                                                        | `git diff docs/`                   |
+| #   | Condition                                                                                                                                             | Comment on le vérifie          |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| 1   | Le succès d'une publication n'efface pas une erreur de suivi posée après son lancement                                                                | test de `useRealtimeTracking`  |
+| 2   | Le succès ou l'échec d'une publication lancée avant un arrêt du watch (arrêt, redémarrage, changement de session, retrait du consentement) est ignoré | tests de `useRealtimeTracking` |
+| 3   | Chaque nouveau test rougit sans le correctif                                                                                                          | mutation manuelle              |
+| 4   | PROGRESS (section, métrique de tests) à jour                                                                                                          | `git diff docs/`               |
 
 ---
 
