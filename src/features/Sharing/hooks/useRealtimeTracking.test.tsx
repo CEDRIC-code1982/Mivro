@@ -14,6 +14,7 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { AppState } from 'react-native';
 import type { AppStateStatus } from 'react-native';
+import type { MidpointSession } from '@entities/MidpointSession';
 import { useRealtimeTracking } from '@features/Sharing/hooks/useRealtimeTracking';
 import type {
   PositionSample,
@@ -21,6 +22,8 @@ import type {
 } from '@services/domain/geolocation/IGeolocationService';
 import { RealtimeError } from '@services/domain/realtime/IRealtimeService';
 import { useRealtimeStore } from '@state/useRealtimeStore';
+import { useSessionStore } from '@state/useSessionStore';
+import { useSharedSessionStore } from '@state/useSharedSessionStore';
 
 // ─── Mock DI container ──────────────────────────────────────
 const mockSubscribe = jest.fn();
@@ -340,6 +343,126 @@ describe('useRealtimeTracking', () => {
 
       expect(useRealtimeStore.getState().status).toBe('error');
       expect(useRealtimeStore.getState().errorCode).toBe('not_configured');
+    });
+  });
+
+  describe('ended shared session', () => {
+    const sharedCopy = (isSharedCopy: boolean): MidpointSession => ({
+      id: SESSION_ID,
+      status: 'computed',
+      participants: [],
+      createdAt: '2026-06-25T10:00:00.000Z',
+      updatedAt: '2026-06-25T10:00:00.000Z',
+      isSharedCopy,
+    });
+
+    afterEach(() => {
+      useSessionStore.setState({ session: null });
+      useSharedSessionStore.getState().clearShared();
+    });
+
+    it('stops tracking and removes my node when the shared session ends remotely', () => {
+      useSessionStore.setState({ session: sharedCopy(true) });
+      useSharedSessionStore.getState().setShared(SESSION_ID, `mivro://session/${SESSION_ID}`);
+      const { result } = renderHook(() => useRealtimeTracking());
+      act(() => result.current.start(SESSION_ID, PARTICIPANT_ID));
+      act(() => useRealtimeStore.getState().setSharingConsent(true));
+      act(() => emitSample(makeSample()));
+      expect(mockPublish).toHaveBeenCalledTimes(1);
+
+      act(() => useSharedSessionStore.getState().clearShared());
+
+      expect(mockLeave).toHaveBeenCalledWith(SESSION_ID, PARTICIPANT_ID);
+      expect(clearWatch).toHaveBeenCalled();
+      expect(unsubscribe).toHaveBeenCalled();
+      expect(useRealtimeStore.getState().sessionId).toBeNull();
+      jest.advanceTimersByTime(60_000);
+      act(() => emitSample(makeSample()));
+      expect(mockPublish).toHaveBeenCalledTimes(1);
+    });
+
+    it('refuses to start tracking an ended shared copy', () => {
+      useSessionStore.setState({ session: sharedCopy(true) });
+      const { result } = renderHook(() => useRealtimeTracking());
+
+      act(() => result.current.start(SESSION_ID, PARTICIPANT_ID));
+
+      expect(mockSubscribe).not.toHaveBeenCalled();
+      expect(useRealtimeStore.getState().sessionId).toBeNull();
+      expect(useRealtimeStore.getState().status).toBe('error');
+      expect(useRealtimeStore.getState().errorCode).toBe('closed');
+    });
+
+    it('drops the sharing consent granted after a refused start', () => {
+      useSessionStore.setState({ session: sharedCopy(true) });
+      const { result } = renderHook(() => useRealtimeTracking());
+
+      act(() => {
+        result.current.start(SESSION_ID, PARTICIPANT_ID);
+        useRealtimeStore.getState().setSharingConsent(true);
+      });
+
+      expect(useRealtimeStore.getState().hasSharingConsent).toBe(false);
+      expect(mockWatchPosition).not.toHaveBeenCalled();
+    });
+
+    it('stops the tracking of another session when start is refused', () => {
+      useSessionStore.setState({ session: { ...sharedCopy(false), id: 'session-a' } });
+      const { result } = renderHook(() => useRealtimeTracking());
+      act(() => result.current.start('session-a', PARTICIPANT_ID));
+      expect(useRealtimeStore.getState().sessionId).toBe('session-a');
+      act(() => useSessionStore.setState({ session: sharedCopy(true) }));
+
+      act(() => {
+        result.current.start(SESSION_ID, PARTICIPANT_ID);
+        useRealtimeStore.getState().setSharingConsent(true);
+      });
+
+      expect(mockLeave).toHaveBeenCalledWith('session-a', PARTICIPANT_ID);
+      expect(unsubscribe).toHaveBeenCalled();
+      expect(useRealtimeStore.getState().sessionId).toBeNull();
+      expect(useRealtimeStore.getState().hasSharingConsent).toBe(false);
+      expect(useRealtimeStore.getState().errorCode).toBe('closed');
+      expect(mockWatchPosition).not.toHaveBeenCalled();
+      act(() => emitSample?.(makeSample()));
+      expect(mockPublish).not.toHaveBeenCalled();
+    });
+
+    it('keeps the sharing consent granted after a successful start', () => {
+      useSessionStore.setState({ session: sharedCopy(true) });
+      useSharedSessionStore.getState().setShared(SESSION_ID, `mivro://session/${SESSION_ID}`);
+      const { result } = renderHook(() => useRealtimeTracking());
+
+      act(() => {
+        result.current.start(SESSION_ID, PARTICIPANT_ID);
+        useRealtimeStore.getState().setSharingConsent(true);
+      });
+
+      expect(useRealtimeStore.getState().hasSharingConsent).toBe(true);
+      expect(mockWatchPosition).toHaveBeenCalled();
+    });
+
+    it('starts tracking a shared copy while the session is still shared', () => {
+      useSessionStore.setState({ session: sharedCopy(true) });
+      useSharedSessionStore.getState().setShared(SESSION_ID, `mivro://session/${SESSION_ID}`);
+      const { result } = renderHook(() => useRealtimeTracking());
+
+      act(() => result.current.start(SESSION_ID, PARTICIPANT_ID));
+
+      expect(mockSubscribe).toHaveBeenCalledWith(SESSION_ID, expect.any(Function));
+      expect(useRealtimeStore.getState().sessionId).toBe(SESSION_ID);
+    });
+
+    it('keeps tracking a local session that was never loaded from a share', () => {
+      useSessionStore.setState({ session: sharedCopy(false) });
+      const { result } = renderHook(() => useRealtimeTracking());
+      act(() => result.current.start(SESSION_ID, PARTICIPANT_ID));
+
+      act(() => useSharedSessionStore.getState().clearShared());
+
+      expect(mockSubscribe).toHaveBeenCalled();
+      expect(mockLeave).not.toHaveBeenCalled();
+      expect(useRealtimeStore.getState().sessionId).toBe(SESSION_ID);
     });
   });
 });

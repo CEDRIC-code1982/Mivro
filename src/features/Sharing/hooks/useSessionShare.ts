@@ -1,26 +1,24 @@
 /**
  * @file useSessionShare.ts
- * @description Hook d'orchestration du partage de session (F5).
- *              Session sharing orchestration hook (F5).
+ * @description Session sharing orchestration hook (F5).
  *
- *              Expose deux flux / Exposes two flows:
- *              - `share()` : publie la session locale (ShareSessionUseCase),
- *                marque le store partagé, et ouvre la **share sheet native**
- *                (`Share` de react-native).
- *              - `join(sessionId)` : rejoint une session partagée
- *                (JoinSessionUseCase) en ajoutant l'utilisateur courant comme
- *                membre + recalcul du midpoint, puis charge la session dans le
- *                store local (mode « partagé »).
+ *              Exposes two flows:
+ *              - `share()`: publishes the local session (ShareSessionUseCase),
+ *                marks the shared store, and opens the **native share sheet**
+ *                (react-native `Share`). A session that is already shared is
+ *                not published again: its existing link is shared.
+ *              - `join(sessionId)`: joins a shared session
+ *                (JoinSessionUseCase) by adding the current user as a
+ *                member + recomputing the midpoint, then loads the session into
+ *                the local store ("shared" mode).
  *
- *              La présentation passe par les use cases via le container DI : elle
- *              n'importe JAMAIS firebase (règle de dépendance).
  *              Presentation goes through use cases via the DI container: it
  *              NEVER imports firebase (dependency rule).
  *
  * @module features/Sharing/hooks/useSessionShare
  */
 
-// [ADDED] F5 — Hook d'orchestration useSessionShare
+// [ADDED] F5 — useSessionShare orchestration hook
 import { useCallback, useState } from 'react';
 import { Share } from 'react-native';
 import type { SharedSessionMember, SharedSessionOwnerType } from '@entities/SharedSession';
@@ -33,19 +31,17 @@ import { useSessionStore } from '@state/useSessionStore';
 import { useSharedSessionStore } from '@state/useSharedSessionStore';
 
 /**
- * Génère un timestamp HH:mm:ss pour le logging (LOG-001).
  * Generates an HH:mm:ss timestamp for logging (LOG-001).
  *
- * @returns Timestamp formaté / Formatted timestamp
+ * @returns Formatted timestamp
  */
 const timestamp = (): string => new Date().toISOString().slice(11, 19);
 
 /**
- * Mappe une erreur en code i18n (namespace share.errors.*).
  * Maps an error to an i18n code (namespace share.errors.*).
  *
- * @param error - Erreur à mapper / Error to map
- * @returns Code d'erreur i18n / i18n error code
+ * @param error - Error to map
+ * @returns i18n error code
  */
 const toErrorCode = (error: unknown): string => {
   if (error instanceof SessionShareError) return error.code;
@@ -53,28 +49,36 @@ const toErrorCode = (error: unknown): string => {
 };
 
 /**
- * Déduit le type de propriétaire depuis l'utilisateur courant.
  * Derives the owner type from the current user.
  *
- * @param user - Utilisateur courant ou null / Current user or null
- * @returns 'account' si authentifié, 'guest' sinon / 'account' if authenticated else 'guest'
+ * @param user - Current user or null
+ * @returns 'account' if authenticated, 'guest' otherwise
  */
 const ownerTypeFromUser = (user: User | null): SharedSessionOwnerType =>
   user?.type === 'authenticated' ? 'account' : 'guest';
 
 /**
- * Construit un membre de session partagée à partir de l'utilisateur courant et
- * de son point de départ dans la session locale.
- * Builds a shared session member from the current user and their start location.
+ * Returns the link of the local session when it is already shared (published by this device, or
+ * joined through a link), or null when it still has to be published.
  *
- * Le point de départ provient du participant local correspondant à l'id de
- * l'utilisateur (« ma position », créée en F1) ; à défaut, du seul participant
- * local s'il n'y en a qu'un (cas invité fraîchement arrivé via le lien).
- * The start location comes from the local participant matching the user id;
- * otherwise the single local participant if there is exactly one.
+ * @param localSessionId - Id of the local session
+ * @returns The existing share link, or null
+ */
+const existingShareLink = (localSessionId: string): string | null => {
+  const { isShared, sessionId, link } = useSharedSessionStore.getState();
+  return isShared && sessionId === localSessionId ? link : null;
+};
+
+/**
+ * Builds a shared session member from the current user and their start location in the local
+ * session.
  *
- * @param user - Utilisateur courant / Current user
- * @returns Membre, ou null si aucun point de départ connu / Member, or null
+ * The start location comes from the local participant matching the user id ("my position",
+ * created in F1); otherwise from the single local participant if there is exactly one (a guest
+ * who just arrived through the link).
+ *
+ * @param user - Current user
+ * @returns Member, or null if no start location is known
  */
 const buildMemberFromUser = (user: User): SharedSessionMember | null => {
   const session = useSessionStore.getState().session;
@@ -98,37 +102,33 @@ const buildMemberFromUser = (user: User): SharedSessionMember | null => {
 };
 
 /**
- * Résultat du hook useSessionShare.
  * useSessionShare hook result.
  */
 export interface UseSessionShareResult {
   /**
-   * Publie la session locale et ouvre la share sheet native.
-   * Publishes the local session and opens the native share sheet.
+   * Publishes the local session (unless it is already shared) and opens the native share sheet.
    *
-   * @param shareMessage - Message localisé (avec le lien interpolé) / Localized message
-   * @returns Le lien généré, ou null en cas d'erreur / The generated link, or null on error
+   * @param shareMessage - Localized message builder (with the link interpolated)
+   * @returns The share link, or null on error
    */
   share: (shareMessage?: (link: string) => string) => Promise<string | null>;
   /**
-   * Rejoint une session partagée (ajoute l'utilisateur + recalcul midpoint).
-   * Joins a shared session (adds the user + recomputes midpoint).
+   * Joins a shared session (adds the user + recomputes the midpoint).
    *
-   * @param sessionId - Identifiant de la session (extrait du lien) / Session id
-   * @returns true si la jointure a réussi / true if the join succeeded
+   * @param sessionId - Session identifier (extracted from the link)
+   * @returns true if the join succeeded
    */
   join: (sessionId: string) => Promise<boolean>;
-  /** true si une opération est en cours / true while an operation is in progress */
+  /** true while an operation is in progress */
   isBusy: boolean;
-  /** Code d'erreur i18n de la dernière opération, ou null / i18n error code or null */
+  /** i18n error code of the last operation, or null */
   errorCode: string | null;
 }
 
 /**
- * Hook d'orchestration du partage de session collaboratif.
  * Collaborative session sharing orchestration hook.
  *
- * @returns Actions share / join + état isBusy / errorCode
+ * @returns share / join actions + isBusy / errorCode state
  */
 export const useSessionShare = (): UseSessionShareResult => {
   const [isBusy, setIsBusy] = useState(false);
@@ -144,30 +144,48 @@ export const useSessionShare = (): UseSessionShareResult => {
     async (shareMessage?: (link: string) => string): Promise<string | null> => {
       const session = localSession;
       if (session === null || session.participants.length < 2) {
+        // [FIXED] The guard set the hook's errorCode only: the shared store kept its previous
+        // status, unlike every other share() failure.
         setErrorCode('unknown');
+        setStatus('error', 'unknown');
         return null;
       }
 
       setIsBusy(true);
       setErrorCode(null);
-      setStatus('creating');
 
       try {
-        const ownerType = ownerTypeFromUser(useAuthStore.getState().user);
-        const { shareSessionUseCase } = getContainer();
-        const result = await shareSessionUseCase.execute({ session, ownerType });
+        // [FIXED] "Re-partage d'une session déjà partagée → erreur affichée à tort": a second
+        // press on "Partager" published the session again; the RTDB rules refuse to recreate an
+        // existing session (meta exists, createdAt is immutable), so a working session showed a
+        // share failure. An already shared session reuses its link, without writing to the base.
+        let link = existingShareLink(session.id);
+        if (link === null) {
+          // [FIXED] "Session supprimée republiée par un invité": a local copy of a shared session
+          // outlives the remote node (deleted by its owner or purged at expiry). Publishing it
+          // again would recreate the session under the same id, with the other members' start
+          // addresses and a fresh TTL. An ended shared session is never published again.
+          if (session.isSharedCopy === true) {
+            throw new SessionShareError('Shared session has ended', 'closed');
+          }
+          setStatus('creating');
+          const ownerType = ownerTypeFromUser(useAuthStore.getState().user);
+          const { shareSessionUseCase } = getContainer();
+          const result = await shareSessionUseCase.execute({ session, ownerType });
 
-        setShared(result.sessionId, result.link, true); // propriétaire (create)
-        setStatus('synced');
+          setShared(result.sessionId, result.link, true); // owner (create)
+          setStatus('synced');
+          link = result.link;
+        }
 
-        // Ouvre la share sheet native (message localisé fourni par l'écran).
-        const message = shareMessage ? shareMessage(result.link) : result.link;
-        await Share.share({ message, url: result.link });
+        // Open the native share sheet (localized message provided by the screen).
+        const message = shareMessage ? shareMessage(link) : link;
+        await Share.share({ message, url: link });
 
         console.log(
           `[INFO][useSessionShare][share][?][${timestamp()}] Share sheet opened for session`,
         );
-        return result.link;
+        return link;
       } catch (error: unknown) {
         const code = toErrorCode(error);
         setErrorCode(code);
@@ -199,7 +217,7 @@ export const useSessionShare = (): UseSessionShareResult => {
 
         const member = buildMemberFromUser(user);
         if (member === null) {
-          // Aucun point de départ connu pour l'utilisateur courant.
+          // No start location known for the current user.
           setErrorCode('no_location');
           setStatus('error', 'no_location');
           return false;
@@ -208,9 +226,9 @@ export const useSessionShare = (): UseSessionShareResult => {
         const { joinSessionUseCase } = getContainer();
         const shared = await joinSessionUseCase.execute({ sessionId, member });
 
-        // Bascule la session locale en mode « partagée » + state partagé.
+        // Switch the local session to "shared" mode + shared state.
         loadSharedSession(shared);
-        setShared(shared.sessionId, buildShareLink(shared.sessionId), false); // membre (join)
+        setShared(shared.sessionId, buildShareLink(shared.sessionId), false); // member (join)
         syncFromRemote(shared.meta, shared.members);
 
         console.log(`[INFO][useSessionShare][join][?][${timestamp()}] Joined shared session`);

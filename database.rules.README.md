@@ -54,6 +54,67 @@ Le partage collaboratif (F5) ajoute deux sous-nœuds à côté de `participants`
   aligné sur `SharedSessionMemberSchema`.
 - `$other : ".validate": false` partout → **tout champ inconnu est refusé**.
 
+### Niveau `sessions/$sessionId` — lecture et cycle de vie (2026-11-16)
+
+Les règles RTDB **ne sont pas des filtres** : une lecture ou une écriture à un chemin est refusée
+en bloc si aucune règle ne l'accorde **à ce chemin ou au-dessus**, même si chaque enfant est
+accessible. Jusqu'au 2026-11-16, rien n'était accordé au niveau `sessions/$sessionId`, alors que le
+client y travaille :
+
+| Appel client                                                          | Chemin                             | Règle qui l'autorise                                                  |
+| --------------------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------- |
+| `fetchSharedSession` — `get()`                                        | `sessions/$sessionId`              | `.read: true`                                                         |
+| `subscribeToSharedSession` — `onValue()`                              | `sessions/$sessionId`              | `.read: true`                                                         |
+| `FirebaseRealtimeService` — abonnement aux positions                  | `sessions/$sessionId/participants` | `.read: true` (hérité du niveau session)                              |
+| `createSharedSession` — `update({ meta, members })`                   | `sessions/$sessionId`              | `.write`, branche « pas encore de `meta` »                            |
+| `deleteSharedSession` — `remove()` (RGPD)                             | `sessions/$sessionId`              | `.write`, branche « suppression de la session entière »               |
+| `joinSharedSession`, mise à jour du midpoint, écriture d'une position | nœuds enfants                      | inchangé : `meta`, `members/$memberId`, `participants/$participantId` |
+
+```text
+".read":  true
+".write": "!newData.exists() || !data.child('meta').exists()"
+"$other": { ".validate": false }
+```
+
+- **Lecture** : ouverte au niveau session. Elle ne donne rien de plus que les trois nœuds déjà
+  lisibles un par un.
+- **Écriture** : au niveau session, seulement pour **créer** la session partagée (pas encore de
+  `meta` ; des `participants` F4 peuvent déjà exister, `update()` ne les touche pas) ou la
+  **supprimer en entier**. L'expression est évaluée pour **toute** écriture sous la session, avec
+  `data` et `newData` pris au niveau `$sessionId` ; la condition porte donc sur l'existence de
+  `meta`, pas sur le chemin écrit :
+
+  - session **partagée** (`meta` existe) : une écriture en bloc (par exemple un `set()` qui
+    effacerait `participants`) est refusée ; les modifications passent par les nœuds enfants ;
+  - session **F4 sans partage** (jamais de `meta`) : elle reste inscriptible en bloc, et un
+    `set()` sur `sessions/X` ou `sessions/X/participants` peut effacer les positions des autres ;
+  - toute écriture qui **vide** la session est accordée (`!newData.exists()`).
+
+  Les validations (`.validate`) des enfants s'appliquent toujours aux données écrites, y compris à
+  la création.
+
+- **`$other`** refusé : aucun nœud frère de `meta`, `members` et `participants`.
+- **Re-partage** d'une session déjà partagée : refusé (`meta` existe, et `createdAt` est immuable
+  alors que le client en écrit un nouveau). Le client ne le tente plus : le bouton « Partager » de
+  `MapScreen` reste actif une fois la session partagée, et `useSessionShare.share()` réutilise
+  alors le lien existant (store partagé sur le même id) et rouvre la share sheet, sans écrire en
+  base. Avant ce correctif (2026-11-16), un second appui relançait `createSharedSession` →
+  `permission_denied` et une alerte d'échec sur une session qui fonctionne.
+
+- **Re-création** après suppression ou purge : **acceptée** par les règles (`meta` n'existe plus),
+  sous le même id. Le client ne la tente pas : une session chargée depuis le partage est marquée
+  `isSharedCopy`, et `useSessionShare.share()` refuse de la publier (erreur `closed`), pour ne pas
+  republier les adresses des autres membres avec un nouveau TTL. De même, une position écrite
+  dans `participants/$participantId` après la suppression **recrée** un nœud de session sans
+  `meta` (accepté par les règles, et ignoré par la purge `purgeExpiredSessions`, qui saute les
+  sessions sans `meta`) : `useRealtimeTracking` arrête donc le suivi d'une copie de session
+  partagée dès sa fin distante, et refuse de le démarrer sur une copie terminée.
+
+Cette condition n'est **pas une frontière de sécurité** face à qui connaît le `$sessionId` : les
+nœuds enfants permettent déjà d'écrire ou de supprimer chaque nœud un par un. Elle protège la
+session contre une écriture en bloc involontaire. La vraie frontière reste Firebase Anonymous Auth
+(voir plus haut).
+
 ### Champs `meta` immuables après création (durcissement review F5)
 
 `createdAt`, `expiresAt`, `ownerType` et `status` sont **immuables après leur

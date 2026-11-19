@@ -199,9 +199,31 @@ Surface d'écriture effective, auditée après déploiement :
 Les trois chemins ouverts vivent sous un `$sessionId` qui est un UUID non devinable : c'est le
 modèle **capability URL** assumé pour le MVP sans auth. Détail dans `database.rules.README.md`.
 
-⚠️ Dette connue : **pas de `$other: { ".validate": false }` au niveau `sessions/$sessionId`**. Un
-client qui connaît l'UUID peut donc écrire un nœud frère arbitraire à côté de `meta`, `members` et
-`participants`. À durcir avec Firebase Anonymous Auth — voir `TODO.md > Dette technique`.
+### ⏳ Redéployer les règles RTDB (branche `fix/regles-rtdb-niveau-session`, 2026-11-16)
+
+Les règles déployées le 2026-08-24 n'accordent rien au niveau `sessions/$sessionId`. Or le partage
+F5 y lit la session entière (`get`, `onValue`), la crée (`update` de `meta` + `members`) et la
+supprime (`remove`), et le temps réel F4 lit le nœud `participants` : ces appels sont refusés, car
+les règles RTDB ne sont pas des filtres. La branche ouvre ce niveau en lecture, n'y autorise
+l'écriture que pour créer ou supprimer une session entière, et refuse tout nœud frère (`$other`).
+Le re-partage, que ces règles refusent, est corrigé côté client sur la même branche : une session
+déjà partagée réutilise son lien sans écrire en base. Une fois la branche fusionnée :
+
+```bash
+firebase deploy --only database
+```
+
+Puis, sur deux appareils : créer un partage, le rejoindre par le lien, voir les positions en temps
+réel, **appuyer une seconde fois sur « Partager »** côté propriétaire puis côté invité (la share
+sheet se rouvre avec le même lien, sans alerte d'erreur), puis, **pendant que l'invité partage sa
+position**, réinitialiser côté propriétaire : la session doit disparaître de la console RTDB et
+aucun nœud `sessions/<id>` ne doit réapparaître après le point GPS suivant de l'invité, dont le
+bouton repasse à « Partager ma position ».
+
+| Chemin après redéploiement    | Accès                                                        |
+| ----------------------------- | ------------------------------------------------------------ |
+| `/sessions/$sessionId`        | lecture ouverte ; écriture = création ou suppression entière |
+| `/sessions/$sessionId/$other` | refusé                                                       |
 
 ### ⏳ Reste à faire
 

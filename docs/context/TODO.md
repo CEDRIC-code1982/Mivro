@@ -212,7 +212,10 @@ _Estimation : L. Dépendances : comptes stores._
       `POIMapView.tsx` passe par `t('mapView.midpointMarker')` (namespace `poi`, FR + EN), avec un
       test. Même correction pour `src/components/molecules/SessionMapView/SessionMapView.tsx`
       (`t('markers.midpoint')`, namespace `map`), où le libellé était toujours en dur.
-- [ ] **Rules : `sessions/$sessionId` sans `$other: false` (F5, review — résiduel)** : le niveau `sessions/$sessionId` n'a pas de `"$other": { ".validate": false }` → un client qui connaît l'UUID pourrait écrire un **sous-nœud frère arbitraire** (au-delà de `meta`/`members`/`participants`). Risque **MVP-sans-auth assumé** (protection = UUID non devinable, capability URL ; cf. `database.rules.README.md`). À corriger avec le durcissement **Firebase Anonymous Auth**. (P2/P3)
+- [x] ~~**Rules : `sessions/$sessionId` sans `$other: false` (F5, review — résiduel)**~~ → **FAIT (2026-11-16, `fix/regles-rtdb-niveau-session`)** : `$other` refusé au niveau session. En creusant, le vrai défaut était plus large : rien n'était accordé au niveau `sessions/$sessionId`, alors que le partage F5 y fait `get`, `onValue`, `update` (création) et `remove` (RGPD), et que le temps réel F4 lit le nœud `participants` → refus RTDB (les règles ne sont pas des filtres). Le niveau session accorde désormais la lecture, et l'écriture seulement pour créer (pas encore de `meta`) ou supprimer la session entière. Raisonnement par appel client dans `database.rules.README.md`. **Reste à Cédric** : `firebase deploy --only database`, puis vérification du partage sur deux appareils (RUNBOOK). (P2/P3)
+- [ ] **Immuabilité de `meta` contournable (F5, RGPD)** : `meta` a `.write: true` et les `.validate` ne s'appliquent pas à une suppression → un client qui connaît l'UUID peut supprimer `meta`, puis le réécrire avec un autre `expiresAt` (rallonger le TTL) ou un autre `status`. Piste sans auth : `".write": "newData.exists()"` sur `meta` (la suppression de la session entière passe par le niveau session) ; à trancher avec Cédric, car la vraie réponse reste Firebase Anonymous Auth. Relevé avec l'item ci-dessus. (P3)
+- [ ] **Copie locale d'une session partagée terminée (F5, RGPD)** : quand le nœud distant disparaît (réinitialisation par le propriétaire, purge à l'expiration), `useSharedSessionSync` purge le store partagé mais laisse la session locale, avec les adresses de départ des autres membres, jusqu'à la réinitialisation ou la fermeture de l'app (store non persisté). Sa republication est déjà refusée (`isSharedCopy`, `fix/regles-rtdb-niveau-session`), ainsi que son suivi temps réel ; mais rien n'indique à l'invité que la session est terminée : « Partager ma position » puis « Accepter » ne fait rien, sans message (l'erreur `realtime:errors.closed` est posée dans le store, et aucune erreur temps réel n'est affichée par `MapScreen`, défaut existant). ⚠️ À SPÉCIFIER AVEC CÉDRIC : vider la session locale de l'invité dès la fin distante (avec un message « session terminée ») ou la laisser affichée. (P3)
+- [x] ~~**Re-partage d'une session déjà partagée → erreur affichée à tort (F5, ERR-003)** : le bouton « Partager » de `MapScreen` n'est désactivé que pendant `isSharing` ; un second appui relançait `ShareSessionUseCase` → `createSharedSession` sur le même id, que les règles refusent (`meta` existe, `createdAt` immuable) → `permission_denied`, alerte d'échec et store partagé en `error` alors que la session fonctionne.~~ **FAIT 2026-11-16 (`fix/regles-rtdb-niveau-session`)** — option retenue par Cédric : une session déjà partagée (store partagé sur le même id, propriétaire ou membre ayant rejoint) réutilise son lien et rouvre la share sheet, sans écrire en base (`useSessionShare.share()`, 5 tests).
 - [ ] **`expiresAt` sans purge automatique (F5, RGPD)** : `meta.expiresAt` est **vérifié à l'ouverture** (join refusé si expiré) mais **n'efface aucune donnée** côté serveur → les nœuds de sessions expirées **persistent** dans RTDB. Nécessite une **Cloud Function cron / TTL serveur** pour supprimer les sessions expirées. À planifier. (P2)
 - [x] ~~**`test:ci` ne passe pas `--coverage`**~~ → **FAIT (2026-08-21, harness)** : `test:ci` = `jest --ci --coverage`, les `coverageThreshold` sont donc réellement bloquants dans `npm run check`. A nécessité de couvrir les 4 callbacks `tabBarIcon` de `BottomTabsNavigator` (seul seuil qui échouait : `src/navigations/` functions 42,85 % < 50 %).
 
@@ -298,7 +301,21 @@ Procédure détaillée : `RUNBOOK.md > Harness`. Décision : ADR-016.
 - [ ] Cédric : commit du verrou, push, PR vers `develop` (label `harness-change`) et fusion si la
       CI est verte.
 - [ ] **Tests des règles RTDB** sur l'émulateur Firebase (`@firebase/rules-unit-testing`) :
-      `$other` absent au niveau `sessions/$sessionId`, écriture refusée hors des trois nœuds. (P2)
+      aujourd'hui, `databaseRules.test.ts` ne fige que la forme de `database.rules.json`. À évaluer
+      sur l'émulateur : lecture et suppression de la session entière acceptées, création
+      `update({ meta, members })` acceptée avec et sans `participants` déjà présents, écriture en
+      bloc sur une session partagée refusée, écriture en bloc sur une session F4 sans `meta`
+      acceptée (comportement assumé, à figer), nœud frère refusé, et la séquence client
+      `createSharedSession` puis `createSharedSession` sur le même id (re-partage, refusé). Et la
+      séquence création par A → suppression → création par B sur le même id : **acceptée** par
+      les règles (`meta` n'existe plus), à figer comme comportement connu ; c'est le client qui
+      refuse de republier une copie de session partagée (`isSharedCopy`, 2026-11-16). Et la
+      séquence suivi F4 actif → suppression de la session par le propriétaire → point GPS
+      suivant de l'invité : l'écriture `participants/$pid` recrée un nœud sans `meta`
+      (**acceptée** par les règles, et ignorée par la purge `purgeExpiredSessions`) ; c'est le
+      client qui arrête le suivi d'une copie terminée (`useRealtimeTracking`, 2026-11-16) — à
+      figer avec le nœud absent après la fin distante.
+      Nouvelle dépendance et Java : décision de Cédric. (P2)
 
 ## Harness d'agent (2026-08-21) — points ouverts
 

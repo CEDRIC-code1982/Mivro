@@ -214,6 +214,8 @@ describe('useSessionShare', () => {
       expect(mockShareExecute).not.toHaveBeenCalled();
       expect(shareSpy).not.toHaveBeenCalled();
       expect(result.current.errorCode).toBe('unknown');
+      expect(useSharedSessionStore.getState().status).toBe('error');
+      expect(useSharedSessionStore.getState().errorCode).toBe('unknown');
     });
 
     it('exposes the typed error code when the use case fails', async () => {
@@ -246,6 +248,163 @@ describe('useSessionShare', () => {
       });
 
       expect(result.current.errorCode).toBe('unknown');
+    });
+
+    describe('already shared session', () => {
+      it('shares the existing link without publishing the session again', async () => {
+        useSessionStore.setState({
+          session: makeLocalSession([makeParticipant(USER_ID), makeParticipant('b')]),
+        });
+        useSharedSessionStore.setState({
+          isShared: true,
+          isOwner: true,
+          sessionId: SESSION_ID,
+          link: shareResult.link,
+          status: 'synced',
+        });
+        const { result } = renderHook(() => useSessionShare());
+
+        let link: string | null = null;
+        await act(async () => {
+          link = await result.current.share();
+        });
+
+        expect(mockShareExecute).not.toHaveBeenCalled();
+        expect(link).toBe(shareResult.link);
+        expect(shareSpy).toHaveBeenCalledWith({ message: shareResult.link, url: shareResult.link });
+        expect(useSharedSessionStore.getState().status).toBe('synced');
+        expect(useSharedSessionStore.getState().errorCode).toBeNull();
+        expect(result.current.errorCode).toBeNull();
+      });
+
+      it('publishes once, then reuses the link on a second share', async () => {
+        useSessionStore.setState({
+          session: makeLocalSession([makeParticipant(USER_ID), makeParticipant('b')]),
+        });
+        const { result } = renderHook(() => useSessionShare());
+
+        const links: (string | null)[] = [];
+        await act(async () => {
+          links.push(await result.current.share());
+        });
+        await act(async () => {
+          links.push(await result.current.share());
+        });
+
+        expect(mockShareExecute).toHaveBeenCalledTimes(1);
+        expect(shareSpy).toHaveBeenCalledTimes(2);
+        expect(links).toEqual([shareResult.link, shareResult.link]);
+        expect(useSharedSessionStore.getState().status).toBe('synced');
+      });
+
+      it('shares the joined session link without publishing it (member)', async () => {
+        useSessionStore.setState({
+          session: makeLocalSession([makeParticipant(USER_ID)]),
+        });
+        const { result } = renderHook(() => useSessionShare());
+
+        await act(async () => {
+          await result.current.join(SESSION_ID);
+        });
+        let link: string | null = null;
+        await act(async () => {
+          link = await result.current.share();
+        });
+
+        expect(mockShareExecute).not.toHaveBeenCalled();
+        expect(link).toBe(`mivro://session/${SESSION_ID}`);
+        expect(useSharedSessionStore.getState().isOwner).toBe(false);
+      });
+
+      it('publishes the local session when the shared store holds another session', async () => {
+        useSessionStore.setState({
+          session: makeLocalSession([makeParticipant(USER_ID), makeParticipant('b')]),
+        });
+        useSharedSessionStore.setState({
+          isShared: true,
+          sessionId: 'another-session',
+          link: 'mivro://session/another-session',
+        });
+        const { result } = renderHook(() => useSessionShare());
+
+        let link: string | null = null;
+        await act(async () => {
+          link = await result.current.share();
+        });
+
+        expect(mockShareExecute).toHaveBeenCalledTimes(1);
+        expect(link).toBe(shareResult.link);
+        expect(useSharedSessionStore.getState().sessionId).toBe(SESSION_ID);
+      });
+
+      it('reports a share sheet failure on an already shared session', async () => {
+        useSessionStore.setState({
+          session: makeLocalSession([makeParticipant(USER_ID), makeParticipant('b')]),
+        });
+        useSharedSessionStore.setState({
+          isShared: true,
+          sessionId: SESSION_ID,
+          link: shareResult.link,
+          status: 'synced',
+        });
+        shareSpy.mockRejectedValue(new Error('share sheet unavailable'));
+        const { result } = renderHook(() => useSessionShare());
+
+        let link: string | null = 'not-called';
+        await act(async () => {
+          link = await result.current.share();
+        });
+
+        expect(mockShareExecute).not.toHaveBeenCalled();
+        expect(link).toBeNull();
+        expect(result.current.errorCode).toBe('unknown');
+      });
+    });
+
+    describe('ended shared session', () => {
+      it('refuses to publish a shared copy once the shared state is cleared', async () => {
+        useSessionStore.setState({
+          session: {
+            ...makeLocalSession([makeParticipant(USER_ID), makeParticipant('b')]),
+            isSharedCopy: true,
+          },
+        });
+        const { result } = renderHook(() => useSessionShare());
+
+        let link: string | null = 'not-called';
+        await act(async () => {
+          link = await result.current.share();
+        });
+
+        expect(link).toBeNull();
+        expect(mockShareExecute).not.toHaveBeenCalled();
+        expect(shareSpy).not.toHaveBeenCalled();
+        expect(result.current.errorCode).toBe('closed');
+        expect(useSharedSessionStore.getState().errorCode).toBe('closed');
+      });
+
+      it('does not republish a joined session after its remote removal', async () => {
+        useSessionStore.setState({
+          session: makeLocalSession([makeParticipant(USER_ID)]),
+        });
+        const { result } = renderHook(() => useSessionShare());
+
+        await act(async () => {
+          await result.current.join(SESSION_ID);
+        });
+        act(() => {
+          useSharedSessionStore.getState().clearShared();
+        });
+        let link: string | null = 'not-called';
+        await act(async () => {
+          link = await result.current.share();
+        });
+
+        expect(useSessionStore.getState().session?.isSharedCopy).toBe(true);
+        expect(link).toBeNull();
+        expect(mockShareExecute).not.toHaveBeenCalled();
+        expect(result.current.errorCode).toBe('closed');
+      });
     });
   });
 

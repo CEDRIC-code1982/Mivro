@@ -39,6 +39,7 @@
     "unavailable": "Location service unavailable.",
     "timeout": "Could not get your location in time.",
     "inaccurate": "GPS position too inaccurate.",
-    "unknown": "An unexpected error occurred."
+    "unknown": "An unexpected error occurred.",
+    "closed": "This session has ended."
   }
 }

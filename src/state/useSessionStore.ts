@@ -198,6 +198,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
         id: shared.sessionId,
         status: hasMidpoint ? 'computed' : 'draft',
         participants,
+        isSharedCopy: true,
         ...(shared.meta.midpoint !== undefined && { midpoint: shared.meta.midpoint }),
         ...(shared.meta.midpointRadius !== undefined && {
           midpointRadius: shared.meta.midpointRadius,

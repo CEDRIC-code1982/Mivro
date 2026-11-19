@@ -1,30 +1,28 @@
 /**
  * @file RealtimeConsentModal.tsx
- * @description Molecule RealtimeConsentModal — consentement RGPD explicite et
- *              SÉPARÉ au partage de position temps réel (F4).
- *              RealtimeConsentModal molecule — explicit & SEPARATE GDPR consent
+ * @description RealtimeConsentModal molecule — explicit & SEPARATE GDPR consent
  *              for real-time location sharing (F4).
  *
- *              ⚠️ RGPD (CLAUDE.md) : ce consentement est distinct du
- *              consentement GPS. Tant qu'il n'est pas accordé, la position de
- *              l'utilisateur N'EST PAS publiée (il peut quand même voir les
- *              autres). Le choix n'est PAS persisté (RGPD — par session).
+ *              ⚠️ GDPR (CLAUDE.md): this consent is separate from GPS consent.
+ *              Until granted, the user's position is NOT published (they can
+ *              still view others). The choice is NOT persisted (GDPR — per
+ *              session).
  *
- *              ⚠️ GDPR: this consent is separate from GPS consent. Until
- *              granted, the user's position is NOT published (they can still
- *              view others). The choice is NOT persisted (per session).
+ *              start() resets the realtime store (consent included) and
+ *              useRealtimeTracking drops any consent granted without active
+ *              tracking: consent is granted AFTER start(), never before.
  *
  * @example
  *   <RealtimeConsentModal
  *     visible={isConsentVisible}
- *     onAccept={() => { setSharingConsent(true); start(); }}
- *     onDecline={() => setSharingConsent(false)}
+ *     onAccept={() => { start(sessionId, participantId); setSharingConsent(true); }}
+ *     onDecline={() => { setSharingConsent(false); start(sessionId, participantId); }}
  *   />
  *
  * @module components/molecules/RealtimeConsentModal/RealtimeConsentModal
  */
 
-// [ADDED] F4 — Molecule RealtimeConsentModal (consentement RGPD séparé)
+// [ADDED] F4 — RealtimeConsentModal molecule (separate GDPR consent)
 import { useTheme, type Theme } from '@theme';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -32,31 +30,29 @@ import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@components/atoms';
 
 /**
- * Props du composant RealtimeConsentModal.
  * RealtimeConsentModal component props.
  *
- * @param visible - Visibilité de la modal / Modal visibility
- * @param onAccept - Callback consentement accordé / Consent granted callback
- * @param onDecline - Callback consentement refusé / Consent declined callback
- * @param testID - ID de test / Test ID
+ * @param visible - Modal visibility
+ * @param onAccept - Consent granted callback
+ * @param onDecline - Consent declined callback
+ * @param testID - Test ID
  */
 export interface RealtimeConsentModalProps {
-  /** Visibilité de la modal / Modal visibility */
+  /** Modal visibility */
   readonly visible: boolean;
-  /** Callback consentement accordé (partage autorisé) / Consent granted callback */
+  /** Consent granted callback (sharing allowed) */
   readonly onAccept: () => void;
-  /** Callback consentement refusé (voir seulement) / Consent declined callback */
+  /** Consent declined callback (view only) */
   readonly onDecline: () => void;
-  /** ID de test / Test ID */
+  /** Test ID */
   readonly testID?: string;
 }
 
 /**
- * Molecule de consentement RGPD au partage de position temps réel.
  * GDPR real-time location sharing consent molecule.
  *
  * @param props - {@link RealtimeConsentModalProps}
- * @returns Composant RealtimeConsentModal / RealtimeConsentModal component
+ * @returns RealtimeConsentModal component
  */
 const RealtimeConsentModal: React.FC<RealtimeConsentModalProps> = ({
   visible,

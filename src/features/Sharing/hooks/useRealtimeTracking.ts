@@ -1,31 +1,30 @@
 /**
  * @file useRealtimeTracking.ts
- * @description Hook d'orchestration du temps réel (F4).
- *              Real-time orchestration hook (F4).
+ * @description Real-time orchestration hook (F4).
  *
- *              Relie / Wires:
- *              - subscribe(IRealtimeService) → useRealtimeStore (positions des autres)
- *              - geoloc.watchPosition → publish(IRealtimeService) (ma position)
+ *              Wires:
+ *              - subscribe(IRealtimeService) → useRealtimeStore (the others' positions)
+ *              - geoloc.watchPosition → publish(IRealtimeService) (my position)
  *
- *              Opti batterie OBLIGATOIRES (CLAUDE.md) / MANDATORY battery opti:
- *              - publication throttlée : 5s si speed > 5 km/h, 30s à l'arrêt
- *              - désactivation de la publication si l'app passe en arrière-plan
- *                (AppState) — MVP, pas de background tracking
+ *              MANDATORY battery optimizations (CLAUDE.md):
+ *              - throttled publishing: 5s if speed > 5 km/h, 30s when stopped
+ *              - publishing disabled when the app goes to the background
+ *                (AppState) — MVP, no background tracking
  *
- *              RGPD : la publication n'a lieu QUE si le consentement explicite
- *              de partage a été donné (useRealtimeStore.hasSharingConsent).
- *              L'abonnement (voir les autres) ne publie rien et reste autorisé.
- *              En fin de suivi : leaveSession (remove du nœud) + stopTracking.
+ *              GDPR: publishing happens ONLY if explicit sharing consent has
+ *              been given (useRealtimeStore.hasSharingConsent). The
+ *              subscription (seeing the others) publishes nothing and stays
+ *              allowed. When tracking ends: leaveSession (node removal) +
+ *              stopTracking. A local copy of a shared session that has ended
+ *              is never tracked: it would recreate the deleted session node.
  *
- *              La présentation passe par le port via le container DI : elle
- *              n'importe JAMAIS firebase (règle de dépendance).
  *              Presentation goes through the port via the DI container: it
  *              NEVER imports firebase (dependency rule).
  *
  * @module features/Sharing/hooks/useRealtimeTracking
  */
 
-// [ADDED] F4 — Hook d'orchestration useRealtimeTracking
+// [ADDED] F4 — useRealtimeTracking orchestration hook
 import { useCallback, useEffect, useRef } from 'react';
 import type { AppStateStatus } from 'react-native';
 import { AppState } from 'react-native';
@@ -35,28 +34,28 @@ import { RealtimeError } from '@services/domain/realtime/IRealtimeService';
 import type { Unsubscribe } from '@services/domain/realtime/IRealtimeService';
 import { getContainer } from '@services/serviceContainer';
 import { useRealtimeStore } from '@state/useRealtimeStore';
+import { useSessionStore } from '@state/useSessionStore';
+import { useSharedSessionStore } from '@state/useSharedSessionStore';
 
-/** Seuil de vitesse (km/h) distinguant mouvement / arrêt */
+/** Speed threshold (km/h) separating moving / stopped */
 const MOVING_SPEED_THRESHOLD_KMH = 5;
-/** Intervalle de publication en mouvement (ms) — opti batterie */
+/** Publishing interval while moving (ms) — battery optimization */
 const PUBLISH_INTERVAL_MOVING_MS = 5_000;
-/** Intervalle de publication à l'arrêt (ms) — opti batterie */
+/** Publishing interval while stopped (ms) — battery optimization */
 const PUBLISH_INTERVAL_STOPPED_MS = 30_000;
 
 /**
- * Génère un timestamp HH:mm:ss pour le logging (LOG-001).
  * Generates an HH:mm:ss timestamp for logging (LOG-001).
  *
- * @returns Timestamp formaté / Formatted timestamp
+ * @returns Formatted timestamp
  */
 const timestamp = (): string => new Date().toISOString().slice(11, 19);
 
 /**
- * Mappe une erreur en code i18n (namespace realtime.errors.*).
  * Maps an error to an i18n code (namespace realtime.errors.*).
  *
- * @param error - Erreur à mapper / Error to map
- * @returns Code d'erreur i18n / i18n error code
+ * @param error - Error to map
+ * @returns i18n error code
  */
 const toErrorCode = (error: unknown): string => {
   if (error instanceof RealtimeError) return error.code;
@@ -65,44 +64,61 @@ const toErrorCode = (error: unknown): string => {
 };
 
 /**
- * Résultat du hook useRealtimeTracking.
+ * Tells whether a session is the local copy of a shared session that has ended (remote node
+ * deleted by its owner or purged at expiry): it is marked `isSharedCopy`, while the shared store
+ * no longer holds it.
+ *
+ * @param sessionId - Id of the tracked session
+ * @returns true if tracking this session would recreate an ended shared session
+ */
+const isEndedSharedCopy = (sessionId: string): boolean => {
+  const session = useSessionStore.getState().session;
+  if (session?.id !== sessionId || session.isSharedCopy !== true) return false;
+  const shared = useSharedSessionStore.getState();
+  return !(shared.isShared && shared.sessionId === sessionId);
+};
+
+/**
  * useRealtimeTracking hook result.
  */
 export interface UseRealtimeTrackingResult {
   /**
-   * Démarre le suivi : abonnement aux autres + publication de ma position.
-   * La publication exige `hasSharingConsent=true` (RGPD).
-   * Starts tracking: subscribe to others + publish my position.
-   * Publishing requires `hasSharingConsent=true` (GDPR).
+   * Starts tracking: subscribe to the others + publish my position.
+   * Publishing requires `hasSharingConsent=true` (GDPR). Refused for the local copy of an ended
+   * shared session (status 'error', code 'closed').
    *
-   * @param sessionId - Identifiant de la session / Session identifier
-   * @param participantId - Mon identifiant participant / My participant identifier
+   * @param sessionId - Session identifier
+   * @param participantId - My participant identifier
    */
   start: (sessionId: string, participantId: string) => void;
   /**
-   * Arrête le suivi : leaveSession (remove du nœud — RGPD) + purge du store.
    * Stops tracking: leaveSession (node removal — GDPR) + store purge.
    */
   stop: () => void;
 }
 
 /**
- * Hook d'orchestration du suivi temps réel des participants.
  * Real-time participant tracking orchestration hook.
  *
- * @returns Actions start / stop / Hook actions
+ * @returns start / stop actions
  */
 export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
   const startTracking = useRealtimeStore((s) => s.startTracking);
   const stopTrackingStore = useRealtimeStore((s) => s.stopTracking);
   const setParticipants = useRealtimeStore((s) => s.setParticipants);
   const setStatus = useRealtimeStore((s) => s.setStatus);
-  // [ADDED] Pilotage du watch GPS local par le consentement + l'état du suivi.
-  // L'abonnement (voir les autres) reste découplé de ces valeurs.
+  const setSharingConsent = useRealtimeStore((s) => s.setSharingConsent);
+  // [ADDED] The local GPS watch is driven by consent + tracking state.
+  // The subscription (seeing the others) stays decoupled from these values.
   const hasSharingConsent = useRealtimeStore((s) => s.hasSharingConsent);
-  const isTracking = useRealtimeStore((s) => s.sessionId !== null);
+  const trackedSessionId = useRealtimeStore((s) => s.sessionId);
+  const isTracking = trackedSessionId !== null;
+  const sharedCopyId = useSessionStore((s) =>
+    s.session?.isSharedCopy === true ? s.session.id : null,
+  );
+  const sharedSessionId = useSharedSessionStore((s) => (s.isShared ? s.sessionId : null));
 
-  // Refs : pas de re-render sur ces valeurs purement techniques.
+  // Refs: no re-render on these purely technical values.
   const unsubscribeRef = useRef<Unsubscribe | null>(null);
   const clearWatchRef = useRef<ClearWatch | null>(null);
   const appStateSubRef = useRef<{ remove: () => void } | null>(null);
@@ -112,12 +128,10 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
   const isForegroundRef = useRef<boolean>(AppState.currentState === 'active');
 
   /**
-   * Publie un échantillon si : consentement OK + app au premier plan +
-   * intervalle de throttle respecté (5s en mouvement / 30s à l'arrêt).
-   * Publishes a sample if: consent OK + app foregrounded + throttle interval
-   * respected (5s moving / 30s stopped).
+   * Publishes a sample if: consent OK + app foregrounded + throttle interval respected (5s moving
+   * / 30s stopped) + the session has not ended.
    *
-   * @param sample - Échantillon de position / Position sample
+   * @param sample - Position sample
    */
   const maybePublish = useCallback(
     (sample: PositionSample): void => {
@@ -125,11 +139,14 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
       const participantId = participantRef.current;
       if (sessionId === null || participantId === null) return;
 
-      // RGPD : pas de consentement → on ne publie jamais (on voit quand même
-      // les autres via l'abonnement, mais on ne diffuse pas notre position).
+      // GDPR: no consent → never publish (the others are still visible through the
+      // subscription, but our position is not broadcast).
       if (!useRealtimeStore.getState().hasSharingConsent) return;
 
-      // MVP : pas de publication en arrière-plan (opti batterie)
+      // GDPR: an ended shared session is never written again (the effect below stops tracking).
+      if (isEndedSharedCopy(sessionId)) return;
+
+      // MVP: no publishing in the background (battery optimization)
       if (!isForegroundRef.current) return;
 
       const interval =
@@ -161,15 +178,11 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
   );
 
   /**
-   * Démarre le watch GPS local (publication throttlée). Idempotent.
-   * Démarré UNIQUEMENT quand le consentement de partage est donné (RGPD +
-   * opti batterie : aucun GPS en mode voir-seulement).
    * Starts the local GPS watch (throttled publishing). Idempotent.
-   * Started ONLY when sharing consent is granted (GDPR + battery: no GPS in
-   * view-only mode).
+   * Started ONLY when sharing consent is granted (GDPR + battery: no GPS in view-only mode).
    */
   const startWatch = useCallback((): void => {
-    if (clearWatchRef.current !== null) return; // déjà actif
+    if (clearWatchRef.current !== null) return; // already active
     const { geolocationService } = getContainer();
     try {
       clearWatchRef.current = geolocationService.watchPosition(
@@ -192,7 +205,6 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
   }, [maybePublish, setStatus]);
 
   /**
-   * Arrête le watch GPS local (cesse toute consommation GPS). Idempotent.
    * Stops the local GPS watch (no more GPS usage). Idempotent.
    */
   const stopWatch = useCallback((): void => {
@@ -203,7 +215,6 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
   }, []);
 
   /**
-   * Nettoie toutes les souscriptions actives (watch, subscribe, AppState).
    * Tears down all active subscriptions (watch, subscribe, AppState).
    */
   const teardown = useCallback((): void => {
@@ -214,9 +225,51 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
     appStateSubRef.current = null;
   }, [stopWatch]);
 
+  const stop = useCallback((): void => {
+    const sessionId = sessionRef.current;
+    const participantId = participantRef.current;
+
+    teardown();
+
+    // GDPR: remove my position from Firebase (node removal).
+    if (sessionId !== null && participantId !== null) {
+      const { trackParticipantsUseCase } = getContainer();
+      trackParticipantsUseCase.leave(sessionId, participantId).catch((error: unknown) => {
+        console.error(
+          `[ERROR][useRealtimeTracking][stop][?][${timestamp()}] ` +
+            `leaveSession failed | code: ${toErrorCode(error)}`,
+        );
+      });
+    }
+
+    sessionRef.current = null;
+    participantRef.current = null;
+    stopTrackingStore();
+
+    console.log(`[INFO][useRealtimeTracking][stop][?][${timestamp()}] Realtime tracking stopped`);
+  }, [teardown, stopTrackingStore]);
+
   const start = useCallback(
     (sessionId: string, participantId: string): void => {
-      // Idempotent : on repart proprement si déjà actif.
+      // [FIXED] "Suivi F4 d'une session partagée terminée": the first position published to an
+      // ended shared session would recreate its node without `meta`, out of reach of the expiry
+      // purge. Such a session is never tracked.
+      // [FIXED] "Consentement appliqué à la session précédente": a refused start() used to leave
+      // the tracking of another session running, and the consent MapScreen grants right after
+      // applied to that session, against an explicit refusal there. Any running tracking stops
+      // first (leave + store reset), so that no session is tracked after a refusal and the
+      // consent is dropped; the error is set after the reset, which clears the status.
+      if (isEndedSharedCopy(sessionId)) {
+        stop();
+        setStatus('error', 'closed');
+        console.log(
+          `[INFO][useRealtimeTracking][start][?][${timestamp()}] ` +
+            'Tracking refused: shared session has ended',
+        );
+        return;
+      }
+
+      // Idempotent: restart cleanly if already active.
       teardown();
 
       sessionRef.current = sessionId;
@@ -229,18 +282,18 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
       const { trackParticipantsUseCase } = getContainer();
 
       try {
-        // 1. Abonnement aux positions des autres (toujours autorisé, même en
-        //    mode voir-seulement — ne publie rien).
+        // 1. Subscription to the others' positions (always allowed, even in view-only mode —
+        //    publishes nothing).
         unsubscribeRef.current = trackParticipantsUseCase.subscribe(sessionId, (participants) => {
           setParticipants(participants);
           setStatus('connected');
         });
 
-        // 2. Le watch GPS local n'est PAS démarré ici : il est piloté par un
-        //    effet réagissant au consentement (startWatch/stopWatch) afin de
-        //    ne jamais consommer le GPS en mode voir-seulement (opti batterie).
+        // 2. The local GPS watch is NOT started here: it is driven by an effect reacting to
+        //    consent (startWatch/stopWatch), so that GPS is never used in view-only mode
+        //    (battery optimization).
 
-        // 3. AppState : couper la publication en arrière-plan (opti batterie).
+        // 3. AppState: cut publishing in the background (battery optimization).
         const handleAppState = (next: AppStateStatus): void => {
           isForegroundRef.current = next === 'active';
           console.log(
@@ -261,39 +314,13 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
         );
       }
     },
-    [teardown, startTracking, setParticipants, setStatus],
+    [teardown, stop, startTracking, setParticipants, setStatus],
   );
 
-  const stop = useCallback((): void => {
-    const sessionId = sessionRef.current;
-    const participantId = participantRef.current;
-
-    teardown();
-
-    // RGPD : suppression de ma position côté Firebase (remove du nœud).
-    if (sessionId !== null && participantId !== null) {
-      const { trackParticipantsUseCase } = getContainer();
-      trackParticipantsUseCase.leave(sessionId, participantId).catch((error: unknown) => {
-        console.error(
-          `[ERROR][useRealtimeTracking][stop][?][${timestamp()}] ` +
-            `leaveSession failed | code: ${toErrorCode(error)}`,
-        );
-      });
-    }
-
-    sessionRef.current = null;
-    participantRef.current = null;
-    stopTrackingStore();
-
-    console.log(`[INFO][useRealtimeTracking][stop][?][${timestamp()}] Realtime tracking stopped`);
-  }, [teardown, stopTrackingStore]);
-
-  // [ADDED] Pilotage du watch GPS local par le consentement de partage.
-  // Le watch ne tourne QUE si un suivi est actif ET le consentement est donné :
-  // en mode voir-seulement (consentement refusé), aucun GPS local n'est démarré
-  // (opti batterie). Réagit à la (ré)vocation du consentement à chaud.
-  // Drives the local GPS watch from sharing consent: GPS runs only when
-  // tracking is active AND consent is granted (battery optimization).
+  // [ADDED] The local GPS watch is driven by sharing consent.
+  // The watch runs ONLY if tracking is active AND consent is granted: in view-only mode (consent
+  // refused), no local GPS is started (battery optimization). Reacts to consent being
+  // (re)voked on the fly.
   useEffect(() => {
     if (isTracking && hasSharingConsent) {
       startWatch();
@@ -302,7 +329,34 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
     }
   }, [isTracking, hasSharingConsent, startWatch, stopWatch]);
 
-  // Sécurité : nettoyage au démontage (évite les fuites de watch/subscribe).
+  // [FIXED] "Consentement donné sans suivi actif": MapScreen grants consent right after start();
+  // when start() refuses an ended shared copy, consent was kept while nothing was tracked, and
+  // the button read "Arrêter le partage" although nothing was published. Consent only exists
+  // alongside active tracking.
+  useEffect(() => {
+    if (!isTracking && hasSharingConsent) {
+      setSharingConsent(false);
+    }
+  }, [isTracking, hasSharingConsent, setSharingConsent]);
+
+  // [FIXED] "Suivi F4 d'une session partagée terminée": when the shared session ends remotely
+  // (deleted by its owner or purged at expiry), useSharedSessionSync only clears the shared
+  // store; tracking went on publishing, recreating the deleted node. Tracking of an ended shared
+  // copy stops, which also removes my position node.
+  useEffect(() => {
+    if (
+      trackedSessionId !== null &&
+      trackedSessionId === sharedCopyId &&
+      sharedSessionId !== trackedSessionId
+    ) {
+      console.log(
+        `[INFO][useRealtimeTracking][sharedSessionEnded][?][${timestamp()}] ` +
+          'Shared session ended remotely — stopping tracking',
+      );
+      stop();
+    }
+  }, [trackedSessionId, sharedCopyId, sharedSessionId, stop]);
+
   // Safety: cleanup on unmount (avoids watch/subscribe leaks).
   useEffect(() => {
     return () => {

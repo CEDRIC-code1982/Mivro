@@ -20,6 +20,7 @@ jest.mock('uuid', () => ({
 
 import type { Location } from '@entities/Location';
 import type { Participant } from '@entities/MidpointSession';
+import type { SharedSession } from '@entities/SharedSession';
 import { useSessionStore } from '@state/useSessionStore';
 
 const makeLocation = (lat: number, lng: number): Location => ({
@@ -199,6 +200,49 @@ describe('useSessionStore', () => {
       useSessionStore.getState().resetSession();
 
       expect(useSessionStore.getState().session).toBeNull();
+    });
+  });
+
+  describe('isSharedCopy', () => {
+    const sharedSession: SharedSession = {
+      sessionId: '550e8400-e29b-41d4-a716-446655440042',
+      meta: {
+        createdAt: 1_700_000_000_000,
+        expiresAt: 1_700_086_400_000,
+        ownerType: 'guest',
+        status: 'open',
+      },
+      members: [
+        {
+          memberId: 'member-a',
+          displayName: 'A',
+          startLocation: { latitude: 48.85, longitude: 2.35, formattedAddress: 'Adresse A' },
+        },
+        {
+          memberId: 'member-b',
+          displayName: 'B',
+          startLocation: { latitude: 48.86, longitude: 2.36, formattedAddress: 'Adresse B' },
+        },
+      ],
+    };
+
+    it('marks a session loaded from a shared session', () => {
+      useSessionStore.getState().loadSharedSession(sharedSession);
+
+      expect(useSessionStore.getState().session?.isSharedCopy).toBe(true);
+    });
+
+    it('keeps the mark when the shared copy is updated locally', () => {
+      useSessionStore.getState().loadSharedSession(sharedSession);
+      useSessionStore.getState().setStatus('active');
+
+      expect(useSessionStore.getState().session?.isSharedCopy).toBe(true);
+    });
+
+    it('does not mark a session created locally', () => {
+      useSessionStore.getState().createSession();
+
+      expect(useSessionStore.getState().session?.isSharedCopy).toBeUndefined();
     });
   });
 });

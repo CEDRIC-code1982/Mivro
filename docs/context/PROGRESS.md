@@ -3,6 +3,45 @@
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
 > Dernière mise à jour : 2026-09-26 (harness v2 — le harness devient une frontière de confiance).
 
+## Règles RTDB — accès au niveau de la session (2026-11-16, branche `fix/regles-rtdb-niveau-session`)
+
+L'item TODO « `sessions/$sessionId` sans `$other: false` » cachait un défaut plus large : les règles
+n'accordaient rien au niveau `sessions/$sessionId`. Or le partage F5 y fait `get`, `onValue`,
+`update` (création) et `remove` (suppression RGPD), et le temps réel F4 lit le nœud `participants`.
+Les règles RTDB n'étant pas des filtres, ces appels sont refusés avec les règles déployées ; les
+tests unitaires ne le voyaient pas, Firebase y étant mocké. Correction :
+
+- **Lecture** ouverte au niveau session (rien de plus que les trois nœuds déjà lisibles).
+- **Écriture** au niveau session seulement pour créer la session partagée (pas encore de `meta`)
+  ou la supprimer en entier ; une écriture en bloc sur une session partagée reste refusée.
+- **`$other` refusé** : aucun nœud frère de `meta`, `members` et `participants`.
+- Règles des nœuds enfants inchangées. Raisonnement par appel client dans
+  `database.rules.README.md`.
+- Test structurel `databaseRules.test.ts` ; l'évaluation réelle demande l'émulateur Firebase
+  (TODO, décision de Cédric).
+- **Re-partage** (client) : un second appui sur « Partager » republiait la session, ce que les
+  règles refusent → alerte d'échec sur une session qui fonctionne. `useSessionShare.share()`
+  réutilise désormais le lien d'une session déjà partagée (propriétaire ou invité) et rouvre la
+  share sheet, sans écrire en base (5 tests).
+- **Session terminée non republiable** (client) : la création étant accordée tant que `meta`
+  n'existe pas, un invité pouvait republier, après la suppression ou la purge de la session, sa
+  copie locale avec les adresses des autres et un nouveau TTL. Une session chargée depuis le
+  partage est désormais marquée (`MidpointSession.isSharedCopy`) et `share()` refuse de la
+  publier (erreur `closed`, « Cette session est terminée. ») ; 5 tests.
+- **Suivi temps réel d'une session terminée** (client) : après la fin distante, le suivi F4 de
+  l'invité continuait à publier sa position, ce qui recréait sous l'id supprimé un nœud sans
+  `meta`, hors de portée de la purge. `useRealtimeTracking` arrête le suivi d'une copie de
+  session partagée dès que le store partagé ne la porte plus (nœud de position retiré) et refuse
+  de le démarrer sur une copie terminée (erreur `closed`) ; 4 tests. Un consentement donné sans
+  suivi actif (après ce refus) est retiré, pour que le bouton n'affiche pas « Arrêter le
+  partage » sans rien publier ; 2 tests. Ce refus arrête d'abord tout suivi en cours, pour que
+  le consentement ne s'applique pas à une autre session restée suivie ; 1 test. Au passage, le
+  refus de
+  `share()` faute de deux participants met aussi le store partagé en erreur (1 test complété).
+- Relevé au passage : l'immuabilité de `meta` se contourne en supprimant `meta` puis en le
+  réécrivant (TODO P3).
+- **Reste à Cédric** : `firebase deploy --only database`, puis partage testé sur deux appareils.
+
 ## Vue carte POI — états loading, error et empty (2026-11-16, branche `fix/poi-carte-etats`)
 
 `POIMapView` ne recevait ni `isLoading` ni `error` : pendant la recherche, ou après un échec, la vue
@@ -420,8 +459,8 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 | Métrique                           | Valeur                                                            |
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
-| Suites de tests                    | 90                                                                |
-| Tests (cas) — `npm run check`      | 1314                                                              |
+| Suites de tests                    | 91                                                                |
+| Tests (cas) — `npm run check`      | 1338                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |

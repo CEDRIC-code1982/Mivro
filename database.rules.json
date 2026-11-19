@@ -4,6 +4,11 @@
     ".write": false,
     "sessions": {
       "$sessionId": {
+        ".read": true,
+        ".write": "!newData.exists() || !data.child('meta').exists()",
+        "$other": {
+          ".validate": false
+        },
         "meta": {
           ".read": true,
           ".write": true,

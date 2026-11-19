@@ -39,6 +39,7 @@
     "unavailable": "Service de localisation indisponible.",
     "timeout": "Impossible d'obtenir ta position à temps.",
     "inaccurate": "Position GPS trop imprécise.",
-    "unknown": "Une erreur inattendue est survenue."
+    "unknown": "Une erreur inattendue est survenue.",
+    "closed": "Cette session est terminée."
   }
 }

@@ -80,6 +80,7 @@
 | J-063 | Les revues du lot C voyaient ce que le self-test ne regardait pas   | RÉSOLU  |
 | J-064 | La garde texte ne fermait jamais l'écriture : le noyau la refuse    | RÉSOLU  |
 | J-065 | Rayon POI hors bornes du use case, invisible au hook mocké          | RÉSOLU  |
+| J-066 | Règles RTDB refusant le partage F5, invisible à Firebase mocké      | OUVERT  |
 
 ---
 
@@ -3021,3 +3022,60 @@ service POI mocké), de 1 m à 4 900 km : c'est la règle ci-dessous, appliquée
 case portant des bornes reçoit au moins un test d'intégration avec le use case **réel** (l'adapter
 seul mocké), aux valeurs limites des deux côtés. Aucun capteur ne le vérifie : c'est au reviewer de
 le demander quand un use case valide ses entrées.
+
+## J-066 — Règles RTDB refusant le partage F5, invisible à Firebase mocké
+
+**Date** : 2026-11-16 · **Statut** : OUVERT — règles corrigées (`fix/regles-rtdb-niveau-session`),
+re-partage corrigé côté client sur la même branche ; redéploiement et règle proposée à traiter
+par Cédric
+
+**Observé.** En reprenant l'item TODO « `sessions/$sessionId` sans `$other: false` », la lecture
+des règles déployées le 2026-08-24 montre qu'elles n'accordent rien au niveau
+`sessions/$sessionId`. Or `FirebaseSessionShareService` y fait `get`, `onValue`, `update` (création)
+et `remove` (suppression RGPD), et `FirebaseRealtimeService` lit le nœud `participants`. Les
+règles RTDB n'étant pas des filtres, ces appels sont refusés : le partage F5 ne peut pas
+fonctionner avec ces règles. La revue du correctif a trouvé un second défaut de même nature : le
+re-partage d'une session déjà partagée, que le client appelait à chaque appui sur « Partager »,
+est refusé par les règles ; corrigé côté client sur la même branche (le lien existant est
+réutilisé, sans écriture en base). La revue suivante en a trouvé un troisième, ouvert par le
+correctif lui-même : la création au niveau session étant désormais accordée tant que `meta`
+n'existe pas, un invité dont la session a été supprimée par le propriétaire (ou purgée à
+l'expiration) pouvait la republier sous le même id, avec les adresses des autres membres et un
+nouveau TTL, sa copie locale survivant au nœud distant. Corrigé côté client sur la même branche :
+une session chargée depuis le partage est marquée (`isSharedCopy`) et n'est plus jamais publiée
+(erreur `closed`). La revue d'après a trouvé un quatrième chemin vers le même nœud : le suivi F4
+de l'invité, indépendant du store partagé, continuait à publier sa position après la fin
+distante ; chaque point recréait sous l'id supprimé un nœud sans `meta`, que la purge
+`purgeExpiredSessions` ignore. Corrigé côté client sur la même branche : `useRealtimeTracking`
+arrête le suivi d'une copie de session partagée dès que le store partagé ne la porte plus, et
+refuse de le démarrer sur une copie terminée.
+
+**Cause.** Les règles et le client ne se rencontrent dans aucun test : les tests des adapters
+mockent `firebase/database`, et rien n'évalue `database.rules.json`. La revue de F5 a lu les
+règles nœud par nœud, sans les confronter aux chemins réellement lus et écrits par le client. La
+vérification sur appareil, qui l'aurait montré, attend toujours.
+
+**Correctif.** Niveau session : lecture ouverte, écriture seulement pour créer (pas encore de
+`meta`) ou supprimer la session entière, `$other` refusé. Test structurel
+`databaseRules.test.ts`, qui fige la forme mais n'évalue rien.
+
+**Règle proposée (à appliquer par Cédric).** Toute modification de `database.rules.json` ou d'un
+chemin RTDB lu ou écrit par un adapter s'accompagne d'un test sur l'émulateur Firebase
+(`@firebase/rules-unit-testing`) qui joue les séquences réelles du client (création, jointure,
+abonnement, re-partage, suppression, puis re-création sur le même id, et suivi actif →
+suppression par le propriétaire → point GPS suivant → nœud absent). En attendant l'émulateur,
+le reviewer confronte chaque `ref()` des adapters RTDB aux règles, chemin par chemin. Côté client,
+toute évolution du cycle de vie d'une session partagée s'accompagne d'un test qui enchaîne les
+hooks **et l'écran** sur la séquence complète (rejoindre → fin distante → action suivante de
+l'utilisateur), et pas seulement sur l'état de départ de chaque hook. La dernière revue l'a
+montré : le refus de `start()` sur une copie terminée était testé dans le hook, mais `MapScreen`
+pose le consentement juste après, sans condition, et le bouton affichait « Arrêter le partage »
+sans rien publier (corrigé dans le hook : pas de consentement sans suivi actif). Un test
+d'intégration de `MapScreen` (copie terminée → « Partager ma position » → « Accepter » → libellé
+inchangé) l'aurait vu. La revue d'après a trouvé pire sur le même refus : il sortait sans arrêter
+le suivi d'une **autre** session (suivi en voir-seulement sur A, `MapScreen` resté monté sous
+`JoinSession`, jonction de B, fin distante de B, puis « Accepter »), et le consentement s'appliquait
+à A, où l'utilisateur avait refusé le partage. Corrigé : un `start()` refusé arrête d'abord tout
+suivi en cours. Deux ajouts à la règle : la séquence « suivi actif sur A → rejoindre B → fin
+distante de B → Accepter » fait partie des séquences à tester, et chaque branche de `start(X)`, refus
+compris, est testée contre l'invariant « la session suivie est X ou aucune ».
