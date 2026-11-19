@@ -97,7 +97,11 @@ entier imposerait de tous les traduire.
 **Vérification.** `npx jest src/theme/contrast.test.ts` : 90 → 103 tests, soit 12 paires de plus
 (6 par thème : 2 tokens × 2 tuiles, plus 2 paires de remplissage), toutes ≥ 3:1, et le test de
 complétude. Ratios attendus : `success[700]` ≈ 4,4:1 (tuile claire), 5,0:1 (blanche), 4,6:1 (sur
-`success[50]`) ; `neutral[600]` ≈ 6,7:1, 7,7:1, 7,0:1 (sur `neutral[100]`). Puis
+`success[50]`) ; `neutral[600]` ≈ 6,7:1, 7,7:1, 7,0:1 (sur `neutral[100]`). Lancer
+`npm run format` après le collage : l'appel `push('map.liveOnline on map.liveOnlineFill', …)`
+tient en 100 colonnes ici, sans indentation, et Prettier, qui formate aussi le code de ce
+fichier, le garde sur une ligne ; indenté dans `buildPairs`, il en fait 102 et doit être replié
+comme celui de `liveOffline`, sans quoi le capteur `format` rougit. Puis
 `npm run harness:relock`, et suppression de cette entrée dans le même commit.
 
 **Validé avant écriture (2026-11-19)**, sur une copie temporaire du fichier patché : Prettier et

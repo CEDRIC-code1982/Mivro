@@ -3122,7 +3122,11 @@ exécutée, avait un test de complétude qui ne cherchait qu'une mention `map.<t
 libellé : la paire `map.liveOnline on map.liveOnlineFill` suffisait à le satisfaire, et retirer
 les paires sur les tuiles le laissait vert. Elle annonçait aussi 8 paires au lieu de 12, et une
 ligne dépassait 100 colonnes une fois indentée. La revue l'a trouvé en appliquant le patch sur
-une copie. Règle de processus : tout code proposé dans EN-ATTENTE est appliqué à une copie
+une copie. La ligne repliée à la main a été recollée par Prettier, qui formate aussi le code du
+markdown sans connaître l'indentation finale : le §8 demande donc un `npm run format` après
+collage. Règle de processus : tout code proposé dans EN-ATTENTE est appliqué à une copie
 temporaire du fichier visé avant d'être écrit, passé à Prettier, à ESLint et aux tests, et
 chaque affirmation de mutation (« rougit si l'on retire X ») est vérifiée en retirant chaque
-élément, un à un. Rien d'outillable : c'est au reviewer de rejouer la vérification.
+élément, un à un. La copie est faite à partir du snippet **tel qu'il est écrit dans le
+markdown**, après son formatage, et non à partir du script qui l'a produit. Rien d'outillable :
+c'est au reviewer de rejouer la vérification.
