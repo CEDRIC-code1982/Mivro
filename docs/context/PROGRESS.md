@@ -3,6 +3,24 @@
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
 > Dernière mise à jour : 2026-09-26 (harness v2 — le harness devient une frontière de confiance).
 
+## Erreur de suivi durable sur la carte (2026-11-19, branche `fix/erreur-suivi-durable`)
+
+`useRealtimeStore.status` portait à la fois la santé de l'abonnement et les échecs du partage de
+ma position : une erreur du GPS ou de la publication s'affichait, puis le prochain instantané des
+autres participants posait `connected` et l'effaçait, alors que ma position n'était plus publiée.
+
+- `useRealtimeStore` : `trackingErrorCode` et `setTrackingError`, à part de `status` et
+  `errorCode` ; remis à `null` par `startTracking` et `stopTracking`. Commentaires traduits en
+  anglais.
+- `useRealtimeTracking` : les erreurs du watch GPS (callback et lancement) et de la publication
+  posent l'erreur de suivi ; elle s'efface à la première publication réussie et au retrait du
+  consentement. Un échec de publication arrivé après l'arrêt ou un changement de session est ignoré.
+- `MapScreen` affiche l'erreur de suivi en priorité, sinon l'erreur de connexion ; le bouton reste
+  « Arrêter le partage » pendant l'erreur (décision de Cédric : le suivi reprend seul si le GPS
+  revient).
+- 11 tests de plus (store 3, hook 5, `MapScreen` 3) ; les tests d'erreur GPS du hook vérifient
+  désormais l'erreur de suivi.
+
 ## Erreurs du temps réel affichées sur la carte (2026-11-19, branche `fix/erreurs-temps-reel-carte`)
 
 `useRealtimeTracking` posait ses erreurs dans `useRealtimeStore` (`status: 'error'`, `errorCode`),
@@ -492,7 +510,7 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
 | Suites de tests                    | 91                                                                |
-| Tests (cas) — `npm run check`      | 1365                                                              |
+| Tests (cas) — `npm run check`      | 1376                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |

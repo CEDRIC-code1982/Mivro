@@ -30,6 +30,7 @@ const resetStore = () => {
     participants: {},
     status: 'idle',
     errorCode: null,
+    trackingErrorCode: null,
     hasSharingConsent: false,
   });
 };
@@ -98,6 +99,42 @@ describe('useRealtimeStore', () => {
       const state = useRealtimeStore.getState();
       expect(state.status).toBe('error');
       expect(state.errorCode).toBe('permission_denied');
+    });
+  });
+
+  describe('setTrackingError', () => {
+    it('stores the tracking error without touching the connection status', () => {
+      useRealtimeStore.getState().setStatus('connected');
+
+      useRealtimeStore.getState().setTrackingError('timeout');
+
+      const state = useRealtimeStore.getState();
+      expect(state.trackingErrorCode).toBe('timeout');
+      expect(state.status).toBe('connected');
+      expect(state.errorCode).toBeNull();
+    });
+
+    it('survives a connection status update', () => {
+      useRealtimeStore.getState().setTrackingError('timeout');
+
+      useRealtimeStore.getState().setStatus('connected');
+
+      expect(useRealtimeStore.getState().trackingErrorCode).toBe('timeout');
+    });
+
+    it('is cleared by setTrackingError(null), startTracking and stopTracking', () => {
+      const store = useRealtimeStore.getState();
+      store.setTrackingError('timeout');
+      store.setTrackingError(null);
+      expect(useRealtimeStore.getState().trackingErrorCode).toBeNull();
+
+      store.setTrackingError('timeout');
+      store.startTracking('session-002');
+      expect(useRealtimeStore.getState().trackingErrorCode).toBeNull();
+
+      store.setTrackingError('timeout');
+      store.stopTracking();
+      expect(useRealtimeStore.getState().trackingErrorCode).toBeNull();
     });
   });
 

@@ -114,6 +114,7 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
   const stopTrackingStore = useRealtimeStore((s) => s.stopTracking);
   const setParticipants = useRealtimeStore((s) => s.setParticipants);
   const setStatus = useRealtimeStore((s) => s.setStatus);
+  const setTrackingError = useRealtimeStore((s) => s.setTrackingError);
   const setSharingConsent = useRealtimeStore((s) => s.setSharingConsent);
   // [ADDED] The local GPS watch is driven by consent + tracking state.
   // The subscription (seeing the others) stays decoupled from these values.
@@ -173,15 +174,23 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
           speed: sample.speed,
           heading: sample.heading,
         })
+        .then(() => {
+          // A published position ends a previous sharing failure (GPS back, network back).
+          if (sessionRef.current === sessionId) setTrackingError(null);
+        })
         .catch((error: unknown) => {
-          setStatus('error', toErrorCode(error));
+          // [FIXED] "Erreur de suivi effacée par le prochain instantané": a sharing failure is a
+          // tracking error, not a connection status the next snapshot would overwrite. A failure
+          // settling after stop() or a session switch is dropped: it no longer describes the
+          // current tracking.
+          if (sessionRef.current === sessionId) setTrackingError(toErrorCode(error));
           console.error(
             `[ERROR][useRealtimeTracking][maybePublish][?][${timestamp()}] ` +
               `Publish failed | code: ${toErrorCode(error)}`,
           );
         });
     },
-    [setStatus],
+    [setTrackingError],
   );
 
   /**
@@ -195,7 +204,7 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
       clearWatchRef.current = geolocationService.watchPosition(
         maybePublish,
         (error) => {
-          setStatus('error', toErrorCode(error));
+          setTrackingError(toErrorCode(error));
         },
         { accuracyMeters: 50, distanceFilterMeters: 10 },
       );
@@ -203,13 +212,13 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
         `[INFO][useRealtimeTracking][startWatch][?][${timestamp()}] GPS watch started (sharing)`,
       );
     } catch (error: unknown) {
-      setStatus('error', toErrorCode(error));
+      setTrackingError(toErrorCode(error));
       console.error(
         `[ERROR][useRealtimeTracking][startWatch][?][${timestamp()}] ` +
           `Failed to start GPS watch | code: ${toErrorCode(error)}`,
       );
     }
-  }, [maybePublish, setStatus]);
+  }, [maybePublish, setTrackingError]);
 
   /**
    * Stops the local GPS watch (no more GPS usage). Idempotent.
@@ -333,8 +342,10 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
       startWatch();
     } else {
       stopWatch();
+      // Nothing is shared any more: a sharing failure no longer applies.
+      setTrackingError(null);
     }
-  }, [isTracking, hasSharingConsent, startWatch, stopWatch]);
+  }, [isTracking, hasSharingConsent, startWatch, stopWatch, setTrackingError]);
 
   // [FIXED] "Consentement donné sans suivi actif": MapScreen grants consent right after start();
   // when start() refuses an ended shared copy, consent was kept while nothing was tracked, and

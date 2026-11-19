@@ -65,6 +65,7 @@ const resetStore = () => {
     participants: {},
     status: 'idle',
     errorCode: null,
+    trackingErrorCode: null,
     hasSharingConsent: false,
   });
 };
@@ -319,7 +320,7 @@ describe('useRealtimeTracking', () => {
 
   // ─── Gestion d'erreur ─────────────────────────────────────
   describe('error handling', () => {
-    it('sets error status when publish rejects', async () => {
+    it('sets a tracking error, not the connection status, when publish rejects', async () => {
       mockPublish.mockRejectedValue(new RealtimeError('net', 'network'));
       const { result } = renderHook(() => useRealtimeTracking());
       act(() => result.current.start(SESSION_ID, PARTICIPANT_ID));
@@ -330,8 +331,103 @@ describe('useRealtimeTracking', () => {
         await Promise.resolve();
       });
 
-      expect(useRealtimeStore.getState().status).toBe('error');
-      expect(useRealtimeStore.getState().errorCode).toBe('network');
+      expect(useRealtimeStore.getState().trackingErrorCode).toBe('network');
+      expect(useRealtimeStore.getState().status).not.toBe('error');
+      expect(useRealtimeStore.getState().errorCode).toBeNull();
+    });
+
+    it('keeps the tracking error when the next snapshot of the others arrives', async () => {
+      let emitRoster: (participants: readonly []) => void = () => undefined;
+      mockSubscribe.mockImplementation(
+        (_id: string, handler: (participants: readonly []) => void) => {
+          emitRoster = handler;
+          return unsubscribe;
+        },
+      );
+      mockPublish.mockRejectedValue(new RealtimeError('net', 'network'));
+      const { result } = renderHook(() => useRealtimeTracking());
+      act(() => result.current.start(SESSION_ID, PARTICIPANT_ID));
+      act(() => useRealtimeStore.getState().setSharingConsent(true));
+      await act(async () => {
+        emitSample(makeSample({ speed: 20 }));
+        await Promise.resolve();
+      });
+
+      act(() => emitRoster([]));
+
+      expect(useRealtimeStore.getState().status).toBe('connected');
+      expect(useRealtimeStore.getState().trackingErrorCode).toBe('network');
+    });
+
+    it('clears the tracking error once a position is published again', async () => {
+      mockPublish.mockRejectedValueOnce(new RealtimeError('net', 'network'));
+      const { result } = renderHook(() => useRealtimeTracking());
+      act(() => result.current.start(SESSION_ID, PARTICIPANT_ID));
+      act(() => useRealtimeStore.getState().setSharingConsent(true));
+      await act(async () => {
+        emitSample(makeSample({ speed: 20 }));
+        await Promise.resolve();
+      });
+      expect(useRealtimeStore.getState().trackingErrorCode).toBe('network');
+
+      act(() => jest.advanceTimersByTime(6_000));
+      await act(async () => {
+        emitSample(makeSample({ speed: 20 }));
+        await Promise.resolve();
+      });
+
+      expect(mockPublish).toHaveBeenCalledTimes(2);
+      expect(useRealtimeStore.getState().trackingErrorCode).toBeNull();
+    });
+
+    it('clears the tracking error when sharing consent is revoked', async () => {
+      mockPublish.mockRejectedValue(new RealtimeError('net', 'network'));
+      const { result } = renderHook(() => useRealtimeTracking());
+      act(() => result.current.start(SESSION_ID, PARTICIPANT_ID));
+      act(() => useRealtimeStore.getState().setSharingConsent(true));
+      await act(async () => {
+        emitSample(makeSample({ speed: 20 }));
+        await Promise.resolve();
+      });
+
+      act(() => useRealtimeStore.getState().setSharingConsent(false));
+
+      expect(useRealtimeStore.getState().trackingErrorCode).toBeNull();
+    });
+
+    it('drops a publish failure that settles after stop', async () => {
+      let rejectPublish: (error: unknown) => void = () => undefined;
+      mockPublish.mockImplementation(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            rejectPublish = reject;
+          }),
+      );
+      const { result } = renderHook(() => useRealtimeTracking());
+      act(() => result.current.start(SESSION_ID, PARTICIPANT_ID));
+      act(() => useRealtimeStore.getState().setSharingConsent(true));
+      act(() => emitSample(makeSample({ speed: 20 })));
+
+      act(() => result.current.stop());
+      await act(async () => {
+        rejectPublish(new RealtimeError('net', 'network'));
+        await Promise.resolve();
+      });
+
+      expect(useRealtimeStore.getState().trackingErrorCode).toBeNull();
+    });
+
+    it('sets a tracking error when the GPS watch cannot start', () => {
+      mockWatchPosition.mockImplementation(() => {
+        throw new GeolocationError('gps', 'unavailable');
+      });
+      const { result } = renderHook(() => useRealtimeTracking());
+      act(() => result.current.start(SESSION_ID, PARTICIPANT_ID));
+
+      act(() => useRealtimeStore.getState().setSharingConsent(true));
+
+      expect(useRealtimeStore.getState().trackingErrorCode).toBe('unavailable');
+      expect(useRealtimeStore.getState().status).not.toBe('error');
     });
 
     it('sets error status when start throws (subscribe fails)', () => {
@@ -364,8 +460,8 @@ describe('useRealtimeTracking', () => {
 
       act(() => emitError(new GeolocationError('gps', gpsCode)));
 
-      expect(useRealtimeStore.getState().status).toBe('error');
-      expect(useRealtimeStore.getState().errorCode).toBe(expected);
+      expect(useRealtimeStore.getState().trackingErrorCode).toBe(expected);
+      expect(useRealtimeStore.getState().status).not.toBe('error');
     });
 
     it('keeps the real-time permission_denied code for a refused real-time service', () => {

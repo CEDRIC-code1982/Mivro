@@ -11,23 +11,30 @@
 
 ## Tâche
 
-**Titre** : <titre court>
+**Titre** : Erreur de suivi durable sur la carte
 
-**Demande d'origine** : « <la demande, citée> »
+**Demande d'origine** : « Ok, on suit ta reco » (reco : item TODO P2 « Erreur de suivi effacée par le prochain instantané » ; séparer l'erreur de suivi de l'état de connexion ; le bouton reste sur « Arrêter le partage » pendant l'erreur)
 
-**Branche** : `<branche>`, issue de `<base>`.
+**Branche** : `fix/erreur-suivi-durable`, issue de `fix/erreurs-temps-reel-carte` (`f365aa7`), la pile n'étant pas encore fusionnée dans `develop`.
 
 **Hors périmètre explicite** :
 
-- <ce qui n'est pas fait, et qui le fera>
+- L'annonce VoiceOver d'un refus répété (TODO P3, à confirmer sur appareil).
+- Un bouton « Réessayer » sur le message.
+- Le sort de la session locale de l'invité (« ⚠️ À SPÉCIFIER AVEC CÉDRIC »).
 
 ---
 
 ## Conditions de fin
 
-| #   | Condition   | Comment on le vérifie |
-| --- | ----------- | --------------------- |
-| 1   | <condition> | <commande ou preuve>  |
+| #   | Condition                                                                                                                                                                                                                    | Comment on le vérifie              |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| 1   | `useRealtimeStore` porte l'erreur de suivi (`trackingErrorCode`, `setTrackingError`) à part de l'état de connexion (`status`, `errorCode`) ; `startTracking` et `stopTracking` la remettent à `null`                         | tests de `useRealtimeStore`        |
+| 2   | Les erreurs du watch GPS (callback et lancement) et de la publication posent l'erreur de suivi, plus le `status` ; un instantané des participants (`setStatus('connected')`) ne l'efface pas                                 | tests de `useRealtimeTracking`     |
+| 3   | L'erreur de suivi s'efface à la première publication réussie, au retrait du consentement, au redémarrage et à l'arrêt du suivi ; une erreur de publication arrivée après l'arrêt ou le changement de session n'est pas posée | tests de `useRealtimeTracking`     |
+| 4   | `MapScreen` affiche l'erreur de suivi en priorité, sinon l'erreur de connexion ; le message reste affiché quand un instantané pose `connected`, et le bouton reste « Arrêter le partage »                                    | tests d'intégration de `MapScreen` |
+| 5   | Commentaires de `useRealtimeStore.ts` tous en anglais (règle du fichier entier)                                                                                                                                              | `git diff`                         |
+| 6   | TODO (item P2 coché), PROGRESS (section, métrique de tests) et ARCHITECTURE (store temps réel) à jour                                                                                                                        | `git diff docs/`                   |
 
 ---
 
@@ -45,4 +52,5 @@
 
 ## Ce qui reste à Cédric
 
-- [ ] <action hors de portée de l'agent>
+- [ ] Vérifier sur appareil : couper la localisation pendant un partage actif, le message reste affiché malgré les positions des autres.
+- [ ] Commit sur demande.

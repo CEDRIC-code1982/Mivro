@@ -244,6 +244,7 @@ describe('MapScreen integration', () => {
       participants: {},
       status: 'idle',
       errorCode: null,
+      trackingErrorCode: null,
       hasSharingConsent: false,
     });
     // [ADDED] F5 — pas de session partagée par défaut (hook de synchro inerte).
@@ -624,6 +625,48 @@ describe('MapScreen integration', () => {
       expect(screen.getByTestId('map-realtime-error')).toHaveTextContent(
         'Cette session est terminée.',
       );
+    });
+
+    it('keeps a tracking error on screen when a snapshot of the others sets "connected"', () => {
+      useRealtimeStore.setState({ sessionId: 'session-001', hasSharingConsent: true });
+      useRealtimeStore.getState().setTrackingError('network');
+
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+      act(() => {
+        useRealtimeStore.getState().setStatus('connected');
+      });
+
+      expect(screen.getByTestId('map-realtime-error')).toHaveTextContent(
+        'Connexion perdue. Vérifie ta connexion internet.',
+      );
+      expect(screen.getByText('Arrêter le partage')).toBeTruthy();
+    });
+
+    it('shows the tracking error before the connection error', () => {
+      useRealtimeStore.setState({
+        status: 'error',
+        errorCode: 'closed',
+        trackingErrorCode: 'network',
+      });
+
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+
+      expect(screen.getByTestId('map-realtime-error')).toHaveTextContent(
+        'Connexion perdue. Vérifie ta connexion internet.',
+      );
+    });
+
+    it('hides the tracking error once it is cleared', () => {
+      useRealtimeStore.setState({ status: 'connected', trackingErrorCode: 'network' });
+
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+      expect(screen.getByTestId('map-realtime-error')).toBeTruthy();
+
+      act(() => {
+        useRealtimeStore.getState().setTrackingError(null);
+      });
+
+      expect(screen.queryByTestId('map-realtime-error')).toBeNull();
     });
   });
 });

@@ -109,8 +109,11 @@ const MapScreen: React.FC = () => {
   // session: a refused start (shared session that has ended) resets the session to null before
   // setting the `closed` error. An error without a code falls back to `unknown`, like an unknown
   // code through `defaultValue`.
-  const realtimeErrorCode = useRealtimeStore((s) =>
-    s.status === 'error' ? s.errorCode ?? 'unknown' : null,
+  // [FIXED] "Erreur de suivi effacée par le prochain instantané": a failure to share my position
+  // (GPS, publishing) is kept apart from the connection status and comes first, since the
+  // next snapshot of the others sets `connected` while my position is still not published.
+  const realtimeErrorCode = useRealtimeStore(
+    (s) => s.trackingErrorCode ?? (s.status === 'error' ? s.errorCode ?? 'unknown' : null),
   );
   const realtimeErrorMessage =
     realtimeErrorCode === null
