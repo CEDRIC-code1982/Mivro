@@ -388,6 +388,7 @@ describe('useRealtimeTracking', () => {
       act(() => result.current.start(SESSION_ID, PARTICIPANT_ID));
 
       expect(mockSubscribe).not.toHaveBeenCalled();
+      expect(mockLeave).not.toHaveBeenCalled();
       expect(useRealtimeStore.getState().sessionId).toBeNull();
       expect(useRealtimeStore.getState().status).toBe('error');
       expect(useRealtimeStore.getState().errorCode).toBe('closed');
@@ -424,7 +425,6 @@ describe('useRealtimeTracking', () => {
       expect(useRealtimeStore.getState().hasSharingConsent).toBe(false);
       expect(useRealtimeStore.getState().errorCode).toBe('closed');
       expect(mockWatchPosition).not.toHaveBeenCalled();
-      act(() => emitSample?.(makeSample()));
       expect(mockPublish).not.toHaveBeenCalled();
     });
 
