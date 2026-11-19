@@ -25,6 +25,14 @@ autres participants posait `connected` et l'effaçait, alors que ma position n'�
   changement de session, retrait du consentement), et son succès n'efface pas une erreur posée
   après son lancement (une coupure GPS signalée pendant qu'elle était en vol reste affichée).
   4 tests de plus, qui rougissent sans le correctif.
+- Publications qui se chevauchent (MINEUR du reviewer) : une erreur n'est effacée que par le succès
+  d'une publication lancée après sa cause (numéro de lancement) ; le succès d'une publication
+  récente efface donc l'échec d'une plus ancienne, et un échec arrivé après le succès d'une
+  publication plus récente est ignoré. Le seuil retenu ne recule jamais (`Math.max`) : un échec
+  ancien arrivé en retard ne permet pas à une publication partie avant une coupure GPS de
+  l'effacer. 4 tests de plus, qui rougissent sans le correctif.
+- TODO P3 « ⚠️ À SPÉCIFIER » : pendant une coupure GPS, un échec de publication remplace la cause
+  GPS par la cause réseau (un seul code pour deux causes).
 
 ## Erreurs du temps réel affichées sur la carte (2026-11-19, branche `fix/erreurs-temps-reel-carte`)
 
@@ -515,7 +523,7 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
 | Suites de tests                    | 91                                                                |
-| Tests (cas) — `npm run check`      | 1380                                                              |
+| Tests (cas) — `npm run check`      | 1384                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |

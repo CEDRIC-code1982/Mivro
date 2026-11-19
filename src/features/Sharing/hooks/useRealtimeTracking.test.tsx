@@ -447,6 +447,91 @@ describe('useRealtimeTracking', () => {
       expect(useRealtimeStore.getState().trackingErrorCode).toBe('unavailable');
     });
 
+    describe('overlapping publishes', () => {
+      let rejectOlder: (error: unknown) => void = () => undefined;
+      let resolveOlder: () => void = () => undefined;
+      let rejectNewer: (error: unknown) => void = () => undefined;
+      let resolveNewer: () => void = () => undefined;
+
+      const launchTwoPublishes = (): void => {
+        mockPublish
+          .mockImplementationOnce(
+            () =>
+              new Promise<void>((resolve, reject) => {
+                resolveOlder = resolve;
+                rejectOlder = reject;
+              }),
+          )
+          .mockImplementationOnce(
+            () =>
+              new Promise<void>((resolve, reject) => {
+                resolveNewer = resolve;
+                rejectNewer = reject;
+              }),
+          );
+        const { result } = renderHook(() => useRealtimeTracking());
+        act(() => result.current.start(SESSION_ID, PARTICIPANT_ID));
+        act(() => useRealtimeStore.getState().setSharingConsent(true));
+        act(() => emitSample(makeSample({ speed: 20 })));
+        act(() => jest.advanceTimersByTime(6_000));
+        act(() => emitSample(makeSample({ speed: 20 })));
+        expect(mockPublish).toHaveBeenCalledTimes(2);
+      };
+
+      const settle = async (action: () => void): Promise<void> => {
+        await act(async () => {
+          action();
+          await Promise.resolve();
+        });
+      };
+
+      it('clears an older publish failure once a newer publish succeeds', async () => {
+        launchTwoPublishes();
+
+        await settle(() => rejectOlder(new RealtimeError('net', 'network')));
+        expect(useRealtimeStore.getState().trackingErrorCode).toBe('network');
+        await settle(() => resolveNewer());
+
+        expect(useRealtimeStore.getState().trackingErrorCode).toBeNull();
+      });
+
+      it('drops an older publish failure that settles after a newer publish succeeded', async () => {
+        launchTwoPublishes();
+
+        await settle(() => resolveNewer());
+        await settle(() => rejectOlder(new RealtimeError('net', 'network')));
+
+        expect(useRealtimeStore.getState().trackingErrorCode).toBeNull();
+      });
+
+      it('keeps a newer publish failure when an older publish succeeds afterwards', async () => {
+        launchTwoPublishes();
+
+        await settle(() => rejectNewer(new RealtimeError('net', 'network')));
+        await settle(() => resolveOlder());
+
+        expect(useRealtimeStore.getState().trackingErrorCode).toBe('network');
+      });
+
+      it('keeps a GPS error when an older failure settles before a pre-GPS-error publish succeeds', async () => {
+        let emitError: (error: GeolocationError) => void = () => undefined;
+        mockWatchPosition.mockImplementation(
+          (onSample: WatchPositionCallback, onError: (error: GeolocationError) => void) => {
+            emitSample = onSample;
+            emitError = onError;
+            return clearWatch;
+          },
+        );
+        launchTwoPublishes();
+
+        act(() => emitError(new GeolocationError('gps', 'unavailable')));
+        await settle(() => rejectOlder(new RealtimeError('net', 'network')));
+        await settle(() => resolveNewer());
+
+        expect(useRealtimeStore.getState().trackingErrorCode).not.toBeNull();
+      });
+    });
+
     it('drops a publish failure that settles after sharing consent is revoked', async () => {
       let rejectPublish: (error: unknown) => void = () => undefined;
       mockPublish.mockImplementation(
