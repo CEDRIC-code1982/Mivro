@@ -345,11 +345,11 @@ Détail : `docs/harness/INVENTAIRE.md` · échecs et arbitrages : `docs/harness/
       exemptions `pathNot` de `.dependency-cruiser.js` sont **supprimées**, la règle inter-features
       couvre désormais aussi `components/`, et une règle
       `feature-components-presentational` interdit la DI dans un composant de feature (J-014).
-- [ ] **Marqueurs live illisibles sur la carte** (J-021, préexistant) : `liveMarkerOnline` de
-      `SessionMapView` utilise `feedback.successBg` + bordure `text.success`, rendus sur les tuiles
-      de carte (qui restent claires en mode sombre) → ~1,78:1. À router vers la nouvelle famille
-      `theme.color.map.*`, qui est calée sur les tuiles et non sur les surfaces du thème. Non
-      corrigé ici pour ne pas absorber un défaut antérieur dans le correctif d'un autre. (P2 — a11y)
+- [x] **Marqueurs live illisibles sur la carte** (J-021, J-067) : corrigé le 2026-11-19
+      (`fix/marqueurs-live-contraste`). Le marqueur hors ligne échouait aussi, en clair
+      (`border.strong` ≈ 2,2:1 sur la tuile). Le marqueur live n'utilise plus que quatre tokens
+      `map.live*`, identiques dans les deux thèmes (≈ 4,4:1 au minimum, sur la tuile claire). Reste à Cédric :
+      EN-ATTENTE §8 (paires du test de contraste) et la vérification sur appareil en mode sombre.
 - [ ] **Règle ESLint « interactive.\* n'est pas un avant-plan »** (J-020) : une règle locale
       interdisant `theme.color.interactive.*` en valeur de `color=` / `tintColor=` / `borderColor`
       attraperait la confusion de rôle qui a produit 12 régressions de contraste. À évaluer : la

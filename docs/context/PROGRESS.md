@@ -3,6 +3,19 @@
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
 > Dernière mise à jour : 2026-09-26 (harness v2 — le harness devient une frontière de confiance).
 
+## Marqueurs live de la carte — contraste sur les tuiles (2026-11-19, branche `fix/marqueurs-live-contraste`)
+
+Les marqueurs live de `SessionMapView` utilisaient des tokens calés sur les surfaces du thème,
+alors que les tuiles de carte restent claires en mode sombre (J-021) : ~1,78:1 en ligne en mode
+sombre, et ~2,2:1 hors ligne en mode clair, défaut trouvé en cours de tâche (J-067).
+
+- Quatre tokens `map.liveOnline`, `map.liveOnlineFill`, `map.liveOffline`, `map.liveOfflineFill`,
+  identiques dans les deux thèmes ; ≈ 4,4:1 au minimum (4,36:1, en ligne sur la tuile claire).
+- Le marqueur live (halo, bordure, point) n'utilise plus qu'eux ; 2 tests (thème clair et
+  sombre), qui échouent sur l'ancien composant.
+- Commentaires de `SessionMapView.tsx` traduits en anglais.
+- Paires du test de contraste à appliquer par Cédric : EN-ATTENTE §8.
+
 ## Règles RTDB — accès au niveau de la session (2026-11-16, branche `fix/regles-rtdb-niveau-session`)
 
 L'item TODO « `sessions/$sessionId` sans `$other: false` » cachait un défaut plus large : les règles
@@ -454,13 +467,13 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 
 ---
 
-## Métriques actuelles (mesurées le 2026-11-16 pour les tests, le 2026-09-26 pour le reste)
+## Métriques actuelles (mesurées le 2026-11-19 pour les tests, le 2026-09-26 pour le reste)
 
 | Métrique                           | Valeur                                                            |
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
 | Suites de tests                    | 91                                                                |
-| Tests (cas) — `npm run check`      | 1338                                                              |
+| Tests (cas) — `npm run check`      | 1340                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |

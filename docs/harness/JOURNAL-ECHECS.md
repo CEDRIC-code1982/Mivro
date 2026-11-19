@@ -81,6 +81,7 @@
 | J-064 | La garde texte ne fermait jamais l'écriture : le noyau la refuse    | RÉSOLU  |
 | J-065 | Rayon POI hors bornes du use case, invisible au hook mocké          | RÉSOLU  |
 | J-066 | Règles RTDB refusant le partage F5, invisible à Firebase mocké      | OUVERT  |
+| J-067 | Marqueur live sous 3:1 sur la tuile, hors du modèle de contraste    | OUVERT  |
 
 ---
 
@@ -3079,3 +3080,49 @@ le suivi d'une **autre** session (suivi en voir-seulement sur A, `MapScreen` res
 suivi en cours. Deux ajouts à la règle : la séquence « suivi actif sur A → rejoindre B → fin
 distante de B → Accepter » fait partie des séquences à tester, et chaque branche de `start(X)`, refus
 compris, est testée contre l'invariant « la session suivie est X ou aucune ».
+
+## J-067 — Marqueur live sous 3:1 sur la tuile, hors du modèle de contraste
+
+**Date** : 2026-11-19 · **Statut** : OUVERT — marqueurs corrigés (`fix/marqueurs-live-contraste`) ;
+paires du test de contraste à appliquer par Cédric (EN-ATTENTE §8)
+
+**Observé.** L'item TODO issu de J-021 signalait le marqueur live en ligne de `SessionMapView` :
+fond `feedback.successBg` et bordure `text.success`, rendus sur les tuiles de carte, qui restent
+claires en mode sombre → ~1,78:1 en mode sombre. En le corrigeant, le marqueur hors ligne échoue
+aussi : en mode clair, sa bordure `border.strong` (`neutral[400]`) donne ≈ 2,23:1 sur la tuile
+claire `#F1EFE9`, alors que son point `text.tertiary` (`neutral[500]`, ≈ 4,2:1) passe ; en mode
+sombre, c'est le point qui échoue (`text.tertiary` y vaut `neutral[400]`, ≈ 2,2:1). Un marqueur
+sous 3:1 (WCAG 1.4.11) se perd sur le fond de carte.
+
+**Cause.** J-021 a créé la famille `theme.color.map.*`, calée sur les tuiles, mais le test de
+contraste n'y confronte que `map.stroke` : un marqueur peint avec des tokens de surface du thème
+n'entre dans aucune paire, et aucun capteur ne relie un style de `SessionMapView` au fond sur
+lequel il est rendu. Le défaut du marqueur hors ligne n'avait même pas été relevé par J-021.
+
+**Correctif.** Quatre tokens `map.liveOnline` (`success[700]`), `map.liveOnlineFill`
+(`success[50]`), `map.liveOffline` (`neutral[600]`), `map.liveOfflineFill` (`neutral[100]`),
+identiques en clair et en sombre, comme `map.stroke`. Le marqueur live (fond, bordure, point)
+n'utilise plus qu'eux ; deux tests de `SessionMapView.test.tsx` le vérifient sous les deux thèmes,
+et échouent sur l'ancien composant. Ratios calculés à la main, bordure et point :
+
+| Token                         | Tuile claire `#F1EFE9` | Tuile blanche | Sur son remplissage |
+| ----------------------------- | ---------------------- | ------------- | ------------------- |
+| `map.liveOnline` (`#15803D`)  | ≈ 4,36:1               | ≈ 5,02:1      | ≈ 4,56:1            |
+| `map.liveOffline` (`#52525B`) | ≈ 6,72:1               | ≈ 7,73:1      | ≈ 7,03:1            |
+
+**Règle proposée (à appliquer par Cédric).** EN-ATTENTE §8 : les paires `map.live*` dans
+`contrast.test.ts`, et un test de complétude qui exige, pour chaque token `map.*` non décoratif,
+une paire par tuile (avant-plan) ou une paire avec son avant-plan (remplissage `*Fill`). Un
+nouveau token de carte ne peut plus alors échapper au modèle. Reste non couvert : un composant de
+carte qui utiliserait un token de surface au lieu d'un token `map.*`. Le reviewer le vérifie sur
+tout style rendu dans un `MapView`.
+
+**Deuxième défaut, dans la proposition elle-même.** La première version du §8, écrite sans être
+exécutée, avait un test de complétude qui ne cherchait qu'une mention `map.<token>` dans un
+libellé : la paire `map.liveOnline on map.liveOnlineFill` suffisait à le satisfaire, et retirer
+les paires sur les tuiles le laissait vert. Elle annonçait aussi 8 paires au lieu de 12, et une
+ligne dépassait 100 colonnes une fois indentée. La revue l'a trouvé en appliquant le patch sur
+une copie. Règle de processus : tout code proposé dans EN-ATTENTE est appliqué à une copie
+temporaire du fichier visé avant d'être écrit, passé à Prettier, à ESLint et aux tests, et
+chaque affirmation de mutation (« rougit si l'on retire X ») est vérifiée en retirant chaque
+élément, un à un. Rien d'outillable : c'est au reviewer de rejouer la vérification.

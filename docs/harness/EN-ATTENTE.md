@@ -33,6 +33,77 @@ ne garde plus que les limites et faux positifs connus, assumés par décision de
 « fermer par refus » plutôt que modéliser, et nommer ce qui reste. Une limite qu'on décide de
 fermer redevient une entrée à appliquer.
 
+**2026-11-19 : une entrée à appliquer à nouveau (§8, J-067).** Elle étend le test de contraste,
+fichier du harness, aux nouveaux tokens des marqueurs live.
+
+## À appliquer
+
+### 8. Contraste des marqueurs live sur les tuiles de carte (J-067)
+
+**Constat.** `src/theme/contrast.test.ts` ne confronte aux tuiles de carte que `map.stroke`. Les
+marqueurs live de `SessionMapView` utilisaient des tokens calés sur les surfaces du thème, et
+sont tombés sous 3:1 sans qu'aucun capteur ne le voie (~1,78:1 en ligne en mode sombre, ~2,2:1
+hors ligne en mode clair). La branche `fix/marqueurs-live-contraste` les route vers quatre
+nouveaux tokens `map.liveOnline`, `map.liveOnlineFill`, `map.liveOffline`, `map.liveOfflineFill` ;
+leurs ratios ne sont aujourd'hui calculés qu'à la main (J-067).
+
+**Changement exact.** Dans `buildPairs`, section « 5. Avant-plan sur les tuiles de carte »,
+remplacer la boucle par (indentation du fichier en sus) :
+
+```ts
+for (const [tileLabel, tile] of Object.entries(MAP_TILES)) {
+  push(`map.stroke on ${tileLabel} tile`, color.map.stroke, tile, AA_UI);
+  push(`map.liveOnline on ${tileLabel} tile`, color.map.liveOnline, tile, AA_UI);
+  push(`map.liveOffline on ${tileLabel} tile`, color.map.liveOffline, tile, AA_UI);
+}
+push('map.liveOnline on map.liveOnlineFill', color.map.liveOnline, color.map.liveOnlineFill, AA_UI);
+push(
+  'map.liveOffline on map.liveOfflineFill',
+  color.map.liveOffline,
+  color.map.liveOfflineFill,
+  AA_UI,
+);
+```
+
+Puis, à la fin du `describe` « A11Y-001 », après le test « ne garde aucune entrée orpheline… »,
+un test de complétude, pour qu'un futur token `map.*` ne puisse plus échapper au modèle comme
+ceux-ci :
+
+```ts
+it('confronte chaque token map.* aux tuiles, et chaque remplissage à son avant-plan', () => {
+  const DECORATIVE_MAP_TOKENS = new Set(['strokeFill']);
+  const knownLabels = new Set(ALL_PAIRS.map((pair) => pair.label));
+  const missing = (['light', 'dark'] as const).flatMap((mode) =>
+    Object.keys(lightTheme.color.map)
+      .filter((key) => !DECORATIVE_MAP_TOKENS.has(key))
+      .flatMap((key) =>
+        key.endsWith('Fill')
+          ? [`${mode} map.${key.replace(/Fill$/, '')} on map.${key}`]
+          : Object.keys(MAP_TILES).map((tileLabel) => `${mode} map.${key} on ${tileLabel} tile`),
+      )
+      .filter((label) => !knownLabels.has(label)),
+  );
+  expect(missing).toEqual([]);
+});
+```
+
+Le test exige des libellés exacts, et non une simple mention du token : un token d'avant-plan doit
+avoir une paire **par tuile** de `MAP_TILES` et par thème ; un token `*Fill` doit servir de fond à
+son avant-plan (`liveOnlineFill` ↔ `liveOnline`). Une paire de remplissage ne couvre donc plus la
+confrontation à la tuile. `strokeFill` est le remplissage à 15 % du cercle de zone, décoratif (pas
+de seuil WCAG). Aucun commentaire ajouté : le fichier en porte en français, et la règle du fichier
+entier imposerait de tous les traduire.
+
+**Vérification.** `npx jest src/theme/contrast.test.ts` : 90 → 103 tests, soit 12 paires de plus
+(6 par thème : 2 tokens × 2 tuiles, plus 2 paires de remplissage), toutes ≥ 3:1, et le test de
+complétude. Ratios attendus : `success[700]` ≈ 4,4:1 (tuile claire), 5,0:1 (blanche), 4,6:1 (sur
+`success[50]`) ; `neutral[600]` ≈ 6,7:1, 7,7:1, 7,0:1 (sur `neutral[100]`). Puis
+`npm run harness:relock`, et suppression de cette entrée dans le même commit.
+
+**Validé avant écriture (2026-11-19)**, sur une copie temporaire du fichier patché : Prettier et
+ESLint verts, 103 tests verts ; le test de complétude rougit quand on retire, une à une, chacune des
+cinq lignes `push` de la section 5 (`map.stroke` compris).
+
 ## Appliqué
 
 L'ancien §1 (contrôle positif de la sonde réseau) est appliqué au lot 2 du chantier, le

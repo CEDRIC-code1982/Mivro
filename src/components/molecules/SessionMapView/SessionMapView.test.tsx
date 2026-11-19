@@ -8,7 +8,9 @@
 // [ADDED] SessionMapView unit tests
 
 import { render } from '@testing-library/react-native';
+import { lightTheme, ThemeModeProvider } from '@theme';
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import SessionMapView from '@components/molecules/SessionMapView';
 import type { Coordinates } from '@entities/Location';
 import type { Participant } from '@entities/MidpointSession';
@@ -189,5 +191,47 @@ describe('SessionMapView', () => {
       expect(getByTestId('map-live-marker-on')).toBeTruthy();
       expect(getByTestId('map-live-marker-off')).toBeTruthy();
     });
+
+    // J-021 / J-067: map tiles stay light in dark mode, so the live markers must
+    // use the tile-relative `map.live*` tokens, identical in both themes.
+    it.each(['light', 'dark'] as const)(
+      'paints live markers with tile-relative map tokens (%s theme)',
+      (mode) => {
+        const { getByTestId } = render(
+          <ThemeModeProvider value={mode}>
+            <SessionMapView
+              {...defaultProps}
+              liveParticipants={[makeLive('on'), makeLive('off', { isOnline: false })]}
+              testID="map"
+            />
+          </ThemeModeProvider>,
+        );
+        const { map } = lightTheme.color;
+        const markerStyles = (participantId: string) => {
+          // Host views under the marker, depth-first: the halo, then its dot.
+          const marker = getByTestId(`map-live-marker-${participantId}`);
+          const [halo, dot] = marker.findAll(
+            (node) => typeof node.type === 'string' && node !== marker,
+          );
+          if (halo === undefined || dot === undefined) {
+            throw new Error(`live marker ${participantId} has no halo or dot view`);
+          }
+          return {
+            halo: StyleSheet.flatten(halo.props.style),
+            dot: StyleSheet.flatten(dot.props.style),
+          };
+        };
+
+        const online = markerStyles('on');
+        expect(online.halo.backgroundColor).toBe(map.liveOnlineFill);
+        expect(online.halo.borderColor).toBe(map.liveOnline);
+        expect(online.dot.backgroundColor).toBe(map.liveOnline);
+
+        const offline = markerStyles('off');
+        expect(offline.halo.backgroundColor).toBe(map.liveOfflineFill);
+        expect(offline.halo.borderColor).toBe(map.liveOffline);
+        expect(offline.dot.backgroundColor).toBe(map.liveOffline);
+      },
+    );
   });
 });

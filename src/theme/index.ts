@@ -125,6 +125,10 @@ const lightSemantic = {
     stroke: palette.brand[600],
     // Remplissage du même cercle : décoratif, le trait porte l'information.
     strokeFill: `${palette.brand[600]}26`,
+    liveOnline: palette.success[700],
+    liveOnlineFill: palette.success[50],
+    liveOffline: palette.neutral[600],
+    liveOfflineFill: palette.neutral[100],
   },
 
   // Feedback
@@ -226,6 +230,10 @@ const darkSemantic = {
     stroke: palette.brand[600],
     // Remplissage du même cercle : décoratif, le trait porte l'information.
     strokeFill: `${palette.brand[600]}26`,
+    liveOnline: palette.success[700],
+    liveOnlineFill: palette.success[50],
+    liveOffline: palette.neutral[600],
+    liveOfflineFill: palette.neutral[100],
   },
 
   feedback: {
