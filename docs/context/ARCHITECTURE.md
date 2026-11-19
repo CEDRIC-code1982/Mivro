@@ -205,7 +205,7 @@ Persistance via `zustand-mmkv-adapter` (infrastructure) câblé dans le containe
 | Écran                 | État                                                                                                                                                                      |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `CreateSessionScreen` | F1 — saisie 2-5 points + autocomplete + GPS                                                                                                                               |
-| `MapScreen`           | F2 — midpoint + carte react-native-maps                                                                                                                                   |
+| `MapScreen`           | F2 — midpoint + carte react-native-maps ; erreurs du suivi temps réel sous le résumé                                                                                      |
 | `POIScreen`           | F3 — POI Overpass, toggle liste/carte                                                                                                                                     |
 | `ProfileScreen`       | F7 — édition `displayName` + grille avatars + photo (galerie/caméra/supprimer, états loading/erreur) ; **F8 — toggle verrou biométrique opt-in** (via `useBiometricLock`) |
 | `SessionsScreen`      | Squelette (72 l.) — historique sessions                                                                                                                                   |

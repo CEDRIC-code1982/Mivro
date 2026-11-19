@@ -82,6 +82,7 @@
 | J-065 | Rayon POI hors bornes du use case, invisible au hook mocké          | RÉSOLU  |
 | J-066 | Règles RTDB refusant le partage F5, invisible à Firebase mocké      | OUVERT  |
 | J-067 | Marqueur live sous 3:1 sur la tuile, hors du modèle de contraste    | RÉSOLU  |
+| J-068 | Refus de localisation affiché comme un refus du service temps réel  | RÉSOLU  |
 
 ---
 
@@ -3130,3 +3131,33 @@ chaque affirmation de mutation (« rougit si l'on retire X ») est vérifiée en
 élément, un à un. La copie est faite à partir du snippet **tel qu'il est écrit dans le
 markdown**, après son formatage, et non à partir du script qui l'a produit. Rien d'outillable :
 c'est au reviewer de rejouer la vérification.
+
+## J-068 — Refus de localisation affiché comme un refus du service temps réel
+
+**Date** : 2026-11-19 · **Statut** : RÉSOLU — `fix/erreurs-temps-reel-carte`
+
+**Observé.** En faisant afficher par `MapScreen` les erreurs de `useRealtimeStore` (ERR-003), la
+revue relève qu'une localisation refusée pendant le suivi afficherait « Accès refusé au service
+temps réel. » : l'utilisateur serait orienté vers un problème de service et non vers ses réglages,
+et VoiceOver lui annoncerait ce texte faux. Le défaut existait avant, mais restait invisible tant
+qu'aucun écran ne montrait ces erreurs.
+
+**Cause.** `permission_denied` est à la fois un `GeolocationErrorCode` et un `RealtimeErrorCode`.
+`toErrorCode` (`useRealtimeTracking.ts`) transmettait le code GPS tel quel dans l'espace de
+clés `realtime.errors.*`, où `permission_denied` décrit un refus Firebase. `RNGeolocationService`
+ne produit d'ailleurs jamais `permission_blocked` depuis le watch : le code natif 1 donne toujours
+`permission_denied`. `useCreateSessionFlow` avait déjà traduit les codes GPS vers ses propres
+clés (`gps_permission_denied`) ; le hook du temps réel ne le faisait pas. Aucun test ne confrontait
+une erreur du watch au code posé dans le store.
+
+**Correctif.** `toErrorCode` traduit le `permission_denied` du GPS en `permission_blocked`
+(« La localisation est bloquée. Active-la dans les réglages. »), clé existante ; les autres codes
+GPS (`unavailable`, `timeout`, `inaccurate`) ont déjà leur propre texte GPS. Un refus Firebase
+garde `permission_denied`.
+
+**Règle appliquée.** Tests de `useRealtimeTracking` qui émettent une `GeolocationError` depuis le
+watch et vérifient le code posé, en regard d'une `RealtimeError('permission_denied')` qui garde le
+sien : ils rougissent sur l'ancien `toErrorCode` (vérifié en retirant le correctif : 1 test rouge).
+Reste non couvert par un capteur : un nouveau code partagé entre deux domaines d'erreur. Le
+reviewer vérifie, pour tout mapping vers une clé i18n, que chaque code source a le sens du texte
+affiché.

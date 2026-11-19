@@ -3,6 +3,24 @@
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
 > Dernière mise à jour : 2026-09-26 (harness v2 — le harness devient une frontière de confiance).
 
+## Erreurs du temps réel affichées sur la carte (2026-11-19, branche `fix/erreurs-temps-reel-carte`)
+
+`useRealtimeTracking` posait ses erreurs dans `useRealtimeStore` (`status: 'error'`, `errorCode`),
+mais aucun écran ne les montrait (ERR-003) : un invité qui acceptait de partager sa position dans
+une session partagée terminée ne voyait rien se passer.
+
+- `MapScreen` affiche `realtime:errors.<code>` sous le résumé du pied de carte, en `text.error`,
+  avec le rôle `alert` ; repli sur `realtime:errors.unknown` pour un code inconnu ou absent. Lu
+  depuis le statut et non depuis la session suivie, qu'un démarrage refusé remet à `null`.
+- Le message disparaît dès que le statut quitte `error` (redémarrage ou arrêt du suivi).
+- Annonce : VoiceOver par `announceForAccessibility` (iOS), TalkBack par la région live (Android).
+- Un refus de la localisation pendant le suivi n'emprunte plus le texte du refus du service temps
+  réel : `useRealtimeTracking` le traduit en `permission_blocked` (« Active-la dans les réglages »),
+  comme `useCreateSessionFlow` (JOURNAL J-068).
+- 8 tests d'intégration de `MapScreen`, 4 du hook ; commentaires de `MapScreen.tsx` traduits en anglais.
+- Restent au TODO : l'erreur de suivi effacée par le prochain instantané, l'annonce d'un refus répété.
+- Hors périmètre : le sort de la session locale de l'invité (« ⚠️ À SPÉCIFIER AVEC CÉDRIC »).
+
 ## Marqueurs live de la carte — contraste sur les tuiles (2026-11-19, branche `fix/marqueurs-live-contraste`)
 
 Les marqueurs live de `SessionMapView` utilisaient des tokens calés sur les surfaces du thème,
@@ -474,7 +492,7 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
 | Suites de tests                    | 91                                                                |
-| Tests (cas) — `npm run check`      | 1353                                                              |
+| Tests (cas) — `npm run check`      | 1365                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |

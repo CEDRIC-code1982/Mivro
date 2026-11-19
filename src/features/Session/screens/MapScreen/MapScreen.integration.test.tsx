@@ -13,9 +13,9 @@
 
 // [ADDED] Tests intégration MapScreen
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import React from 'react';
-import { Alert, Share } from 'react-native'; // [ADDED] F5 — retour utilisateur partage
+import { AccessibilityInfo, Alert, Platform, Share } from 'react-native'; // [ADDED] F5 — retour utilisateur partage
 import type { Coordinates } from '@entities/Location';
 import type { MidpointSession, Participant } from '@entities/MidpointSession';
 import { SHARE_TTL_GUEST_MS } from '@entities/SharedSession'; // [ADDED] F5
@@ -72,8 +72,12 @@ jest.mock('react-i18next', () => ({
         'share:errors.title': 'Impossible de partager la session',
         'share:errors.network': 'Connexion perdue. Vérifie ta connexion internet.',
         'share:errors.unknown': 'Une erreur inattendue est survenue.',
+        'realtime:errors.network': 'Connexion perdue. Vérifie ta connexion internet.',
+        'realtime:errors.closed': 'Cette session est terminée.',
+        'realtime:errors.unknown': 'Une erreur inattendue est survenue.',
       };
-      return translations[key] ?? key;
+      const fallback = typeof opts?.defaultValue === 'string' ? opts.defaultValue : key;
+      return translations[key] ?? fallback;
     },
     i18n: { language: 'fr' },
   }),
@@ -520,6 +524,106 @@ describe('MapScreen integration', () => {
           'Connexion perdue. Vérifie ta connexion internet.',
         );
       });
+    });
+  });
+
+  describe('Real-time tracking errors', () => {
+    let announceSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      useSessionStore.setState({ session: computedSession });
+      announceSpy = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation();
+    });
+
+    it('shows no error message while the status is not "error"', () => {
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+
+      expect(screen.queryByTestId('map-realtime-error')).toBeNull();
+      expect(announceSpy).not.toHaveBeenCalled();
+    });
+
+    it('shows the localized error under the summary, as a polite alert', () => {
+      useRealtimeStore.setState({ status: 'error', errorCode: 'network' });
+
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+
+      const message = screen.getByTestId('map-realtime-error');
+      expect(message).toHaveTextContent('Connexion perdue. Vérifie ta connexion internet.');
+      expect(message.props.accessibilityRole).toBe('alert');
+      expect(message.props.accessibilityLiveRegion).toBe('polite');
+    });
+
+    it.each([
+      ['an unknown code', 'not_a_real_code'],
+      ['no code', null],
+    ])('falls back to the generic message for %s', (_label, errorCode) => {
+      useRealtimeStore.setState({ status: 'error', errorCode });
+
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+
+      expect(screen.getByTestId('map-realtime-error')).toHaveTextContent(
+        'Une erreur inattendue est survenue.',
+      );
+    });
+
+    it('hides the message as soon as the status leaves "error"', () => {
+      useRealtimeStore.setState({ status: 'error', errorCode: 'network' });
+
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+      expect(screen.getByTestId('map-realtime-error')).toBeTruthy();
+
+      act(() => {
+        useRealtimeStore.getState().startTracking('session-001');
+      });
+
+      expect(screen.queryByTestId('map-realtime-error')).toBeNull();
+    });
+
+    it('announces each new message once to VoiceOver on iOS', () => {
+      useRealtimeStore.setState({ status: 'error', errorCode: 'network' });
+
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+      act(() => {
+        useRealtimeStore.setState({ participants: {} });
+      });
+
+      expect(announceSpy).toHaveBeenCalledTimes(1);
+      expect(announceSpy).toHaveBeenLastCalledWith(
+        'Connexion perdue. Vérifie ta connexion internet.',
+      );
+
+      act(() => {
+        useRealtimeStore.getState().setStatus('error', 'closed');
+      });
+
+      expect(announceSpy).toHaveBeenCalledTimes(2);
+      expect(announceSpy).toHaveBeenLastCalledWith('Cette session est terminée.');
+    });
+
+    it('leaves the announcement to the live region on Android', () => {
+      const restorePlatform = jest.replaceProperty(Platform, 'OS', 'android');
+      useRealtimeStore.setState({ status: 'error', errorCode: 'network' });
+
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+
+      expect(screen.getByTestId('map-realtime-error')).toBeTruthy();
+      expect(announceSpy).not.toHaveBeenCalled();
+      restorePlatform.restore();
+    });
+
+    it('tells a guest that the shared session has ended when sharing is accepted', () => {
+      mockStart.mockImplementationOnce(() => {
+        useRealtimeStore.getState().stopTracking();
+        useRealtimeStore.getState().setStatus('error', 'closed');
+      });
+
+      render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+      fireEvent.press(screen.getByTestId('map-btn-share'));
+      fireEvent.press(screen.getByTestId('map-consent-modal-accept'));
+
+      expect(screen.getByTestId('map-realtime-error')).toHaveTextContent(
+        'Cette session est terminée.',
+      );
     });
   });
 });

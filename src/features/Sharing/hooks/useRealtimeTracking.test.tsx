@@ -16,6 +16,7 @@ import { AppState } from 'react-native';
 import type { AppStateStatus } from 'react-native';
 import type { MidpointSession } from '@entities/MidpointSession';
 import { useRealtimeTracking } from '@features/Sharing/hooks/useRealtimeTracking';
+import { GeolocationError } from '@services/domain/geolocation/IGeolocationService';
 import type {
   PositionSample,
   WatchPositionCallback,
@@ -343,6 +344,39 @@ describe('useRealtimeTracking', () => {
 
       expect(useRealtimeStore.getState().status).toBe('error');
       expect(useRealtimeStore.getState().errorCode).toBe('not_configured');
+    });
+
+    it.each([
+      ['permission_denied', 'permission_blocked'],
+      ['permission_blocked', 'permission_blocked'],
+      ['timeout', 'timeout'],
+    ] as const)('maps the GPS watch error %s to the code %s', (gpsCode, expected) => {
+      let emitError: (error: GeolocationError) => void = () => undefined;
+      mockWatchPosition.mockImplementation(
+        (_onSample: WatchPositionCallback, onError: (error: GeolocationError) => void) => {
+          emitError = onError;
+          return clearWatch;
+        },
+      );
+      const { result } = renderHook(() => useRealtimeTracking());
+      act(() => result.current.start(SESSION_ID, PARTICIPANT_ID));
+      act(() => useRealtimeStore.getState().setSharingConsent(true));
+
+      act(() => emitError(new GeolocationError('gps', gpsCode)));
+
+      expect(useRealtimeStore.getState().status).toBe('error');
+      expect(useRealtimeStore.getState().errorCode).toBe(expected);
+    });
+
+    it('keeps the real-time permission_denied code for a refused real-time service', () => {
+      mockSubscribe.mockImplementation(() => {
+        throw new RealtimeError('denied', 'permission_denied');
+      });
+      const { result } = renderHook(() => useRealtimeTracking());
+
+      act(() => result.current.start(SESSION_ID, PARTICIPANT_ID));
+
+      expect(useRealtimeStore.getState().errorCode).toBe('permission_denied');
     });
   });
 

@@ -59,7 +59,14 @@ const timestamp = (): string => new Date().toISOString().slice(11, 19);
  */
 const toErrorCode = (error: unknown): string => {
   if (error instanceof RealtimeError) return error.code;
-  if (error instanceof GeolocationError) return error.code;
+  // [FIXED] "Erreurs du temps réel affichées sur la carte": `permission_denied` is both a
+  // GeolocationErrorCode and a RealtimeErrorCode, and realtime.errors.permission_denied describes
+  // a refusal of the real-time service. A refused location permission (the only code the watch
+  // reports for RN Geolocation's native code 1) must point to the location settings instead,
+  // like useCreateSessionFlow's mapGeolocationError (JOURNAL J-068).
+  if (error instanceof GeolocationError) {
+    return error.code === 'permission_denied' ? 'permission_blocked' : error.code;
+  }
   return 'unknown';
 };
 
