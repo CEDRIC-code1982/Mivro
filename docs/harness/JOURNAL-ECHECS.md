@@ -81,7 +81,7 @@
 | J-064 | La garde texte ne fermait jamais l'écriture : le noyau la refuse    | RÉSOLU  |
 | J-065 | Rayon POI hors bornes du use case, invisible au hook mocké          | RÉSOLU  |
 | J-066 | Règles RTDB refusant le partage F5, invisible à Firebase mocké      | OUVERT  |
-| J-067 | Marqueur live sous 3:1 sur la tuile, hors du modèle de contraste    | OUVERT  |
+| J-067 | Marqueur live sous 3:1 sur la tuile, hors du modèle de contraste    | RÉSOLU  |
 
 ---
 
@@ -3083,8 +3083,8 @@ compris, est testée contre l'invariant « la session suivie est X ou aucune ».
 
 ## J-067 — Marqueur live sous 3:1 sur la tuile, hors du modèle de contraste
 
-**Date** : 2026-11-19 · **Statut** : OUVERT — marqueurs corrigés (`fix/marqueurs-live-contraste`) ;
-paires du test de contraste à appliquer par Cédric (EN-ATTENTE §8)
+**Date** : 2026-11-19 · **Statut** : RÉSOLU — marqueurs corrigés (`fix/marqueurs-live-contraste`) ;
+paires du test de contraste et test de complétude appliqués le 2026-11-19 (ancien EN-ATTENTE §8)
 
 **Observé.** L'item TODO issu de J-021 signalait le marqueur live en ligne de `SessionMapView` :
 fond `feedback.successBg` et bordure `text.success`, rendus sur les tuiles de carte, qui restent
@@ -3110,7 +3110,7 @@ et échouent sur l'ancien composant. Ratios calculés à la main, bordure et poi
 | `map.liveOnline` (`#15803D`)  | ≈ 4,36:1               | ≈ 5,02:1      | ≈ 4,56:1            |
 | `map.liveOffline` (`#52525B`) | ≈ 6,72:1               | ≈ 7,73:1      | ≈ 7,03:1            |
 
-**Règle proposée (à appliquer par Cédric).** EN-ATTENTE §8 : les paires `map.live*` dans
+**Règle appliquée (2026-11-19, session déverrouillée).** Ancien EN-ATTENTE §8 : les paires `map.live*` dans
 `contrast.test.ts`, et un test de complétude qui exige, pour chaque token `map.*` non décoratif,
 une paire par tuile (avant-plan) ou une paire avec son avant-plan (remplissage `*Fill`). Un
 nouveau token de carte ne peut plus alors échapper au modèle. Reste non couvert : un composant de

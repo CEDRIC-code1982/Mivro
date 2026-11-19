@@ -268,7 +268,21 @@ const buildPairs = (mode: 'light' | 'dark'): readonly Pair[] => {
   // Map tiles stay light in dark mode, so theme-relative tokens are invalid.
   for (const [tileLabel, tile] of Object.entries(MAP_TILES)) {
     push(`map.stroke on ${tileLabel} tile`, color.map.stroke, tile, AA_UI);
+    push(`map.liveOnline on ${tileLabel} tile`, color.map.liveOnline, tile, AA_UI);
+    push(`map.liveOffline on ${tileLabel} tile`, color.map.liveOffline, tile, AA_UI);
   }
+  push(
+    'map.liveOnline on map.liveOnlineFill',
+    color.map.liveOnline,
+    color.map.liveOnlineFill,
+    AA_UI,
+  );
+  push(
+    'map.liveOffline on map.liveOfflineFill',
+    color.map.liveOffline,
+    color.map.liveOfflineFill,
+    AA_UI,
+  );
 
   return pairs;
 };
@@ -356,5 +370,21 @@ describe('A11Y-001 — contraste WCAG AA des tokens de thème', () => {
     const knownLabels = new Set(ALL_PAIRS.map((pair) => pair.label));
     const orphans = Object.keys(PENDING_DESIGN_DECISION).filter((label) => !knownLabels.has(label));
     expect(orphans).toEqual([]);
+  });
+
+  it('confronte chaque token map.* aux tuiles, et chaque remplissage à son avant-plan', () => {
+    const DECORATIVE_MAP_TOKENS = new Set(['strokeFill']);
+    const knownLabels = new Set(ALL_PAIRS.map((pair) => pair.label));
+    const missing = (['light', 'dark'] as const).flatMap((mode) =>
+      Object.keys(lightTheme.color.map)
+        .filter((key) => !DECORATIVE_MAP_TOKENS.has(key))
+        .flatMap((key) =>
+          key.endsWith('Fill')
+            ? [`${mode} map.${key.replace(/Fill$/, '')} on map.${key}`]
+            : Object.keys(MAP_TILES).map((tileLabel) => `${mode} map.${key} on ${tileLabel} tile`),
+        )
+        .filter((label) => !knownLabels.has(label)),
+    );
+    expect(missing).toEqual([]);
   });
 });

@@ -14,7 +14,8 @@ sombre, et ~2,2:1 hors ligne en mode clair, défaut trouvé en cours de tâche (
 - Le marqueur live (halo, bordure, point) n'utilise plus qu'eux ; 2 tests (thème clair et
   sombre), qui échouent sur l'ancien composant.
 - Commentaires de `SessionMapView.tsx` traduits en anglais.
-- Paires du test de contraste à appliquer par Cédric : EN-ATTENTE §8.
+- Paires du test de contraste appliquées le 2026-11-19 en session déverrouillée (ancien
+  EN-ATTENTE §8) : 12 paires `map.live*` et un test de complétude des tokens `map.*`, 103 tests.
 
 ## Règles RTDB — accès au niveau de la session (2026-11-16, branche `fix/regles-rtdb-niveau-session`)
 
@@ -473,7 +474,7 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
 | Suites de tests                    | 91                                                                |
-| Tests (cas) — `npm run check`      | 1340                                                              |
+| Tests (cas) — `npm run check`      | 1353                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |
