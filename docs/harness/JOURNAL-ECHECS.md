@@ -79,6 +79,7 @@
 | J-062 | La sonde du self-test rougit un hook Stop concurrent                | ACCEPTÉ |
 | J-063 | Les revues du lot C voyaient ce que le self-test ne regardait pas   | RÉSOLU  |
 | J-064 | La garde texte ne fermait jamais l'écriture : le noyau la refuse    | RÉSOLU  |
+| J-065 | Lien `mivro://` à chaud jamais relayé à React Native sur iOS        | OUVERT  |
 
 ---
 
@@ -2995,3 +2996,52 @@ l'ancienne version et son verrou cohérent, donc vert. Ces opérations se font h
 **Règle pour la suite.** Une protection qui peut s'écrire au niveau du système ne s'écrit pas en
 analyse de texte. Un chemin ajouté à `harness-protected.txt` reçoit son `denyWrite` dans le même
 commit, sinon le self-test rougit.
+
+## J-065 — Lien `mivro://` à chaud jamais relayé à React Native sur iOS
+
+**Date** : 2026-11-23 · **Statut** : OUVERT — code corrigé sur `fix/ios-sdk-27`, test appareil et
+règle du capteur `native` à faire par Cédric
+
+**Observé.** En migrant `AppDelegate.swift` vers le cycle de vie UIScene (SDK iOS 27), on constate
+que l'ancien `AppDelegate` ne définissait pas `application(_:open:options:)`. Depuis F5, un lien
+`mivro://session/<id>` ouvert **app lancée** n'était donc relayé ni à `RCTLinkingManager` ni à
+l'événement `url` de `Linking` : React Navigation ne le recevait pas. Le lien **à froid**, lui,
+passait, `launchOptions` étant transmis à `startReactNative`. Déduit du code et de la doc React
+Native (« Linking » : le relais `openURL` est à ajouter dans l'`AppDelegate`), pas observé sur
+appareil : F5 n'y a jamais été testé.
+
+**Pourquoi rien ne l'a vu.** Les tests de `linking.ts` et de `JoinSessionScreen` partent d'une URL
+déjà livrée à JavaScript ; le chemin natif, qui la livre, n'a aucun test ni aucun capteur. Le
+capteur `native` vérifie l'identité de l'app et le schéma Debug, pas le câblage des liens. La revue
+F5 a relu `CFBundleURLTypes` (le scheme est déclaré) sans se demander qui relaie l'URL ensuite.
+
+**Correctif.** `SceneDelegate.scene(_:openURLContexts:)` relaie le lien à chaud à
+`RCTLinkingManager.application(_:open:options:)` ; le lien à froid, qui arrive désormais dans
+`connectionOptions.urlContexts`, est repassé en `launchOptions[.url]`, sauf si l'hôte React Native
+tourne déjà (scène reconnectée par UIKit, processus vivant) : l'hôte ignore alors les options de
+lancement (`RCTRootViewFactory.mm`, `createReactHostIfNeeded`). Dans ce cas, le contrôleur racine
+déjà monté passe de l'ancienne fenêtre à la nouvelle, et le lien est relayé comme un lien à chaud.
+Monter une seconde surface `Mivro`, comme le faisait une version intermédiaire, aurait monté un
+nouveau `NavigationContainer` dont `Linking.getInitialURL()` rend le lien du tout premier
+lancement (l'hôte garde ses options de lancement toute sa vie) : une app lancée par
+`mivro://session/A` aurait rouvert A à la reconnexion, même pour un lien vers B (revue du
+2026-11-23). Le test appareil reste à faire (TODO F5).
+
+**Défaut évité au passage (revue du 2026-11-23).** La première version de la migration retirait
+`var window: UIWindow?` de l'`AppDelegate`. React Native envoie encore `window` au delegate sans
+vérifier qu'il y répond (`RCTLogBoxView.mm:87`, au dealloc) : en Debug, fermer l'inspecteur LogBox
+aurait planté l'app (« unrecognized selector »). La propriété est rétablie, et le `SceneDelegate`
+l'affecte.
+
+**Règles proposées (à appliquer par Cédric, ADR-016).** Dans le capteur `native` :
+
+- si `ios/Mivro/Info.plist` déclare `CFBundleURLTypes`, alors `ios/Mivro/AppDelegate.swift` doit
+  contenir `openURLContexts` **et** `RCTLinkingManager.application(` ; sinon, rouge (« scheme
+  déclaré sans relais vers RCTLinkingManager »). Côté Android, l'équivalent est
+  `android:launchMode="singleTask"` sur l'activité qui porte l'`<intent-filter>` du scheme ;
+- si `ios/Mivro/Info.plist` déclare `UIApplicationSceneManifest`, alors la classe `AppDelegate`
+  doit garder `var window: UIWindow?` ; sinon, rouge (« React Native lit `delegate.window` »).
+
+**Règle pour la suite.** Une fonctionnalité qui traverse la couche native (lien, notification,
+permission) n'est pas « faite » sur la foi des tests JavaScript : la condition de fin nomme le
+chemin natif qui livre la donnée, et un test appareil le prouve.

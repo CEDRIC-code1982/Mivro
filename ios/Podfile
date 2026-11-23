@@ -8,11 +8,9 @@ require Pod::Executable.execute_command('node', ['-p',
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
 
-# [ADDED] F4 — Firebase (RNFirebase) : les pods Swift de Firebase exigent des
-# modular headers, sinon `pod install` échoue ("Swift pod ... depends upon ...
-# which do not define modules"). Requis par @react-native-firebase/app+database.
 # [ADDED] F4 — Firebase (RNFirebase): the Swift Firebase pods require modular
-# headers, otherwise `pod install` fails. Required by @react-native-firebase.
+# headers, otherwise `pod install` fails ("Swift pod ... depends upon ...
+# which do not define modules"). Required by @react-native-firebase/app+database.
 use_modular_headers!
 
 linkage = ENV['USE_FRAMEWORKS']
@@ -37,5 +35,19 @@ target 'Mivro' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # [ADDED] Xcode 27 rejects deployment targets below 15.0, and some pod
+    # resource bundles (GoogleUtilities 12.0, leveldb 11.0, RNSVG 12.4,
+    # react-native-image-picker 9.0) still declare their podspec target, which
+    # react_native_post_install does not raise. Align every pod target on the
+    # app minimum; a pod cannot run below the app target anyway.
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |build_config|
+        current = build_config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
+        if current.nil? || Gem::Version.new(current) < Gem::Version.new(min_ios_version_supported)
+          build_config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = min_ios_version_supported
+        end
+      end
+    end
   end
 end

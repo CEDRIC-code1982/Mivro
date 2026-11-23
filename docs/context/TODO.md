@@ -1,7 +1,7 @@
 # TODO.md — Mivro
 
 > Tâches restantes priorisées. Cocher au fur et à mesure, ajouter les découvertes (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-07-14 (ADR rattrapage fait — série ADR-001→014 complète ; repo GitHub lié, `main` protégée, travail sur `develop`).
+> Dernière mise à jour : 2026-11-23 (correctif iOS SDK 27 : tests appareil des liens `mivro://` à froid et à chaud ajoutés à F5).
 
 ## Refactor archi (2026-07-13) — ✅ FAIT
 
@@ -111,6 +111,10 @@ _Décision produit : join = participant collaboratif (l'invité ajoute son point
 - [x] **Tests** : ~143 cas F5 (usecases Share/Join : expiration, full, recalcul, anti-race ; adapter mock firebase ; store `useSharedSessionStore` ; hooks `useSessionShare` + `useSharedSessionSync` ; `linking.ts` ; `JoinSessionScreen`) — **1021 tests** au total, `npm run check` vert, coverage core 100 / infra ~98 / presentation ~94
 - [x] Review APPROVED (1 tour) : 5 corrections — join live (abonnement), suppression RGPD, gestion d'erreurs join (expired/not_found/closed), relecture roster anti-race, rules meta/members
 - [ ] **⚠️ Reste à Cédric** : redéployer les rules étendues (`firebase deploy --only database`) ; `pod install` (déjà requis F4) ; rebuild natif (scheme deep link) ; tester `xcrun simctl openurl booted mivro://session/<id>` / `adb shell am start -a android.intent.action.VIEW -d "mivro://session/<id>"` + join multi-devices + recalcul live + suppression en fin de session
+- [ ] **⚠️ Reste à Cédric (iOS SDK 27, 2026-11-23)** : sur appareil iOS, vérifier qu'un lien `mivro://session/<id>` ouvre `JoinSession` **à froid** (app tuée) et **à chaud** (app en arrière-plan). Le relais à chaud n'existait pas avant `fix/ios-sdk-27` (J-065) ; les deux chemins passent maintenant par le `SceneDelegate`. Cas limite à observer si possible : scène reconnectée par iOS alors que le processus vit encore (l'écran existant doit être repris, sans rejouer le lien du premier lancement : app lancée par `mivro://session/A`, puis lien vers B → B s'ouvre, pas A). Vérifier aussi en Debug qu'ouvrir puis fermer l'inspecteur LogBox ne plante pas. Sur ce même cas de scène reconnectée, observer aussi (revue du 2026-11-23) :
+  - un `Modal` React Native ouvert au moment de la reconnexion survit au changement de fenêtre ;
+  - iOS ne vide pas lui-même le `rootViewController` de l'ancienne fenêtre à la déconnexion — sinon c'est le repli qui s'exécute (nouvelle surface montée, lien du premier lancement rejoué) ;
+  - sur iPad, `Dimensions` / `useWindowDimensions` restent justes après la reprise dans la nouvelle fenêtre.
 - [ ] **Décision en attente** : universal links (AASA/assetlinks) — MVP en scheme `mivro://` seul (tranché)
 - [ ] **Limite MVP** : « Copier le lien » dédié non implémenté (pas de dép. Clipboard) → la share sheet native offre déjà « Copier ». Ajouter `@react-native-clipboard/clipboard` si un bouton dédié est voulu.
 

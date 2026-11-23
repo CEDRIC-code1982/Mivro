@@ -11,38 +11,60 @@
 
 ## Tâche
 
-**Titre** : <titre court>
+**Titre** : Correctif iOS SDK 27 (cycle de vie UIScene + cibles de déploiement des Pods)
 
-**Demande d'origine** : « <la demande, citée> »
+**Demande d'origine** : « Voici le message d'erreur. […] Je pense que c'est dû à la montée du SDK en
+27 de iOS » (cibles de déploiement 12.0, 9.0, 11.0, 12.4 refusées), puis « l'app bloque sur le
+splashscreen, j'ai compil avec xcode » et le log « UIScene life cycle is required for apps built
+with this SDK » ; « Ok, on suit ta reco, applique-le ».
 
-**Branche** : `<branche>`, issue de `<base>`.
+**Branche** : `fix/ios-sdk-27`, issue de `develop` (ad43859).
 
 **Hors périmètre explicite** :
 
-- <ce qui n'est pas fait, et qui le fera>
+- Tests sur appareil des liens `mivro://` à froid et à chaud, et de la pile temps réel : reportés
+  par Cédric (« On fera les tests plus tard mais ca compile sur iOS »).
+- Android : non touché, le SDK iOS 27 ne le concerne pas.
+- La règle du capteur `native` proposée en J-065 : c'est Cédric qui l'applique (ADR-016).
 
 ---
 
 ## Conditions de fin
 
-| #   | Condition   | Comment on le vérifie |
-| --- | ----------- | --------------------- |
-| 1   | <condition> | <commande ou preuve>  |
+| #   | Condition                                                                                                       | Comment on le vérifie                                                                     |
+| --- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| 1   | Le build iOS passe sous Xcode 27.2 sans erreur de cible de déploiement des Pods                                 | Build Xcode de Cédric après `pod install` (2026-11-23)                                    |
+| 2   | L'app dépasse l'écran de lancement sur iOS 27                                                                   | Cédric : « C'est bon, l'app démarre sur l'iPad »                                          |
+| 3   | Le module React Native démarré est `Mivro`, dans la fenêtre de la scène                                         | Relecture de `ios/Mivro/AppDelegate.swift` (`SceneDelegate.scene(_:willConnectTo:)`)      |
+| 4   | Un lien `mivro://` à froid reste lisible par `Linking.getInitialURL()`                                          | `connectionOptions.urlContexts` passé en `launchOptions[.url]` ; test appareil reporté    |
+| 5   | Un lien `mivro://` à chaud est transmis à `RCTLinkingManager`                                                   | `scene(_:openURLContexts:)` ; test appareil reporté                                       |
+| 6   | Le schéma Xcode reste en Debug                                                                                  | Capteur `native` vert dans `npm run check`                                                |
+| 7   | Le défaut des liens à chaud est consigné avec la règle qui l'aurait attrapé                                     | Entrée J-065 dans `docs/harness/JOURNAL-ECHECS.md`                                        |
+| 8   | `AppDelegate` garde `window`, affectée par le `SceneDelegate` (React Native la lit)                             | Relecture de `AppDelegate.swift` ; fermeture de LogBox en Debug au test appareil          |
+| 9   | Scène reconnectée, hôte déjà lancé : l'écran existant est repris, le lien est relayé à chaud, rien n'est rejoué | `hostAlreadyRunning` dans `SceneDelegate.scene(_:willConnectTo:)` ; test appareil reporté |
 
 ---
 
 ## Socle systématique
 
-- [ ] `npm run check` vert.
-- [ ] Les trois états rendus (loading, error, empty) pour chaque écran touché.
-- [ ] Toute donnée externe validée par un schéma Zod.
-- [ ] Toute string affichée passe par `useTranslation()`.
-- [ ] Docs de contexte mises à jour : `PROGRESS.md`, `TODO.md`, `ARCHITECTURE.md`.
-- [ ] ADR si décision d'architecture.
+- [x] `npm run check` vert.
+- [x] Les trois états rendus (loading, error, empty) pour chaque écran touché. — Sans objet : aucun
+      écran touché.
+- [x] Toute donnée externe validée par un schéma Zod. — Sans objet : l'URL du lien est validée en
+      aval, par `linking.ts` et `JoinSessionScreen`, inchangés.
+- [x] Toute string affichée passe par `useTranslation()`. — Sans objet : aucune string ajoutée.
+- [x] Docs de contexte mises à jour : `PROGRESS.md`, `TODO.md` (`ARCHITECTURE.md` ne décrit pas la
+      couche native : sans objet).
+- [x] ADR si décision d'architecture. — Non : la migration UIScene est imposée par le SDK, sans
+      alternative à arbitrer.
 - [ ] Verdict `APPROVED` du subagent `reviewer`.
 
 ---
 
 ## Ce qui reste à Cédric
 
-- [ ] <action hors de portée de l'agent>
+- [ ] Tester sur appareil iOS un lien `mivro://session/<id>` à froid (app tuée) et à chaud (app en
+      arrière-plan) : l'écran `JoinSession` doit s'ouvrir dans les deux cas.
+- [ ] Appliquer au capteur `native` les deux règles proposées en J-065.
+- [ ] Pousser la branche (`git push -u origin fix/ios-sdk-27`) ; pas de PR tant que le verrou de
+      facturation GitHub tient.

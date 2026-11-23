@@ -1,7 +1,35 @@
 # PROGRESS.md — Mivro
 
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-09-26 (harness v2 — le harness devient une frontière de confiance).
+> Dernière mise à jour : 2026-11-23 (correctif iOS SDK 27 — UIScene et cibles de déploiement des Pods).
+
+## Correctif iOS SDK 27 (2026-11-23, branche `fix/ios-sdk-27`)
+
+Xcode 27.2 et le SDK iOS 27 cassaient Mivro à deux endroits :
+
+- **Build** : une cible de déploiement inférieure à 15.0 devient une erreur, et des bundles de
+  ressources de Pods gardaient celle de leur podspec (GoogleUtilities 12.0, leveldb 11.0, RNSVG 12.4,
+  react-native-image-picker 9.0), que `react_native_post_install` ne relève pas. Le `post_install`
+  du `Podfile` aligne désormais chaque cible de Pod sur `min_ios_version_supported` (15.1).
+  `Podfile.lock` et `project.pbxproj` sont ceux réécrits par le `pod install` de Cédric
+  (GoogleUtilities 8.1.2 → 8.1.5).
+- **Lancement** : sans cycle de vie UIScene, l'app restait sur l'écran de lancement (« UIScene life
+  cycle is required for apps built with this SDK »). `Info.plist` déclare un
+  `UIApplicationSceneManifest` (une seule scène) ; la fenêtre et le démarrage de React Native passent
+  de `AppDelegate` à un `SceneDelegate`, gardé dans `AppDelegate.swift` pour ne pas toucher au projet
+  Xcode.
+
+Liens `mivro://` (F5) : avec les scènes, un lien à froid arrive dans les options de connexion de la
+scène ; il est repassé en `launchOptions[.url]`, où `RCTLinkingManager` le lit pour
+`Linking.getInitialURL()`. Un lien à chaud arrive dans `scene(_:openURLContexts:)` et part vers
+`RCTLinkingManager`. Si UIKit reconnecte une scène alors que React Native tourne encore, l'écran
+déjà monté passe dans la nouvelle fenêtre (pas de seconde surface, qui rejouerait le lien du premier
+lancement) et le lien reçu à la connexion est relayé comme un lien à chaud. L'ancien `AppDelegate` n'avait aucun relais `openURL` : un lien à chaud n'atteignait sans
+doute jamais React Navigation depuis F5 (**J-065**). L'`AppDelegate` garde sa propriété `window`,
+que le `SceneDelegate` affecte : React Native la lit encore (fermeture de LogBox en Debug).
+
+**Validé** : compilation et démarrage sur iPad, par Cédric. **Pas encore testé sur appareil** : les
+liens à froid et à chaud, et la pile temps réel (`TODO.md`).
 
 ## Harness v2 — frontière de confiance (2026-09-26, branche `harness/beton`, non commité)
 
