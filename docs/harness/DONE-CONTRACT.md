@@ -24,7 +24,9 @@ with this SDK » ; « Ok, on suit ta reco, applique-le ».
 
 - Tests sur appareil des liens `mivro://` à froid et à chaud, et de la pile temps réel : reportés
   par Cédric (« On fera les tests plus tard mais ca compile sur iOS »).
-- Android : non touché, le SDK iOS 27 ne le concerne pas.
+- Android : partie native non touchée, le SDK iOS 27 ne la concerne pas. Le `getInitialURL` JS de
+  `linking.ts` (J-066) s'y applique aussi ; le lien à froid Android reste à tester sur appareil
+  (TODO F5).
 - La règle du capteur `native` proposée en J-065 : c'est Cédric qui l'applique (ADR-016).
 
 ---
@@ -36,12 +38,14 @@ with this SDK » ; « Ok, on suit ta reco, applique-le ».
 | 1   | Le build iOS passe sous Xcode 27.2 sans erreur de cible de déploiement des Pods                                 | Build Xcode de Cédric après `pod install` (2026-11-23)                                    |
 | 2   | L'app dépasse l'écran de lancement sur iOS 27                                                                   | Cédric : « C'est bon, l'app démarre sur l'iPad »                                          |
 | 3   | Le module React Native démarré est `Mivro`, dans la fenêtre de la scène                                         | Relecture de `ios/Mivro/AppDelegate.swift` (`SceneDelegate.scene(_:willConnectTo:)`)      |
-| 4   | Un lien `mivro://` à froid reste lisible par `Linking.getInitialURL()`                                          | `connectionOptions.urlContexts` passé en `launchOptions[.url]` ; test appareil reporté    |
-| 5   | Un lien `mivro://` à chaud est transmis à `RCTLinkingManager`                                                   | `scene(_:openURLContexts:)` ; test appareil reporté                                       |
+| 4   | Un lien `mivro://` à froid reste lisible par `Linking.getInitialURL()`                                          | `connectionOptions.urlContexts` passé en `launchOptions[.url]` ; ✅ sur iPhone 13         |
+| 5   | Un lien `mivro://` à chaud est transmis à `RCTLinkingManager`                                                   | `scene(_:openURLContexts:)` ; ✅ sur iPhone 13                                            |
 | 6   | Le schéma Xcode reste en Debug                                                                                  | Capteur `native` vert dans `npm run check`                                                |
 | 7   | Le défaut des liens à chaud est consigné avec la règle qui l'aurait attrapé                                     | Entrée J-065 dans `docs/harness/JOURNAL-ECHECS.md`                                        |
 | 8   | `AppDelegate` garde `window`, affectée par le `SceneDelegate` (React Native la lit)                             | Relecture de `AppDelegate.swift` ; fermeture de LogBox en Debug au test appareil          |
 | 9   | Scène reconnectée, hôte déjà lancé : l'écran existant est repris, le lien est relayé à chaud, rien n'est rejoué | `hostAlreadyRunning` dans `SceneDelegate.scene(_:willConnectTo:)` ; test appareil reporté |
+| 10  | Un lien à froid qui arrive après 150 ms n'est plus perdu par React Navigation (J-066)                           | `getInitialURL` de `linking.ts` et ses tests ; à froid ✅ sur iPhone 13 (2026-11-23)      |
+| 11  | Pendant la lecture du lien initial, l'app affiche l'écran de chargement, pas un écran blanc                     | `fallback={<LoadingScreen />}` du `NavigationContainer` dans `src/App.tsx`                |
 
 ---
 
@@ -64,7 +68,8 @@ with this SDK » ; « Ok, on suit ta reco, applique-le ».
 ## Ce qui reste à Cédric
 
 - [ ] Tester sur appareil iOS un lien `mivro://session/<id>` à froid (app tuée) et à chaud (app en
-      arrière-plan) : l'écran `JoinSession` doit s'ouvrir dans les deux cas.
+      arrière-plan) : l'écran `JoinSession` doit s'ouvrir dans les deux cas. — Fait sur iPhone 13
+      le 2026-11-23 (les deux ✅, à froid après le correctif J-066) ; reste l'iPad.
 - [ ] Appliquer au capteur `native` les deux règles proposées en J-065.
 - [ ] Pousser la branche (`git push -u origin fix/ios-sdk-27`) ; pas de PR tant que le verrou de
       facturation GitHub tient.

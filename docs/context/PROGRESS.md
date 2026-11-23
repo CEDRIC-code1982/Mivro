@@ -28,8 +28,15 @@ lancement) et le lien reçu à la connexion est relayé comme un lien à chaud. 
 doute jamais React Navigation depuis F5 (**J-065**). L'`AppDelegate` garde sa propriété `window`,
 que le `SceneDelegate` affecte : React Native la lit encore (fermeture de LogBox en Debug).
 
-**Validé** : compilation et démarrage sur iPad, par Cédric. **Pas encore testé sur appareil** : les
-liens à froid et à chaud, et la pile temps réel (`TODO.md`).
+Premier test appareil (iPhone 13, iOS 27.3, Debug) : le lien à chaud ouvre `JoinSession`, le lien
+à froid non — l'app démarrait sur son onglet par défaut. Le `getInitialURL` par défaut de React
+Navigation abandonne au bout de 150 ms, et le module natif `Linking` répond plus tard au démarrage
+à froid (**J-066**). `linking.ts` fournit donc son propre `getInitialURL`, attendu jusqu'à 3 s
+(`INITIAL_URL_TIMEOUT_MS`), qui rend `null` en cas d'échec ou de délai dépassé.
+
+**Validé** : compilation et démarrage sur iPad, par Cédric ; liens à chaud et à froid (correctif
+J-066) sur iPhone 13. **Reste à tester sur appareil** : les liens sur iPad, LogBox, la scène
+reconnectée et la pile temps réel (`TODO.md`).
 
 ## Harness v2 — frontière de confiance (2026-09-26, branche `harness/beton`, non commité)
 
@@ -380,7 +387,7 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
 | Suites de tests                    | 88                                                                |
-| Tests (cas) — `npm run check`      | 1267                                                              |
+| Tests (cas) — `npm run check`      | 1273                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |

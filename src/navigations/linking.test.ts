@@ -11,7 +11,18 @@
 
 // [ADDED] F5 — linking unit tests
 import { getStateFromPath } from '@react-navigation/native';
-import { APP_SCHEME, LINKING_PREFIXES, linking } from '@navigations/linking';
+import { Linking } from 'react-native';
+import {
+  APP_SCHEME,
+  INITIAL_URL_TIMEOUT_MS,
+  LINKING_PREFIXES,
+  getInitialURL,
+  linking,
+} from '@navigations/linking';
+
+// Past React Navigation's default 150 ms race, which lost cold-start links (J-066).
+const SLOW_NATIVE_ANSWER_MS = 500;
+const LAUNCH_URL = 'mivro://session/abc-123';
 
 describe('linking configuration', () => {
   it('uses the mivro app scheme', () => {
@@ -46,6 +57,64 @@ describe('linking configuration', () => {
   it('maps the POI screen', () => {
     const screens = linking.config?.screens ?? {};
     expect(screens.POI).toBe('poi');
+  });
+
+  it('replaces the default getInitialURL of React Navigation', () => {
+    expect(linking.getInitialURL).toBe(getInitialURL);
+  });
+});
+
+// Cold-start link: React Navigation's default gave up after 150 ms, so a native answer
+// arriving later (Debug build on an iOS device) opened the default tab instead of
+// JoinSession (J-066).
+describe('getInitialURL', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  const answerAfter = (delayMs: number, url: string | null) =>
+    jest.spyOn(Linking, 'getInitialURL').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve(url), delayMs);
+        }),
+    );
+
+  it('returns a launch URL that the native module answers after 150 ms', async () => {
+    answerAfter(SLOW_NATIVE_ANSWER_MS, LAUNCH_URL);
+    const result = getInitialURL();
+    jest.advanceTimersByTime(SLOW_NATIVE_ANSWER_MS);
+    await expect(result).resolves.toBe(LAUNCH_URL);
+    // The timeout timer is cleared once the native module has answered.
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it('returns null when the app was not launched by a link', async () => {
+    answerAfter(0, null);
+    const result = getInitialURL();
+    jest.advanceTimersByTime(0);
+    await expect(result).resolves.toBeNull();
+  });
+
+  it('returns null when the native call fails', async () => {
+    jest.spyOn(Linking, 'getInitialURL').mockRejectedValue(new Error('native failure'));
+    await expect(getInitialURL()).resolves.toBeNull();
+  });
+
+  it('returns null when the native module never answers within the timeout', async () => {
+    jest.spyOn(Linking, 'getInitialURL').mockImplementation(() => new Promise(() => undefined));
+    const result = getInitialURL();
+    jest.advanceTimersByTime(INITIAL_URL_TIMEOUT_MS);
+    await expect(result).resolves.toBeNull();
+  });
+
+  it('waits longer than the 150 ms of React Navigation', () => {
+    expect(INITIAL_URL_TIMEOUT_MS).toBeGreaterThan(SLOW_NATIVE_ANSWER_MS);
   });
 });
 

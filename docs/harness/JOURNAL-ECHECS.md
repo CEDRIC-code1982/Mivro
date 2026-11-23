@@ -80,6 +80,7 @@
 | J-063 | Les revues du lot C voyaient ce que le self-test ne regardait pas   | RÉSOLU  |
 | J-064 | La garde texte ne fermait jamais l'écriture : le noyau la refuse    | RÉSOLU  |
 | J-065 | Lien `mivro://` à chaud jamais relayé à React Native sur iOS        | OUVERT  |
+| J-066 | Lien `mivro://` à froid perdu : délai de 150 ms de React Navigation | RÉSOLU  |
 
 ---
 
@@ -3045,3 +3046,43 @@ l'affecte.
 **Règle pour la suite.** Une fonctionnalité qui traverse la couche native (lien, notification,
 permission) n'est pas « faite » sur la foi des tests JavaScript : la condition de fin nomme le
 chemin natif qui livre la donnée, et un test appareil le prouve.
+
+---
+
+## J-066 — Lien `mivro://` à froid perdu : React Navigation abandonne après 150 ms
+
+**Date** : 2026-11-23 · **Statut** : RÉSOLU le 2026-11-23 — correctif sur `fix/ios-sdk-27`, validé
+sur iPhone 13
+
+**Observé.** Premier test appareil de F5 (iPhone 13, iOS 27.3, build Debug, 2026-11-23). Un lien
+`mivro://session/test-a` ouvert depuis Safari, app en arrière-plan, ouvre bien `JoinSession`.
+Le même lien vers `test-b`, app tuée, lance l'app sur l'onglet « Créer » : `JoinSession` ne s'ouvre
+pas, même quatre minutes plus tard. J-065 tenait le lien à froid pour acquis (« Le lien à froid,
+lui, passait ») : c'était déduit du code, et c'était faux sur appareil.
+
+**Cause.** La chaîne native livre l'URL : le `SceneDelegate` la passe en `launchOptions[.url]`,
+que `RCTHost` transmet jusqu'au `bridge` de `RCTLinkingManager` (`getInitialURL`,
+`RCTLinkingManager.mm:154`). Mais le `getInitialURL` par défaut de React Navigation
+(`@react-navigation/native`, `useLinking.native.tsx:27-35`) met `Linking.getInitialURL()` en
+course contre un `setTimeout(resolve, 150)` : passé 150 ms, il conclut qu'il n'y a pas de lien et
+monte l'écran par défaut. Au démarrage à froid en Debug sur appareil, le module natif `Linking`
+répond plus tard. Cause confirmée sur appareil : avec le correctif, le lien
+`mivro://session/test-c` ouvert depuis Safari, app tuée, ouvre `JoinSession` (iPhone 13, iOS 27.3,
+Debug, 2026-11-23).
+
+**Pourquoi rien ne l'a vu.** Les tests de `linking.ts` ne lisaient que l'objet de configuration et
+l'analyseur de chemins ; aucun ne passait par la lecture du lien initial, et les mocks Jest
+répondent sans délai. F5 n'avait jamais été testé sur appareil.
+
+**Correctif.** `linking.ts` fournit son propre `getInitialURL` : même appel à
+`Linking.getInitialURL()`, attendu jusqu'à `INITIAL_URL_TIMEOUT_MS` (3 s), et qui rend `null` en
+cas d'échec du module natif ou au-delà du délai, pour que l'app démarre sans lien plutôt que de
+rester sur un écran vide. Les tests couvrent une réponse native à 500 ms (perdue par le défaut de
+React Navigation), l'absence de lien, l'échec, le délai dépassé et l'annulation du minuteur. Pendant
+l'attente, le `NavigationContainer` affiche l'écran de chargement (`fallback`, `src/App.tsx`) au
+lieu d'un écran blanc (revue du 2026-11-23).
+
+**Règle proposée.** Pas de capteur : le défaut tient à un délai d'une dépendance, pas à une forme
+de code repérable. La règle est de méthode : quand une lecture native passe par un délai imposé par
+une bibliothèque, un test la fait répondre **après** ce délai ; et le lien à froid fait partie du
+test appareil de toute fonctionnalité de deep link (règle pour la suite de J-065).

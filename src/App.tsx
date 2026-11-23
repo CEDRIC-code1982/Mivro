@@ -1,9 +1,8 @@
 /**
  * @file App.tsx
- * @description Point d'entrée de l'application Mivro.
- *              Mivro application entry point.
+ * @description Mivro application entry point.
  *
- *              Bootstrap : getEncryptionKey() → initContainer() → render.
+ *              Bootstrap: getEncryptionKey() → initContainer() → render.
  *
  * @module App
  */
@@ -30,16 +29,13 @@ import { getContainer, initContainer } from '@services/serviceContainer'; // [MO
 import { usePreferencesStore } from '@state/usePreferencesStore'; // [FIXED P0-6]
 
 /**
- * Provider de thème connecté au store de préférences.
  * Theme provider connected to the preferences store.
  *
- * Lit themeMode depuis usePreferencesStore et le fournit
- * au ThemeModeContext pour que useTheme() le respecte.
  * Reads themeMode from usePreferencesStore and provides it
  * to ThemeModeContext so useTheme() respects it.
  *
- * @param children - Enfants à wrapper / Children to wrap
- * @returns Provider avec themeMode / Provider with themeMode
+ * @param children - Children to wrap
+ * @returns Provider with themeMode
  */
 // [FIXED P0-6] Theme provider reads from preferences store
 const AppThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -48,19 +44,33 @@ const AppThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children })
 };
 
 /**
- * Verrou biométrique (F8) — overlay bloquant rendu au-dessus de toute l'app.
+ * Full-screen loading view: theme background and a centered spinner.
+ *
+ * Shown while the container bootstraps, and by NavigationContainer while it reads the
+ * launch link.
+ *
+ * @returns Loading view
+ */
+// [ADDED] J-066 — shared by the bootstrap screen and the NavigationContainer fallback
+const LoadingScreen: React.FC = () => {
+  const theme = useTheme();
+  return (
+    <View style={[styles.loadingContainer, { backgroundColor: theme.color.surface.primary }]}>
+      <ActivityIndicator size="large" color={theme.color.text.brand} />
+    </View>
+  );
+};
+
+/**
  * Biometric lock (F8) — blocking overlay rendered above the whole app.
  *
- * Décision d'archi : overlay (et non une route de navigation) car le verrou
- * doit bloquer TOUS les écrans/onglets quel que soit l'état de la navigation,
- * et survivre aux transitions AppState (re-lock en retour d'arrière-plan).
  * Architecture decision: overlay (not a navigation route) because the lock must
  * block ALL screens/tabs regardless of navigation state and survive AppState
  * transitions (re-lock on returning from background).
  *
- * @returns Arbre app + overlay verrou / App tree + lock overlay
+ * @returns App tree + lock overlay
  */
-// [ADDED] F8 — Gate biométrique
+// [ADDED] F8 — Biometric gate
 const BiometricLockGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const {
     isLocked,
@@ -73,9 +83,9 @@ const BiometricLockGate: React.FC<{ children: React.ReactNode }> = ({ children }
 
   return (
     <>
-      {/* [ADDED] F8 — quand verrouillé, on exclut tout l'arbre sous-jacent de
-          l'arbre d'accessibilité (TalkBack/VoiceOver) en plus de l'overlay :
-          accessibilityViewIsModal est iOS-only, no-hide-descendants couvre Android. */}
+      {/* [ADDED] F8 — when locked, the whole underlying tree is removed from the
+          accessibility tree (TalkBack/VoiceOver) on top of the overlay:
+          accessibilityViewIsModal is iOS-only, no-hide-descendants covers Android. */}
       <View
         style={styles.appTree}
         importantForAccessibility={isLocked ? 'no-hide-descendants' : 'auto'}
@@ -98,13 +108,11 @@ const BiometricLockGate: React.FC<{ children: React.ReactNode }> = ({ children }
 };
 
 /**
- * Contenu de l'app une fois le bootstrap terminé.
  * App content after bootstrap is complete.
  *
- * Séparé pour que useTheme() soit appelé SOUS le ThemeModeProvider.
  * Separated so useTheme() is called UNDER the ThemeModeProvider.
  *
- * @returns Arbre React principal / Main React tree
+ * @returns Main React tree
  */
 // [FIXED P0-6] Separate component — useTheme reads from context
 const AppContent: React.FC = () => {
@@ -114,19 +122,21 @@ const AppContent: React.FC = () => {
     <GestureHandlerRootView style={styles.gestureRoot}>
       <SafeAreaProvider>
         <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} />
-        {/* [ADDED] F8 — verrou biométrique : overlay bloquant au-dessus de tout.
-            Le gate enveloppe l'arbre app pour pouvoir l'exclure de l'arbre a11y
-            (no-hide-descendants) quand verrouillé. */}
+        {/* [ADDED] F8 — biometric lock: blocking overlay above everything.
+            The gate wraps the app tree so it can remove it from the a11y tree
+            (no-hide-descendants) when locked. */}
         <BiometricLockGate>
-          {/* [ADDED] ErrorBoundary global — capture les erreurs React non gérées */}
+          {/* [ADDED] Global ErrorBoundary — catches unhandled React errors */}
           <AppErrorBoundary>
-            {/* [ADDED] QueryClientProvider — TanStack Query pour geocoding + futures queries */}
+            {/* [ADDED] QueryClientProvider — TanStack Query for geocoding + future queries */}
             <QueryClientProvider client={getContainer().queryClient}>
-              {/* [FIXED P1] BottomSheetModalProvider — rend les sheets en overlay racine
-                  (portail) plutôt que dans le flux d'un ScrollView (champ fantôme F1). */}
+              {/* [FIXED P1] BottomSheetModalProvider — renders sheets as a root overlay
+                  (portal) rather than inside a ScrollView's flow (F1 ghost field). */}
               <BottomSheetModalProvider>
-                {/* [ADDED] F5 — linking : ouvre mivro://session/{id} sur l'écran JoinSession */}
-                <NavigationContainer linking={linking}>
+                {/* [ADDED] F5 — linking: opens mivro://session/{id} on the JoinSession screen.
+                    [FIXED] J-066 — the container renders its fallback while it waits for the
+                    launch link (up to INITIAL_URL_TIMEOUT_MS), not a blank screen. */}
+                <NavigationContainer linking={linking} fallback={<LoadingScreen />}>
                   <RootNavigator />
                 </NavigationContainer>
               </BottomSheetModalProvider>
@@ -139,14 +149,12 @@ const AppContent: React.FC = () => {
 };
 
 /**
- * Composant racine de l'application Mivro.
  * Mivro root application component.
  *
- * @returns Composant App / App component
+ * @returns App component
  */
 const App: React.FC = () => {
   const [ready, setReady] = useState(false);
-  const theme = useTheme(); // Default context ('system') — loading screen only
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -164,20 +172,16 @@ const App: React.FC = () => {
             'Failed to bootstrap container',
           error,
         );
-        // En production : afficher un écran d'erreur fatale.
         // In production: show a fatal error screen.
       }
     };
     bootstrap();
   }, []);
 
-  // [ADDED] Loading screen pendant le bootstrap du container
+  // [ADDED] Loading screen while the container bootstraps.
+  // Outside AppThemeProvider: useTheme() reads the default context ('system').
   if (!ready) {
-    return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.color.surface.primary }]}>
-        <ActivityIndicator size="large" color={theme.color.text.brand} />
-      </View>
-    );
+    return <LoadingScreen />;
   }
 
   // [FIXED P0-6] AppThemeProvider wraps content so useTheme respects user preference
@@ -188,13 +192,13 @@ const App: React.FC = () => {
   );
 };
 
-// [ADDED] Styles pour l'écran de chargement
+// [ADDED] Root and loading screen styles
 const styles = StyleSheet.create({
   // [ADDED] GestureHandlerRootView must fill the screen
   gestureRoot: {
     flex: 1,
   },
-  // [ADDED] F8 — conteneur de l'arbre app sous l'overlay (exclu de l'a11y quand verrouillé).
+  // [ADDED] F8 — container of the app tree under the overlay (hidden from a11y when locked).
   appTree: {
     flex: 1,
   },

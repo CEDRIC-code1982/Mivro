@@ -1,49 +1,75 @@
 /**
  * @file linking.ts
- * @description Configuration du deep linking React Navigation (F5).
- *              React Navigation deep linking configuration (F5).
+ * @description React Navigation deep linking configuration (F5).
  *
- *              Scheme `mivro://` (pas d'universal links pour le MVP, cf. CLAUDE.md).
- *              Mapping : `mivro://session/{sessionId}` → écran `JoinSession`.
- *              Scheme `mivro://` (no universal links for the MVP). Mapping:
- *              `mivro://session/{sessionId}` → `JoinSession` screen.
+ *              Scheme `mivro://` (no universal links for the MVP, see CLAUDE.md).
+ *              Mapping: `mivro://session/{sessionId}` → `JoinSession` screen.
  *
- *              ⚠️ Config native requise (à fournir en plus de ce fichier) :
- *              - iOS : `CFBundleURLTypes` (scheme `mivro`) dans Info.plist
- *              - Android : `<intent-filter>` (scheme `mivro`) dans AndroidManifest
+ *              ⚠️ Native config required (on top of this file):
+ *              - iOS: `CFBundleURLTypes` (scheme `mivro`) in Info.plist
+ *              - Android: `<intent-filter>` (scheme `mivro`) in AndroidManifest
  *
  * @module navigations/linking
  */
 
-// [ADDED] F5 — Configuration deep linking
+// [ADDED] F5 — deep linking configuration
 import type { LinkingOptions } from '@react-navigation/native';
+import { Linking } from 'react-native';
 import type { RootStackParamList } from './types';
 
-/** Scheme de l'app (cf. config native iOS/Android) / App scheme */
+/** App scheme (see the iOS/Android native config). */
 export const APP_SCHEME = 'mivro';
 
 /**
- * Préfixes d'URL reconnus par le deep linking.
  * URL prefixes recognized by deep linking.
  */
 export const LINKING_PREFIXES = [`${APP_SCHEME}://`];
 
 /**
- * Options de linking pour le NavigationContainer.
+ * Longest wait, in milliseconds, for the URL that launched the app.
+ *
+ * React Navigation's default `getInitialURL` gives up after 150 ms and then
+ * opens the default screen: on a cold start in Debug on an iOS device, the
+ * native `Linking` module answers later than that, so the launch link was lost
+ * (JOURNAL J-066). Past this delay the app starts without a link rather than
+ * staying on a blank screen if the native call never answers.
+ */
+export const INITIAL_URL_TIMEOUT_MS = 3000;
+
+/**
+ * Reads the URL that launched the app, waiting at most `INITIAL_URL_TIMEOUT_MS`.
+ *
+ * Replaces React Navigation's default, whose 150 ms race loses cold-start
+ * links (J-066). A failing native call resolves to `null`: the app then opens
+ * its default screen instead of crashing.
+ *
+ * @returns The launch URL, or `null` when there is none, it fails or it is too late
+ */
+export const getInitialURL = (): Promise<string | null> =>
+  new Promise<string | null>((resolve) => {
+    const timer = setTimeout(() => resolve(null), INITIAL_URL_TIMEOUT_MS);
+    const settle = (url: string | null) => {
+      clearTimeout(timer);
+      resolve(url);
+    };
+    Linking.getInitialURL().then(settle, () => settle(null));
+  });
+
+/**
  * Linking options for the NavigationContainer.
  *
- * Le chemin `session/:sessionId` est mappé sur l'écran `JoinSession` du Root
- * Stack ; le paramètre `sessionId` est extrait de l'URL et typé.
  * The `session/:sessionId` path maps to the `JoinSession` screen of the Root
  * Stack; the `sessionId` param is extracted from the URL and typed.
  */
 export const linking: LinkingOptions<RootStackParamList> = {
   prefixes: LINKING_PREFIXES,
+  // [FIXED] J-066 — cold-start link lost to React Navigation's 150 ms timeout
+  getInitialURL,
   config: {
     screens: {
-      // mivro://session/{sessionId} → écran de jointure
+      // mivro://session/{sessionId} → join screen
       JoinSession: 'session/:sessionId',
-      // Onglets (fallback racine) / Tabs (root fallback)
+      // Tabs (root fallback)
       Tabs: {
         screens: {
           Map: 'map',
