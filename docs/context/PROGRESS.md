@@ -1,7 +1,47 @@
 # PROGRESS.md — Mivro
 
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-11-26 (jonction d'un invité et fin de session côté invité).
+> Dernière mise à jour : 2026-11-26 (cause GPS prioritaire dans l'erreur de suivi, Jest qui rend la main sur les tests TanStack Query).
+
+## Cause GPS prioritaire dans l'erreur de suivi, Jest qui rend la main (2026-11-26, branche `fix/cause-gps-et-blocage-jest`)
+
+Deux défauts déjà inscrits au TODO. Pendant une coupure GPS, l'échec d'une publication encore en
+vol remplaçait la cause GPS (`unavailable`, `permission_blocked`) par `network`. Et `npx jest
+<fichier>` ne se terminait jamais sur les tests qui utilisent un `QueryClient` de test.
+
+- **Cause GPS prioritaire** (décision de Cédric du 2026-11-26 : un seul champ
+  `trackingErrorCode`, la cause GPS l'emporte) — `useRealtimeTracking` :
+  - une erreur GPS (callback du watch ou échec de son lancement) remplace toujours le code affiché ;
+  - l'échec d'une publication lancée avant la dernière erreur GPS ne la remplace plus ;
+  - l'échec d'une publication lancée après elle la remplace : un échantillon est arrivé, le GPS
+    est revenu.
+  - Mise en œuvre : ref `gpsErrorLaunchRef` (nombre de publications lancées à la dernière erreur
+    GPS, `null` sans erreur GPS en cours), `reportTrackingError(error, causeLaunch, source)` avec
+    `source: 'gps' | 'publish'`, `clearTrackingError()` (efface l'erreur et la ref), ref remise à
+    `null` dans `stopWatch()`. Les règles d'effacement (publication réussie lancée après la cause,
+    retrait du consentement, arrêt) sont inchangées.
+- **Jest qui rend la main** : au démontage par RTL, qui passe après le `jest.useRealTimers()` de
+  l'`afterEach` du fichier, TanStack arme un vrai timer de GC par requête (`gcTime` : 5 min par
+  défaut, 10 min dans `usePOIQuery`), qui garde le process en vie.
+  - `src/test-utils/queryClientWrapper.tsx` suit les clients créés par `createTestQueryClient()`
+    et enregistre, dès son import, un `afterEach` qui lance `cleanup()` de RTL puis `clear()` sur
+    chacun (`clearTrackedQueryClients`). L'ordre compte : vider avant le démontage laisserait
+    celui-ci réarmer un timer.
+  - `jest.setup.js` (protégé par le harness) n'est pas touché ; pas de `--forceExit`, pas de
+    `gcTime` de prod modifié.
+  - Contrainte : un client par test, créé par `createTestQueryClient()`.
+    `navigation.integration.test.tsx` et `App.test.tsx` sont alignés.
+  - Les 5 fichiers de test qui ne se terminaient pas sortent seuls, en code 0.
+- Tests : 7 de plus dans `useRealtimeTracking.test.tsx` (45) ; Jest : 93 suites, 1465 → 1472
+  tests. L'assertion « keeps a GPS error… » est resserrée sur `'unavailable'`.
+- TODO : « Cause GPS remplacée par une cause réseau » et « Jest ne rend pas la main » cochés ;
+  ajoutés, les deux mineurs du reviewer de `fix/jonction-invite-fin-de-session` : brouillon vide
+  recréé après une fin de session distante (P3), propriétaire qui ouvre son propre lien
+  d'invitation (P2, ⚠️ À SPÉCIFIER).
+- Piège : un `QueryClient` créé par `new QueryClient()` échappe au nettoyage. Un client créé une
+  seule fois pour tout le fichier (niveau module, fabrique de `jest.mock`) n'est suivi que jusqu'au
+  premier `afterEach` : acceptable dans `App.test.tsx`, qui n'a qu'un test, mais un deuxième test
+  pourrait de nouveau bloquer la sortie de Jest.
 
 ## Jonction d'un invité et fin de session côté invité (2026-11-26, branche `fix/jonction-invite-fin-de-session`)
 
@@ -582,7 +622,7 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
 | Suites de tests                    | 93                                                                |
-| Tests (cas) — `npm run check`      | 1465                                                              |
+| Tests (cas) — `npm run check`      | 1472                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |

@@ -14,11 +14,12 @@
 // [ADDED] Tests d'intégration navigation
 import '@/i18n';
 import { NavigationContainer } from '@react-navigation/native';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'; // [ADDED]
+import { QueryClientProvider } from '@tanstack/react-query'; // [ADDED]
 import { render, screen } from '@testing-library/react-native';
 import React from 'react';
 import RootNavigator from '@navigations/RootNavigator';
 import { useSessionStore } from '@state/useSessionStore'; // [FIXED P0-7]
+import { createTestQueryClient } from '@test-utils/queryClientWrapper';
 
 // [MODIFIED] Mock getContainer pour useGeocodeQuery + getCurrentLocationUseCase + midpoint
 jest.mock('@services/serviceContainer', () => ({
@@ -28,11 +29,6 @@ jest.mock('@services/serviceContainer', () => ({
     calculateMidpointUseCase: { execute: jest.fn() }, // [ADDED]
   })),
 }));
-
-// [ADDED] QueryClient de test pour les hooks TanStack Query
-const testQueryClient = new QueryClient({
-  defaultOptions: { queries: { retry: false } },
-});
 
 // [ADDED] Mock @react-navigation/native — preserve NavigationContainer, mock native parts
 jest.mock('@react-navigation/native', () => {
@@ -134,7 +130,7 @@ describe('Navigation integration', () => {
   // ─── Default screen ───────────────────────────────────────
   it('displays MapScreen by default (first tab)', () => {
     render(
-      <QueryClientProvider client={testQueryClient}>
+      <QueryClientProvider client={createTestQueryClient()}>
         <NavigationContainer>
           <RootNavigator />
         </NavigationContainer>
@@ -148,7 +144,7 @@ describe('Navigation integration', () => {
   // ─── 4 tabs rendered ─────────────────────────────────────
   it('renders all 4 tab screens', () => {
     render(
-      <QueryClientProvider client={testQueryClient}>
+      <QueryClientProvider client={createTestQueryClient()}>
         <NavigationContainer>
           <RootNavigator />
         </NavigationContainer>
@@ -164,7 +160,7 @@ describe('Navigation integration', () => {
   // ─── Icônes d'onglets (A11Y-003 : label sur chaque icône) ─
   it('renders an accessible icon for each of the 4 tabs, focused and unfocused', () => {
     render(
-      <QueryClientProvider client={testQueryClient}>
+      <QueryClientProvider client={createTestQueryClient()}>
         <NavigationContainer>
           <RootNavigator />
         </NavigationContainer>
@@ -182,7 +178,7 @@ describe('Navigation integration', () => {
   // ─── Bottom tabs container ────────────────────────────────
   it('renders the bottom tabs navigator', () => {
     render(
-      <QueryClientProvider client={testQueryClient}>
+      <QueryClientProvider client={createTestQueryClient()}>
         <NavigationContainer>
           <RootNavigator />
         </NavigationContainer>
@@ -237,7 +233,7 @@ describe('Navigation integration', () => {
   // ─── Each screen displays its i18n title ──────────────────
   it('displays i18n titles for all screens', () => {
     render(
-      <QueryClientProvider client={testQueryClient}>
+      <QueryClientProvider client={createTestQueryClient()}>
         <NavigationContainer>
           <RootNavigator />
         </NavigationContainer>

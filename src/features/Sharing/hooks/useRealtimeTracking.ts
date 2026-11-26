@@ -143,6 +143,23 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
   const errorLaunchRef = useRef<number>(0);
   // Launch number of the most recent successful publish: an older failure no longer applies.
   const lastSuccessLaunchRef = useRef<number>(0);
+  // Number of publishes launched when the most recent GPS failure was reported, or null when no
+  // GPS failure is part of the current tracking error (none reported, or the error was cleared).
+  const gpsErrorLaunchRef = useRef<number | null>(null);
+
+  /**
+   * Clears the tracking error, together with the GPS failure it may stem from.
+   *
+   * Resetting `gpsErrorLaunchRef` here (and in `stopWatch`) is a defensive measure, not a fix
+   * for a reachable case: today, every publish failure it could hold back is already dropped
+   * elsewhere (an older publish by `lastSuccessLaunchRef`, a publish of a stopped watch by the
+   * watch generation), and every newer publish has a launch number above it. It keeps a GPS
+   * failure that no longer applies from holding back a publish failure if those guards change.
+   */
+  const clearTrackingError = useCallback((): void => {
+    gpsErrorLaunchRef.current = null;
+    setTrackingError(null);
+  }, [setTrackingError]);
 
   /**
    * Sets a tracking error and records the launch it is tied to, so that only a publish launched
@@ -150,13 +167,29 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
    * settling late must not lower the threshold a more recent GPS failure has set, or a publish
    * launched before that GPS failure would clear it.
    *
+   * A GPS failure always replaces the shown code. A publish failure replaces it only if that
+   * publish was launched after the most recent GPS failure (a position arrived since, so the GPS
+   * is back); a publish launched before it, failing while the GPS is down, keeps the GPS cause
+   * shown and only raises the recorded launch.
+   *
    * @param error - The GPS or publish failure
    * @param causeLaunch - The failed publish's launch number, or for a GPS failure the number of
    * publishes launched so far (none of them can tell that the GPS is back)
+   * @param source - `'gps'` for a watch failure (including a failure to start the watch),
+   * `'publish'` for a failed publish
    */
   const reportTrackingError = useCallback(
-    (error: unknown, causeLaunch: number): void => {
+    (error: unknown, causeLaunch: number, source: 'gps' | 'publish'): void => {
       errorLaunchRef.current = Math.max(errorLaunchRef.current, causeLaunch);
+      // [FIXED] "Cause GPS remplacée par une cause réseau dans l'erreur de suivi": a publish still
+      // in flight when the GPS failed used to overwrite `unavailable` / `permission_blocked` with
+      // `network` when it failed in turn. Only a publish launched after the most recent GPS
+      // failure may replace the GPS cause; a GPS failure always replaces the current code.
+      if (source === 'gps') {
+        gpsErrorLaunchRef.current = causeLaunch;
+      } else if (gpsErrorLaunchRef.current !== null && causeLaunch <= gpsErrorLaunchRef.current) {
+        return;
+      }
       setTrackingError(toErrorCode(error));
     },
     [setTrackingError],
@@ -216,7 +249,7 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
           // A published position ends a previous sharing failure (GPS back, network back).
           if (watchGenerationRef.current !== generation) return;
           lastSuccessLaunchRef.current = Math.max(lastSuccessLaunchRef.current, launch);
-          if (launch > errorLaunchRef.current) setTrackingError(null);
+          if (launch > errorLaunchRef.current) clearTrackingError();
         })
         .catch((error: unknown) => {
           // [FIXED] "Erreur de suivi effacée par le prochain instantané": a sharing failure is a
@@ -224,7 +257,7 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
           // settling after the watch was stopped is dropped: it no longer describes the current
           // tracking.
           if (watchGenerationRef.current === generation && launch > lastSuccessLaunchRef.current) {
-            reportTrackingError(error, launch);
+            reportTrackingError(error, launch, 'publish');
           }
           console.error(
             `[ERROR][useRealtimeTracking][maybePublish][?][${timestamp()}] ` +
@@ -232,7 +265,7 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
           );
         });
     },
-    [setTrackingError, reportTrackingError],
+    [clearTrackingError, reportTrackingError],
   );
 
   /**
@@ -246,7 +279,7 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
       clearWatchRef.current = geolocationService.watchPosition(
         maybePublish,
         (error) => {
-          reportTrackingError(error, publishLaunchRef.current);
+          reportTrackingError(error, publishLaunchRef.current, 'gps');
         },
         { accuracyMeters: 50, distanceFilterMeters: 10 },
       );
@@ -254,7 +287,7 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
         `[INFO][useRealtimeTracking][startWatch][?][${timestamp()}] GPS watch started (sharing)`,
       );
     } catch (error: unknown) {
-      reportTrackingError(error, publishLaunchRef.current);
+      reportTrackingError(error, publishLaunchRef.current, 'gps');
       console.error(
         `[ERROR][useRealtimeTracking][startWatch][?][${timestamp()}] ` +
           `Failed to start GPS watch | code: ${toErrorCode(error)}`,
@@ -268,6 +301,10 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
    */
   const stopWatch = useCallback((): void => {
     watchGenerationRef.current += 1;
+    // A GPS failure of the stopped watch no longer describes the current tracking (defensive
+    // reset, see clearTrackingError: the generation guard already drops the stopped watch's
+    // publishes).
+    gpsErrorLaunchRef.current = null;
     if (clearWatchRef.current === null) return;
     clearWatchRef.current();
     clearWatchRef.current = null;
@@ -387,9 +424,9 @@ export const useRealtimeTracking = (): UseRealtimeTrackingResult => {
     } else {
       stopWatch();
       // Nothing is shared any more: a sharing failure no longer applies.
-      setTrackingError(null);
+      clearTrackingError();
     }
-  }, [isTracking, hasSharingConsent, startWatch, stopWatch, setTrackingError]);
+  }, [isTracking, hasSharingConsent, startWatch, stopWatch, clearTrackingError]);
 
   // [FIXED] "Consentement donné sans suivi actif": MapScreen grants consent right after start();
   // when start() refuses an ended shared copy, consent was kept while nothing was tracked, and

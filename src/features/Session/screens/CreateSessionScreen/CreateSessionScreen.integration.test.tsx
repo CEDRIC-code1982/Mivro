@@ -13,12 +13,13 @@
 
 // [ADDED] Tests intégration CreateSessionScreen
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import React from 'react';
 import type { Location } from '@entities/Location';
 import CreateSessionScreen from '@features/Session/screens/CreateSessionScreen/CreateSessionScreen';
 import { useSessionStore } from '@state/useSessionStore';
+import { createTestQueryClient } from '@test-utils/queryClientWrapper';
 
 // ─── Mock i18n ──────────────────────────────────────────────
 jest.mock('react-i18next', () => ({
@@ -137,13 +138,9 @@ jest.mock('uuid', () => ({
 
 // ─── Helpers ────────────────────────────────────────────────
 
-const testQueryClient = new QueryClient({
-  defaultOptions: { queries: { retry: false } },
-});
-
 const renderScreen = () =>
   render(
-    <QueryClientProvider client={testQueryClient}>
+    <QueryClientProvider client={createTestQueryClient()}>
       <CreateSessionScreen />
     </QueryClientProvider>,
   );

@@ -63,10 +63,8 @@ jest.mock('@services/infra/storage/getEncryptionKey', () => ({
 // [ADDED] Mock di/container (DI bootstrap)
 // [MODIFIED] Added queryClient mock for QueryClientProvider
 jest.mock('@services/serviceContainer', () => {
-  const { QueryClient } = require('@tanstack/react-query');
-  const mockQueryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+  const { createTestQueryClient } = require('@test-utils/queryClientWrapper');
+  const mockQueryClient = createTestQueryClient();
   return {
     initContainer: jest.fn().mockReturnValue({
       storage: {},

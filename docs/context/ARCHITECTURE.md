@@ -1,7 +1,7 @@
 # ARCHITECTURE.md — Mivro
 
 > Architecture **réelle** du code, explorée depuis le filesystem. Mise à jour à chaque feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-11-26 (jonction d'un invité et fin de session côté invité : `JoinSessionScreen` déplacé dans `features/Session/`, `useJoinStartPoint` avec `addressUnresolved`, `gpsFailureCode`, rôle propriétaire de `useSharedSessionSync` lu à l'abonnement).
+> Dernière mise à jour : 2026-11-26 (cause GPS prioritaire dans `trackingErrorCode`, nettoyage des `QueryClient` de test par `queryClientWrapper`).
 > Dernière exploration complète : 2026-07-13 (Refactor archi **layer-first → feature-first + `services/`** + **tests co-localisés** ; stack inchangée, Atomic Design conservé, 1133 tests verts. F8 Biométrie commitée `4062e98` ; F5/F4/F7 commitées `d112edb`/`c9a76d1`/`1c73eeb`/`ebf1215`).
 
 ## Vue d'ensemble — feature-first + couche `services/` (Ports/Adapters conservés)
@@ -87,7 +87,7 @@ src/
 ├── navigations/     RootNavigator, BottomTabsNavigator, linking, types
 ├── i18n/            index.ts, locales/{fr,en}/{biometric,common,create,map,navigation,poi,profile,realtime,sessions,share}.json
 ├── types/           react-native-config.d.ts, react-native-maps.d.ts
-├── test-utils/      coordinates, queryClientWrapper (helpers — hors coverage)
+├── test-utils/      coordinates, queryClientWrapper (helpers — hors coverage ; queryClientWrapper vide ses QueryClient après chaque test)
 └── App.tsx          (+ App.test.tsx)      ·   E2E Maestro : e2e/ à la racine du repo
 ```
 
@@ -161,7 +161,7 @@ Exception : `UpdateProfileUseCase` est une transformation **pure** (`User + patc
 | `useAuthStore`          | MMKV           | Auth guest-first (guest vs authentifié) + `updateProfile` (nom/avatar, via `UpdateProfileUseCase`)                                                                                                                                                                                                                          |
 | `usePreferencesStore`   | MMKV           | Thème, langue, opt-in analytics, **`biometricEnabled`** + `setBiometricEnabled` (verrou biométrique opt-in F8)                                                                                                                                                                                                              |
 | `useSessionStore`       | non\*          | Session courante : participants, midpoint, POIs                                                                                                                                                                                                                                                                             |
-| `useRealtimeStore`      | **non** (RGPD) | Positions GPS live des participants (F4) : map `participantId → RealtimeParticipant`, `status` (connexion), `trackingErrorCode` (échec du partage de ma position), `hasSharingConsent`                                                                                                                                      |
+| `useRealtimeStore`      | **non** (RGPD) | Positions GPS live des participants (F4) : map `participantId → RealtimeParticipant`, `status` (connexion), `trackingErrorCode` (échec du partage de ma position ; une cause GPS n'est remplacée que par l'échec d'une publication lancée après elle, cf. `useRealtimeTracking`), `hasSharingConsent`                       |
 | `useSharedSessionStore` | **non** (RGPD) | Mode session PARTAGÉE (F5) : `isShared`, `isOwner` (propriétaire vs membre — pilote la suppression RGPD), `sessionId`, `link`, `meta`, `members[]`, `status`, `errorCode`. State-only ; `useSessionStore.loadSharedSession` charge le roster dans la session locale (midpoint recalculé). N'importe ni firebase ni le port. |
 
 \*`useRealtimeStore` (F4) est **non persisté** (RGPD — positions éphémères, purgées au `stopTracking`).

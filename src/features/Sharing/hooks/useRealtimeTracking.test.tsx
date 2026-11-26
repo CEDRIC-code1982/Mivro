@@ -453,7 +453,7 @@ describe('useRealtimeTracking', () => {
       let rejectNewer: (error: unknown) => void = () => undefined;
       let resolveNewer: () => void = () => undefined;
 
-      const launchTwoPublishes = (): void => {
+      const launchTwoPublishes = (): { current: ReturnType<typeof useRealtimeTracking> } => {
         mockPublish
           .mockImplementationOnce(
             () =>
@@ -476,6 +476,7 @@ describe('useRealtimeTracking', () => {
         act(() => jest.advanceTimersByTime(6_000));
         act(() => emitSample(makeSample({ speed: 20 })));
         expect(mockPublish).toHaveBeenCalledTimes(2);
+        return result;
       };
 
       const settle = async (action: () => void): Promise<void> => {
@@ -528,7 +529,110 @@ describe('useRealtimeTracking', () => {
         await settle(() => rejectOlder(new RealtimeError('net', 'network')));
         await settle(() => resolveNewer());
 
-        expect(useRealtimeStore.getState().trackingErrorCode).not.toBeNull();
+        expect(useRealtimeStore.getState().trackingErrorCode).toBe('unavailable');
+      });
+
+      describe('GPS cause priority', () => {
+        let emitError: (error: GeolocationError) => void = () => undefined;
+
+        beforeEach(() => {
+          mockWatchPosition.mockImplementation(
+            (onSample: WatchPositionCallback, onError: (error: GeolocationError) => void) => {
+              emitSample = onSample;
+              emitError = onError;
+              return clearWatch;
+            },
+          );
+        });
+
+        const publishNextSample = async (): Promise<void> => {
+          act(() => jest.advanceTimersByTime(6_000));
+          await settle(() => emitSample(makeSample({ speed: 20 })));
+        };
+
+        it('keeps unavailable when a publish launched before the GPS error fails with network', async () => {
+          launchTwoPublishes();
+
+          act(() => emitError(new GeolocationError('gps', 'unavailable')));
+          await settle(() => rejectNewer(new RealtimeError('net', 'network')));
+
+          expect(useRealtimeStore.getState().trackingErrorCode).toBe('unavailable');
+        });
+
+        it('keeps permission_blocked when a publish launched before a GPS permission refusal fails with network', async () => {
+          launchTwoPublishes();
+
+          act(() => emitError(new GeolocationError('gps', 'permission_denied')));
+          expect(useRealtimeStore.getState().trackingErrorCode).toBe('permission_blocked');
+          await settle(() => rejectNewer(new RealtimeError('net', 'network')));
+
+          expect(useRealtimeStore.getState().trackingErrorCode).toBe('permission_blocked');
+        });
+
+        it('shows network when a publish launched after the GPS error fails', async () => {
+          launchTwoPublishes();
+          act(() => emitError(new GeolocationError('gps', 'unavailable')));
+
+          mockPublish.mockRejectedValueOnce(new RealtimeError('net', 'network'));
+          await publishNextSample();
+
+          expect(mockPublish).toHaveBeenCalledTimes(3);
+          expect(useRealtimeStore.getState().trackingErrorCode).toBe('network');
+        });
+
+        it('replaces a network error with a GPS error reported after it', async () => {
+          launchTwoPublishes();
+          await settle(() => rejectNewer(new RealtimeError('net', 'network')));
+          expect(useRealtimeStore.getState().trackingErrorCode).toBe('network');
+
+          act(() => emitError(new GeolocationError('gps', 'unavailable')));
+
+          expect(useRealtimeStore.getState().trackingErrorCode).toBe('unavailable');
+        });
+
+        it('shows a newer network failure once the GPS error was cleared by a later publish', async () => {
+          launchTwoPublishes();
+          act(() => emitError(new GeolocationError('gps', 'unavailable')));
+
+          mockPublish.mockResolvedValueOnce(undefined);
+          await publishNextSample();
+          expect(useRealtimeStore.getState().trackingErrorCode).toBeNull();
+
+          mockPublish.mockRejectedValueOnce(new RealtimeError('net', 'network'));
+          await publishNextSample();
+
+          expect(mockPublish).toHaveBeenCalledTimes(4);
+          expect(useRealtimeStore.getState().trackingErrorCode).toBe('network');
+        });
+
+        it('shows a new network failure after a GPS error and a consent withdrawal', async () => {
+          launchTwoPublishes();
+          act(() => emitError(new GeolocationError('gps', 'unavailable')));
+
+          act(() => useRealtimeStore.getState().setSharingConsent(false));
+          expect(useRealtimeStore.getState().trackingErrorCode).toBeNull();
+          act(() => useRealtimeStore.getState().setSharingConsent(true));
+          mockPublish.mockRejectedValueOnce(new RealtimeError('net', 'network'));
+          await publishNextSample();
+
+          expect(mockPublish).toHaveBeenCalledTimes(3);
+          expect(useRealtimeStore.getState().trackingErrorCode).toBe('network');
+        });
+
+        it('shows a new network failure after a GPS error and a stop and restart', async () => {
+          const result = launchTwoPublishes();
+          act(() => emitError(new GeolocationError('gps', 'unavailable')));
+
+          act(() => result.current.stop());
+          act(() => result.current.start(SESSION_ID, PARTICIPANT_ID));
+          act(() => useRealtimeStore.getState().setSharingConsent(true));
+          expect(useRealtimeStore.getState().trackingErrorCode).toBeNull();
+          mockPublish.mockRejectedValueOnce(new RealtimeError('net', 'network'));
+          await publishNextSample();
+
+          expect(mockPublish).toHaveBeenCalledTimes(3);
+          expect(useRealtimeStore.getState().trackingErrorCode).toBe('network');
+        });
       });
     });
 
