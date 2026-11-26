@@ -10,7 +10,7 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
 import POIScreen from '@features/POI/screens/POIScreen/POIScreen'; // [ADDED]
-import JoinSessionScreen from '@features/Sharing/screens/JoinSessionScreen/JoinSessionScreen'; // [ADDED] F5
+import JoinSessionScreen from '@features/Session/screens/JoinSessionScreen/JoinSessionScreen'; // [ADDED] F5
 import BottomTabsNavigator from './BottomTabsNavigator';
 import type { RootStackParamList } from './types';
 

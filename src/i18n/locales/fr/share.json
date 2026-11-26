@@ -11,6 +11,15 @@
     "shared": "Lien d'invitation prêt à partager"
   },
   "join": {
+    "startPointTitle": "D'où pars-tu ?",
+    "startPointDescription": "Indique ton point de départ : le point de rencontre sera recalculé avec.",
+    "locatingTitle": "Localisation en cours…",
+    "selectedTitle": "Ton point de départ",
+    "gpsAddressUnresolved": "Adresse introuvable hors ligne : ta position GPS sera utilisée telle quelle.",
+    "confirm": "Rejoindre",
+    "confirmHint": "Rejoint la session avec ce point de départ",
+    "change": "Changer",
+    "changeHint": "Choisis un autre point de départ",
     "loadingTitle": "Connexion à la session…",
     "loadingDescription": "On récupère le point de rencontre et les participants.",
     "loadingAccessibilityLabel": "Connexion à la session en cours",
@@ -18,7 +27,20 @@
     "successDescription": "Le point de rencontre a été recalculé avec ta position.",
     "openMap": "Voir la carte",
     "retry": "Réessayer",
-    "cancel": "Annuler"
+    "retryHint": "Relance la connexion à la session avec le même point de départ",
+    "cancel": "Annuler",
+    "cancelHint": "Renonce à rejoindre la session et revient à l'écran de création"
+  },
+  "startPointErrors": {
+    "gps_permission_denied": "Permission de localisation refusée. Active-la dans les réglages.",
+    "gps_unavailable": "Service de localisation indisponible.",
+    "gps_timeout": "La localisation a pris trop de temps. Réessaie.",
+    "gps_inaccurate": "Position trop imprécise. Essaie en extérieur.",
+    "gps_unknown": "Impossible d'obtenir ta position. Réessaie."
+  },
+  "ended": {
+    "title": "Session terminée",
+    "message": "Cette session est terminée ou a expiré. Les adresses des autres participants ont été effacées de ton appareil."
   },
   "errors": {
     "title": "Impossible de rejoindre la session",
@@ -30,7 +52,6 @@
     "network": "Connexion perdue. Vérifie ta connexion internet.",
     "permission_denied": "Accès refusé au service de partage.",
     "invalid_data": "Données de session invalides reçues.",
-    "no_location": "Ta position de départ est requise pour rejoindre.",
     "no_user": "Tu dois être connecté pour rejoindre une session.",
     "unknown": "Une erreur inattendue est survenue."
   }

@@ -7,10 +7,12 @@
  *                marks the shared store, and opens the **native share sheet**
  *                (react-native `Share`). A session that is already shared is
  *                not published again: its existing link is shared.
- *              - `join(sessionId)`: joins a shared session
+ *              - `join(sessionId, startLocation)`: joins a shared session
  *                (JoinSessionUseCase) by adding the current user as a
  *                member + recomputing the midpoint, then loads the session into
- *                the local store ("shared" mode).
+ *                the local store ("shared" mode). The start location is chosen
+ *                on the join screen; a device without a profile gets a guest
+ *                profile first (ADR-004, guest-first).
  *
  *              Presentation goes through use cases via the DI container: it
  *              NEVER imports firebase (dependency rule).
@@ -21,6 +23,7 @@
 // [ADDED] F5 — useSessionShare orchestration hook
 import { useCallback, useState } from 'react';
 import { Share } from 'react-native';
+import type { Location } from '@entities/Location'; // [ADDED] start point chosen at join time
 import type { SharedSessionMember, SharedSessionOwnerType } from '@entities/SharedSession';
 import { buildShareLink } from '@entities/SharedSession';
 import type { User } from '@entities/User';
@@ -70,35 +73,40 @@ const existingShareLink = (localSessionId: string): string | null => {
 };
 
 /**
- * Builds a shared session member from the current user and their start location in the local
- * session.
+ * Builds a shared session member from the current user and the start location they chose on the
+ * join screen.
  *
- * The start location comes from the local participant matching the user id ("my position",
- * created in F1); otherwise from the single local participant if there is exactly one (a guest
- * who just arrived through the link).
+ * [MODIFIED] "Jonction d'un invité sans profil ni session": the start location used to be read
+ * from the local session (the participant matching the user id, or the single participant). A new
+ * user who opens an invitation link has no local session, so the join always failed with
+ * `no_location`. The start location is now passed explicitly, and the local session is not read.
  *
  * @param user - Current user
- * @returns Member, or null if no start location is known
+ * @param startLocation - Start location chosen at join time
+ * @returns The member to publish
  */
-const buildMemberFromUser = (user: User): SharedSessionMember | null => {
-  const session = useSessionStore.getState().session;
-  const participants = session?.participants ?? [];
-  const mine =
-    participants.find((p) => p.id === user.id) ??
-    (participants.length === 1 ? participants[0] : undefined);
-  if (mine === undefined) {
-    return null;
-  }
-  return {
-    memberId: user.id,
-    displayName: user.displayName,
-    ...(user.avatarId !== undefined && { avatarId: user.avatarId }),
-    startLocation: {
-      latitude: mine.startLocation.coordinates.latitude,
-      longitude: mine.startLocation.coordinates.longitude,
-      formattedAddress: mine.startLocation.formattedAddress,
-    },
-  };
+const buildMemberFromUser = (user: User, startLocation: Location): SharedSessionMember => ({
+  memberId: user.id,
+  displayName: user.displayName,
+  ...(user.avatarId !== undefined && { avatarId: user.avatarId }),
+  startLocation: {
+    latitude: startLocation.coordinates.latitude,
+    longitude: startLocation.coordinates.longitude,
+    formattedAddress: startLocation.formattedAddress,
+  },
+});
+
+/**
+ * Returns the current user, creating a guest profile first when the device has none (ADR-004,
+ * guest-first): a new user who opens an invitation link must be able to join without signing up.
+ *
+ * @returns The current user, or null if the guest profile could not be created
+ */
+const ensureUser = (): User | null => {
+  const { user, signInAsGuest } = useAuthStore.getState();
+  if (user !== null) return user;
+  signInAsGuest();
+  return useAuthStore.getState().user;
 };
 
 /**
@@ -113,12 +121,14 @@ export interface UseSessionShareResult {
    */
   share: (shareMessage?: (link: string) => string) => Promise<string | null>;
   /**
-   * Joins a shared session (adds the user + recomputes the midpoint).
+   * Joins a shared session (adds the user + recomputes the midpoint). Creates a guest profile
+   * first when the device has none (ADR-004).
    *
    * @param sessionId - Session identifier (extracted from the link)
+   * @param startLocation - Start location chosen on the join screen (GPS or address)
    * @returns true if the join succeeded
    */
-  join: (sessionId: string) => Promise<boolean>;
+  join: (sessionId: string, startLocation: Location) => Promise<boolean>;
   /** true while an operation is in progress */
   isBusy: boolean;
   /** i18n error code of the last operation, or null */
@@ -202,26 +212,22 @@ export const useSessionShare = (): UseSessionShareResult => {
   );
 
   const join = useCallback(
-    async (sessionId: string): Promise<boolean> => {
+    async (sessionId: string, startLocation: Location): Promise<boolean> => {
       setIsBusy(true);
       setErrorCode(null);
       setStatus('joining');
 
       try {
-        const user = useAuthStore.getState().user;
+        // [MODIFIED] A device without a profile gets a guest profile instead of `no_user`.
+        // `no_user` stays as a defensive guard, should the guest creation leave no user.
+        const user = ensureUser();
         if (user === null) {
           setErrorCode('no_user');
           setStatus('error', 'no_user');
           return false;
         }
 
-        const member = buildMemberFromUser(user);
-        if (member === null) {
-          // No start location known for the current user.
-          setErrorCode('no_location');
-          setStatus('error', 'no_location');
-          return false;
-        }
+        const member = buildMemberFromUser(user, startLocation);
 
         const { joinSessionUseCase } = getContainer();
         const shared = await joinSessionUseCase.execute({ sessionId, member });

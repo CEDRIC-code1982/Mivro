@@ -1,7 +1,66 @@
 # PROGRESS.md — Mivro
 
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-09-26 (harness v2 — le harness devient une frontière de confiance).
+> Dernière mise à jour : 2026-11-26 (jonction d'un invité et fin de session côté invité).
+
+## Jonction d'un invité et fin de session côté invité (2026-11-26, branche `fix/jonction-invite-fin-de-session`)
+
+Un appareil neuf ne pouvait pas rejoindre une session : sans profil, `join` échouait en `no_user`,
+et le point de départ était lu dans la session locale (`no_location`), qu'un nouvel utilisateur
+n'a pas. Et quand la session distante disparaissait, l'invité gardait la copie locale (adresses
+des autres membres) sans en être averti.
+
+- **Invité automatique** : `useSessionShare.join(sessionId, startLocation)` crée le profil invité
+  (`signInAsGuest`, ADR-004) quand l'appareil n'a pas d'utilisateur. `no_user` ne reste qu'en
+  garde-fou ; `no_location` est supprimé.
+- **Point de départ choisi à la jonction** : `JoinSessionScreen` demande le point de départ (GPS ou
+  adresse), l'affiche avec « Rejoindre » / « Changer », puis rejoint. Le membre publié porte ce
+  point, jamais celui de la session locale.
+  - Écran déplacé de `features/Sharing/screens/` vers
+    `src/features/Session/screens/JoinSessionScreen/` : `no-cross-feature-private-import`
+    interdisait à Sharing d'importer `AddressAutocomplete`. Il garde les hooks de Sharing (import
+    de hook entre features autorisé, J-016). Route `RootNavigator` mise à jour.
+  - Nouveau hook `src/features/Session/hooks/useJoinStartPoint.ts` : `startLocation`,
+    `isLocating`, `gpsErrorCode`, `locateByGps`, `selectAddress`, `clearStartLocation`. Un
+    compteur de requêtes ignore une position GPS arrivée après un autre choix.
+  - `AddressAutocomplete` : prop `showNameField?: boolean` (vraie par défaut), à `false` sur la
+    jonction, dont le chemin GPS est le bouton « Utiliser ma position » du composant.
+  - La localisation en cours s'affiche dans la vue de choix (`accessibilityLiveRegion`, annonce
+    VoiceOver sur iOS), pas sur un écran plein qui démonterait la saisie.
+- **Mapper GPS partagé** : `src/services/domain/geolocation/gpsFailureCode.ts`
+  (`toGpsFailureCode`, `GpsFailureCode`), utilisé par `useJoinStartPoint` et
+  `useCreateSessionFlow`.
+- **Fin de session côté invité** : `useSharedSessionSync({ onEndedRemotely })`. Nœud distant
+  disparu : membre → `clearShared`, `resetSession`, puis le callback, auquel `MapScreen` répond par
+  `stop()` du suivi et l'alerte `share:ended` ; propriétaire → `clearShared` seul, sans alerte.
+  Aujourd'hui, le nœud ne disparaît que par la purge à expiration (`purgeExpiredSessions`) :
+  aucun écran n'appelle `useCreateSessionFlow.reset`, le chemin propriétaire est prêt mais sans
+  interface.
+- **Corrections après revue** :
+  - `share:ended.message` ne désigne plus l'organisateur : « Cette session est terminée ou a
+    expiré… ».
+  - `useSharedSessionSync` lit `isOwner` à l'abonnement (`getState()` dans le corps de l'effet),
+    plus à l'arrivée de la suppression. `reset` appelle `clearShared()` (`isOwner` à false) avant
+    l'événement null de RNFirebase : le propriétaire aurait reçu `stop()` et l'alerte sur son
+    propre appareil (J-070). Test d'intégration avec le vrai `useCreateSessionFlow` ajouté.
+  - `useJoinStartPoint.addressUnresolved` : true quand le GPS n'a pas pu résoudre l'adresse hors
+    ligne, remis à false par `selectAddress`, `clearStartLocation` et une nouvelle demande.
+    `JoinSessionScreen` affiche la notice `join-gps-notice` (`share:join.gpsAddressUnresolved`),
+    annoncée par `announceForAccessibility` sur iOS et en live region sur Android.
+- i18n `share` FR + EN : `join.*` (choix du point de départ, `gpsAddressUnresolved`),
+  `startPointErrors.*`, `ended.*`.
+- Tests : 81 de plus (Jest : 91 → 93 suites, 1384 → 1465 tests). Nouveaux fichiers
+  `useJoinStartPoint.test.tsx` et `gpsFailureCode.test.ts` ; complétés : `JoinSessionScreen`,
+  `useSessionShare`, `useSharedSessionSync`, `AddressAutocomplete`, `MapScreen` (intégration).
+- TODO : item « copie locale d'une session terminée » coché ; ajoutés : la vérification de la
+  session avant le choix du point de départ (⚠️ À SPÉCIFIER), le bouton « Terminer la session »
+  (⚠️ À SPÉCIFIER), la langue du géocodage inversé, le hint manquant de `join-btn-open-map` et
+  l'annonce de la notice GPS de `CreateSessionScreen` (A11Y).
+- Défauts passés à travers le harness : J-069 (doc, `docclaims`), J-070 (course sur le rôle
+  propriétaire, trouvée par le reviewer).
+- Reste à Cédric : cas T2 (jonction d'un invité neuf) et T9 (fin de session vue par l'invité) du
+  plan temps réel, sur appareil. Sans bouton « Terminer la session », T9 ne se provoque qu'en
+  supprimant `sessions/<id>` dans la console RTDB.
 
 ## Erreur de suivi durable sur la carte (2026-11-19, branche `fix/erreur-suivi-durable`)
 
@@ -517,13 +576,13 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 
 ---
 
-## Métriques actuelles (mesurées le 2026-11-19 pour les tests, le 2026-09-26 pour le reste)
+## Métriques actuelles (mesurées le 2026-11-26 pour les tests, le 2026-09-26 pour le reste)
 
 | Métrique                           | Valeur                                                            |
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
-| Suites de tests                    | 91                                                                |
-| Tests (cas) — `npm run check`      | 1384                                                              |
+| Suites de tests                    | 93                                                                |
+| Tests (cas) — `npm run check`      | 1465                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |
@@ -575,3 +634,4 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 - **Keychain ne fournit pas de codes d'erreur typés (F8)** : `react-native-keychain` **rejette avec un message natif libre** (pas de code structuré) — distinguer annulation utilisateur (`cancelled`, ≠ échec, à ne pas comptabiliser vers l'échappatoire), `not_enrolled`, `not_available`, `failed` (« too many attempts »/« not recognized ») et `unknown` repose sur une **heuristique de substring sur le message** (incluant `code: 13` pour le bouton négatif Android). Fragile par nature (dépend du wording natif/OS) ; centralisé dans `toBiometricError` et couvert par tests. À surveiller sur device réel.
 - **Auth biométrique via relecture d'un secret sentinelle (F8)** : il n'y a pas d'API « authentifie-moi » pure dans keychain ; on **pose** une valeur sentinelle protégée biométrie (`setGenericPassword` à l'activation) et on la **relit** (`getGenericPassword`) pour déclencher le prompt natif — succès = valeur relue conforme. La sentinelle n'a aucune valeur secrète métier et n'est **jamais loggée** (LOG-001). `disableLock` (`resetGenericPassword`) doit être **idempotent et best-effort** (ne jamais throw) pour ne pas casser le flux de désactivation/échappatoire.
 - **Prompt biométrique différé jusqu'au type connu (F8)** : tirer l'auto-prompt au montage de l'écran de verrouillage **avant** d'avoir résolu `getSupportedType()` affiche le libellé générique (« la biométrie ») au lieu de « Face ID »/« Touch ID ». Différer le 1er prompt jusqu'à `supportedType !== null`. Si aucun type ne se résout, c'est le hook qui auto-désactive le verrou (anti-lockout) — pas d'auto-prompt à tirer.
+- **Un composant de feature fixe la feature de l'écran qui l'utilise (F5, 2026-11-26)** : `no-cross-feature-private-import` interdit d'importer le composant d'une autre feature, mais pas ses hooks (J-016). Un écran qui a besoin d'`AddressAutocomplete` (Session) et des hooks de Sharing vit donc dans Session. Après un déplacement, chercher l'ancien chemin dans les docs de contexte, y compris l'arborescence en bloc de code, que `docclaims` ne lit pas (J-069).

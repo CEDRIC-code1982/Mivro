@@ -1,26 +1,25 @@
 /**
  * @file useCreateSessionFlow.ts
- * @description Hook d'orchestration pour la feature F1 (création de session).
- *              Orchestration hook for the F1 feature (session creation).
+ * @description Orchestration hook for the F1 feature (session creation).
  *
- *              Responsabilités / Responsibilities:
- *              - Initialiser la session courante au mount / Initialize session on mount
- *              - Exposer addByGeocode / addByGPS / removeParticipant
- *              - Valider l'état (canContinue : 2-5 points) / Validate state
+ *              Responsibilities:
+ *              - Initialize the current session on mount
+ *              - Expose addByGeocode / addByGPS / removeParticipant
+ *              - Validate the state (canContinue: 2-5 points)
  *
- *              Connecté à useSessionStore + useAuthStore + container DI.
  *              Connected to useSessionStore + useAuthStore + DI container.
  *
  * @module features/Session/hooks/useCreateSessionFlow
  */
 
-// [ADDED] Hook useCreateSessionFlow — orchestration F1
+// [ADDED] useCreateSessionFlow hook — F1 orchestration
 
 import { useCallback, useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import type { GeocodeResult } from '@entities/GeocodeResult';
 import type { Participant } from '@entities/MidpointSession';
-import { useAuthUser } from '@features/Profile/hooks/useAuth'; // [ADDED] F7 passe 2 — avatarId du user courant
+import { useAuthUser } from '@features/Profile/hooks/useAuth'; // [ADDED] F7 pass 2 — avatarId of the current user
+import { type GpsFailureCode, toGpsFailureCode } from '@services/domain/geolocation/gpsFailureCode'; // [MODIFIED] shared GPS failure mapping
 import {
   GeolocationError,
   type GeolocationErrorCode,
@@ -29,131 +28,113 @@ import { getContainer } from '@services/serviceContainer';
 import { useSessionStore } from '@state/useSessionStore';
 import { useSharedSessionStore } from '@state/useSharedSessionStore'; // [ADDED] F5
 
-/** Nombre minimum de participants pour continuer / Minimum participants to continue */
+/** Minimum number of participants to continue */
 const MIN_PARTICIPANTS = 2;
-/** Nombre maximum de participants / Maximum participants */
+/** Maximum number of participants */
 const MAX_PARTICIPANTS = 5;
 
 /**
- * Mappe un code d'erreur GeolocationError vers un AddPointError typé.
  * Maps a GeolocationError code to a typed AddPointError.
  *
- * @param code - Code d'erreur de géolocalisation / Geolocation error code
- * @returns AddPointError typé / Typed AddPointError
+ * [MODIFIED] Delegates to the shared `toGpsFailureCode` (also used by the join flow), instead of
+ * keeping its own copy of the mapping.
+ *
+ * @param code - Geolocation error code
+ * @returns Typed AddPointError
  */
-const mapGeolocationError = (code: GeolocationErrorCode): AddPointError => {
-  switch (code) {
-    case 'permission_denied':
-    case 'permission_blocked':
-      return { code: 'gps_permission_denied' };
-    case 'unavailable':
-      return { code: 'gps_unavailable' };
-    case 'timeout':
-      return { code: 'gps_timeout' };
-    case 'inaccurate':
-      return { code: 'gps_inaccurate' };
-    case 'unknown':
-      return { code: 'gps_unknown' };
-  }
-};
+const mapGeolocationError = (code: GeolocationErrorCode): AddPointError => ({
+  code: toGpsFailureCode(code),
+});
 
 /**
- * Erreur typée lors de l'ajout d'un point.
  * Typed error when adding a point.
  */
 export type AddPointError =
-  | { code: 'gps_permission_denied' }
-  | { code: 'gps_unavailable' }
-  | { code: 'gps_timeout' }
-  | { code: 'gps_inaccurate' }
-  | { code: 'gps_unknown' }
+  | { code: GpsFailureCode }
   | { code: 'session_full' }
   | { code: 'unknown'; message: string };
 
 /**
- * Notice non-bloquante lors de l'ajout d'un point (information, pas erreur).
  * Non-blocking notice when adding a point (informational, not an error).
  */
 export type AddPointNotice =
-  /** Point ajouté mais adresse non résolue (reverse geocode hors ligne) */
+  /** Point added but address not resolved (offline reverse geocode) */
   { code: 'gps_address_unresolved' };
 
 /**
- * Résultat du hook useCreateSessionFlow.
  * useCreateSessionFlow hook result.
  *
- * @param participants - Liste des participants / Participant list
- * @param participantsCount - Nombre de participants / Participant count
- * @param isFull - true si 5 participants / true if 5 participants
- * @param canContinue - true si 2-5 participants / true if 2-5 participants
- * @param remainingMin - Points manquants pour le minimum / Remaining to reach minimum
- * @param isAddingByGps - true si ajout GPS en cours / true if GPS add in progress
- * @param gpsError - Dernière erreur GPS / Last GPS error
- * @param addByGeocode - Ajoute un point via geocode / Add point via geocode
- * @param addByGps - Ajoute un point via GPS / Add point via GPS
- * @param removeParticipant - Supprime un point / Remove a point
- * @param reset - Réinitialise la session / Reset the session
+ * @param participants - Participant list
+ * @param participantsCount - Participant count
+ * @param isFull - true if 5 participants
+ * @param canContinue - true if 2-5 participants
+ * @param remainingMin - Remaining points to reach the minimum
+ * @param isAddingByGps - true if a GPS add is in progress
+ * @param gpsError - Last GPS error
+ * @param addByGeocode - Add a point via geocode
+ * @param addByGps - Add a point via GPS
+ * @param removeParticipant - Remove a point
+ * @param reset - Reset the session
  */
 export interface UseCreateSessionFlowResult {
-  /** Liste des participants / Participant list */
+  /** Participant list */
   participants: readonly Participant[];
-  /** Nombre de participants / Participant count */
+  /** Participant count */
   participantsCount: number;
-  /** Session pleine (5 participants) / Session full (5 participants) */
+  /** Session full (5 participants) */
   isFull: boolean;
-  /** Peut continuer (2-5 participants) / Can continue (2-5 participants) */
+  /** Can continue (2-5 participants) */
   canContinue: boolean;
-  /** Points manquants pour atteindre le minimum / Remaining to reach minimum */
+  /** Remaining points to reach the minimum */
   remainingMin: number;
-  /** Chargement GPS en cours / GPS loading in progress */
+  /** GPS loading in progress */
   isAddingByGps: boolean;
-  /** Erreur GPS de la dernière action / GPS error from last action */
+  /** GPS error from the last action */
   gpsError: AddPointError | null;
-  /** Notice non-bloquante de la dernière action GPS / Non-blocking notice from last GPS action */
+  /** Non-blocking notice from the last GPS action */
   gpsNotice: AddPointNotice | null;
-  /** Ajoute un point via résultat de geocode / Add point from geocode result */
+  /** Add a point from a geocode result */
   addByGeocode: (result: GeocodeResult, displayName?: string) => void;
-  /** Ajoute un point via position GPS courante / Add point from current GPS position */
+  /** Add a point from the current GPS position */
   addByGps: (displayName?: string) => Promise<void>;
-  /** Supprime un participant / Remove a participant */
+  /** Remove a participant */
   removeParticipant: (participantId: string) => void;
-  /** Réinitialise la session / Reset session */
+  /** Reset the session */
   reset: () => void;
 }
 
 /**
- * Hook d'orchestration pour la création de session (F1).
  * Orchestration hook for session creation (F1).
  *
- * @returns Résultat du hook / Hook result
+ * @returns Hook result
  */
 export const useCreateSessionFlow = (): UseCreateSessionFlowResult => {
-  // [ADDED] F7 passe 2 — avatar emoji du user courant (peuplé sur « ma position »)
+  // [ADDED] F7 pass 2 — emoji avatar of the current user (set on "my position")
   const currentUser = useAuthUser();
 
-  // [ADDED] Sélecteurs Zustand session store
+  // [ADDED] Zustand session store selectors
   const session = useSessionStore((s) => s.session);
   const createSession = useSessionStore((s) => s.createSession);
   const addParticipant = useSessionStore((s) => s.addParticipant);
   const removeParticipantStore = useSessionStore((s) => s.removeParticipant);
   const resetSession = useSessionStore((s) => s.resetSession);
-  // [ADDED] F5 — purge RGPD de la session partagée au reset (références stables).
+  // [ADDED] F5 — GDPR purge of the shared session on reset (stable references).
   const clearShared = useSharedSessionStore((s) => s.clearShared);
 
-  // [ADDED] État local GPS
+  // [ADDED] Local GPS state
   const [isAddingByGps, setIsAddingByGps] = useState(false);
   const [gpsError, setGpsError] = useState<AddPointError | null>(null);
-  // [FIXED P1] Notice non-bloquante (ex: adresse non résolue hors ligne)
+  // [FIXED P1] Non-blocking notice (e.g. address not resolved while offline)
   const [gpsNotice, setGpsNotice] = useState<AddPointNotice | null>(null);
 
-  // [ADDED] Initialiser la session si elle n'existe pas
+  // [ADDED] Initialize the session if it does not exist
   useEffect(() => {
     if (session === null) {
       createSession();
     }
   }, [session, createSession]);
 
-  // [ADDED] Valeurs dérivées
+  // [ADDED] Derived values
   const participants = session?.participants ?? [];
   const participantsCount = participants.length;
   const isFull = participantsCount >= MAX_PARTICIPANTS;
@@ -162,21 +143,19 @@ export const useCreateSessionFlow = (): UseCreateSessionFlowResult => {
   const remainingMin = Math.max(0, MIN_PARTICIPANTS - participantsCount);
 
   /**
-   * Génère un nom par défaut "Participant N".
    * Generates a default name "Participant N".
    *
-   * @returns Nom généré / Generated name
+   * @returns Generated name
    */
   const generateDefaultName = useCallback((): string => {
     return `Participant ${String(participantsCount + 1)}`;
   }, [participantsCount]);
 
   /**
-   * Ajoute un point à partir d'un résultat de geocode.
    * Adds a point from a geocode result.
    *
-   * @param result - Résultat de geocode / Geocode result
-   * @param displayName - Nom optionnel / Optional name
+   * @param result - Geocode result
+   * @param displayName - Optional name
    */
   const addByGeocode = useCallback(
     (result: GeocodeResult, displayName?: string): void => {
@@ -209,11 +188,10 @@ export const useCreateSessionFlow = (): UseCreateSessionFlowResult => {
   );
 
   /**
-   * Ajoute un point à partir de la position GPS courante.
    * Adds a point from the current GPS position.
    *
-   * @param displayName - Nom optionnel / Optional name
-   * @throws Ne throw pas — l'erreur est capturée dans gpsError / Does not throw — error captured in gpsError
+   * @param displayName - Optional name
+   * @throws Does not throw — the error is captured in gpsError
    */
   const addByGps = useCallback(
     async (displayName?: string): Promise<void> => {
@@ -229,12 +207,12 @@ export const useCreateSessionFlow = (): UseCreateSessionFlowResult => {
       try {
         const { getCurrentLocationUseCase } = getContainer();
         const { location, addressResolved } = await getCurrentLocationUseCase.execute({
-          language: 'fr', // TODO V1 : utiliser la langue courante de i18n
+          language: 'fr', // TODO V1: use the current i18n language
         });
 
-        // [ADDED] F7 passe 2 — « ma position » → on porte l'avatar emoji du user
-        // courant sur le participant (PAS la photo : la photo reste pour le profil).
-        // Si l'user n'a pas d'avatar, on n'ajoute rien (fallback initiale côté card).
+        // [ADDED] F7 pass 2 — "my position" → carry the current user's emoji avatar on the
+        // participant (NOT the photo: the photo stays for the profile).
+        // If the user has no avatar, nothing is added (initial fallback on the card side).
         const currentAvatarId = currentUser?.avatarId;
         addParticipant({
           displayName: displayName?.trim() || generateDefaultName(),
@@ -242,7 +220,7 @@ export const useCreateSessionFlow = (): UseCreateSessionFlowResult => {
           ...(currentAvatarId !== undefined ? { avatarId: currentAvatarId } : {}),
         });
 
-        // [FIXED P1] Adresse non résolue (hors ligne) → notice non-bloquante
+        // [FIXED P1] Address not resolved (offline) → non-blocking notice
         if (!addressResolved) {
           setGpsNotice({ code: 'gps_address_unresolved' });
         }
@@ -253,7 +231,7 @@ export const useCreateSessionFlow = (): UseCreateSessionFlowResult => {
         );
       } catch (error: unknown) {
         if (error instanceof GeolocationError) {
-          // [ADDED] Mapper les codes GeolocationError → AddPointError
+          // [ADDED] Map GeolocationError codes → AddPointError
           const mapped = mapGeolocationError(error.code);
           setGpsError(mapped);
         } else {
@@ -276,10 +254,9 @@ export const useCreateSessionFlow = (): UseCreateSessionFlowResult => {
   );
 
   /**
-   * Supprime un participant par son id.
    * Removes a participant by id.
    *
-   * @param participantId - UUID du participant / Participant UUID
+   * @param participantId - Participant UUID
    */
   const removeParticipant = useCallback(
     (participantId: string): void => {
@@ -289,23 +266,19 @@ export const useCreateSessionFlow = (): UseCreateSessionFlowResult => {
   );
 
   /**
-   * Réinitialise la session et les erreurs.
    * Resets the session and errors.
    *
-   * [MAJEUR 2 — RGPD] Si la session était PARTAGÉE et que cet appareil en est le
-   * PROPRIÉTAIRE, on supprime le nœud partagé sur le backend (`deleteSharedSession`)
-   * AVANT de purger l'état partagé local (`clearShared`). Un simple membre (join)
-   * ne supprime pas la session des autres : il quitte juste le mode partagé.
-   * La suppression backend est best-effort (try/catch) : un échec réseau ne doit
-   * pas bloquer la réinitialisation locale.
-   * Resets the session and errors. If the session was SHARED and this device is
-   * the OWNER, deletes the shared node on the backend before purging local state.
+   * [MAJEUR 2 — GDPR] If the session was SHARED and this device is its OWNER, the shared node is
+   * deleted on the backend (`deleteSharedSession`) BEFORE purging the local shared state
+   * (`clearShared`). A plain member (join) does not delete the others' session: it only leaves
+   * shared mode. The backend deletion is best-effort (try/catch): a network failure must not
+   * block the local reset.
    */
   const reset = useCallback((): void => {
     const { isShared, isOwner, sessionId } = useSharedSessionStore.getState();
     if (isShared && isOwner && sessionId !== null) {
       const { sessionShareService } = getContainer();
-      // try/catch via .catch : suppression best-effort, ne bloque pas le reset.
+      // try/catch through .catch: best-effort deletion, does not block the reset.
       sessionShareService.deleteSharedSession(sessionId).catch((error: unknown) => {
         console.error(
           `[ERROR][useCreateSessionFlow][reset][?][${new Date().toISOString().slice(11, 19)}] ` +

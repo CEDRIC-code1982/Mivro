@@ -1,8 +1,6 @@
 /**
  * @file AddressAutocomplete.tsx
- * @description Molecule AddressAutocomplete — saisie d'adresse avec recherche
- *              autocomplete via bottom sheet et bouton GPS.
- *              AddressAutocomplete molecule — address input with autocomplete
+ * @description AddressAutocomplete molecule — address input with autocomplete
  *              search via bottom sheet and GPS button.
  *
  * @example
@@ -18,7 +16,8 @@
  * @module features/Session/components/AddressAutocomplete/AddressAutocomplete
  */
 
-// [MODIFIED] Molecule AddressAutocomplete — Phase 6 (bottom sheet ajouté)
+// [MODIFIED] AddressAutocomplete molecule — Phase 6 (bottom sheet added)
+// [MODIFIED] F5 — optional name field (`showNameField`), hidden on the join screen
 
 import {
   BottomSheetBackdrop,
@@ -41,40 +40,47 @@ import { GeocodeError } from '@services/domain/geocode/IGeocodeService';
 import AddressResultItem from './AddressResultItem';
 
 /**
- * Props du composant AddressAutocomplete.
  * AddressAutocomplete component props.
  *
- * @param onSelectResult - Callback quand un résultat est sélectionné / Callback on result selection
- * @param onUseGps - Callback quand le bouton GPS est pressé / Callback on GPS button press
- * @param isAddingByGps - Loading state GPS / GPS loading state
- * @param isFull - Session pleine (5 participants) / Session full (5 participants)
- * @param testID - ID de test / Test ID
+ * @param onSelectResult - Callback on result selection
+ * @param onUseGps - Callback on GPS button press
+ * @param isAddingByGps - GPS loading state
+ * @param isFull - Session full (5 participants)
+ * @param showNameField - Whether the optional "Name" input is rendered (default true)
+ * @param testID - Test ID
  */
 export interface AddressAutocompleteProps {
-  /** Callback quand un résultat est sélectionné / Callback on result selection */
+  /** Callback on result selection */
   onSelectResult: (result: GeocodeResult, displayName?: string) => void;
-  /** Callback quand le bouton GPS est pressé / Callback on GPS button press */
+  /** Callback on GPS button press */
   onUseGps: (displayName?: string) => void;
-  /** Loading state GPS / GPS loading state */
+  /** GPS loading state */
   isAddingByGps?: boolean;
-  /** Session pleine (5 participants) / Session full (5 participants) */
+  /** Session full (5 participants) */
   isFull?: boolean;
-  /** ID de test / Test ID */
+  /**
+   * Whether the optional "Name" input is rendered above the address input.
+   * Defaults to `true` (session creation names each participant). Set it to
+   * `false` when the caller has no use for a display name — e.g. the join
+   * screen, where the participant's name comes from the user profile. When
+   * hidden, `onSelectResult` and `onUseGps` always receive `undefined` as
+   * `displayName`.
+   */
+  showNameField?: boolean;
+  /** Test ID */
   testID?: string;
 }
 
-/** Longueur minimum de la query pour déclencher la recherche */
+/** Minimum query length that triggers the search */
 const MIN_QUERY_LENGTH = 3;
 
 /**
- * Mappe une erreur de géocodage vers une clé i18n de message dédiée.
  * Maps a geocoding error to a dedicated i18n message key.
  *
- * Distingue une erreur réseau/serveur d'une absence de résultat (bug QA P1).
  * Distinguishes a network/server error from an empty result set (QA P1 bug).
  *
- * @param error - Erreur remontée par useGeocodeQuery / Error surfaced by useGeocodeQuery
- * @returns Clé i18n (namespace create) / i18n key (create namespace)
+ * @param error - Error surfaced by useGeocodeQuery
+ * @returns i18n key (create namespace)
  */
 const geocodeErrorKey = (error: unknown): string => {
   if (error instanceof GeocodeError) {
@@ -93,40 +99,42 @@ const geocodeErrorKey = (error: unknown): string => {
 };
 
 /**
- * Molecule AddressAutocomplete du Design System Mivro.
  * Mivro Design System AddressAutocomplete molecule.
  *
- * Input adresse + input nom + bouton GPS + bottom sheet autocomplete.
+ * Address input + optional name input + GPS button + autocomplete bottom sheet.
  *
  * @param props - {@link AddressAutocompleteProps}
- * @returns Composant AddressAutocomplete / AddressAutocomplete component
+ * @returns AddressAutocomplete component
  */
 const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   onSelectResult,
   onUseGps,
   isAddingByGps = false,
   isFull = false,
+  showNameField = true,
   testID,
 }) => {
   const { t } = useTranslation('create');
   const theme = useTheme();
   const styles = buildStyles(theme);
 
-  // [ADDED] État local
+  // [ADDED] Local state
   const [query, setQuery] = useState('');
   const [pendingDisplayName, setPendingDisplayName] = useState('');
 
   // [ADDED] Bottom sheet ref + snap points
-  // [FIXED P1] BottomSheetModal (portail) au lieu de BottomSheet pour éviter
-  // que le sheet fermé s'affiche dans le ScrollView de l'écran (champ fantôme).
+  // [FIXED P1] BottomSheetModal (portal) instead of BottomSheet, so that the
+  // closed sheet is not rendered inside the screen's ScrollView (ghost field).
   const sheetRef = useRef<BottomSheetModal>(null);
   const snapPoints = useMemo(() => ['50%', '90%'], []);
 
-  // [ADDED] TanStack Query pour l'autocomplete
+  // [ADDED] TanStack Query for the autocomplete
   const { data: results, isLoading, error } = useGeocodeQuery({ query });
 
+  // [ADDED] F5 — a hidden name field never forwards a display name
+  const displayName = showNameField && pendingDisplayName ? pendingDisplayName : undefined;
+
   /**
-   * Ouvre le bottom sheet au focus de l'input adresse.
    * Opens the bottom sheet on address input focus.
    */
   const handleAddressFocus = useCallback(() => {
@@ -138,17 +146,15 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   }, []);
 
   /**
-   * Ferme le bottom sheet.
    * Closes the bottom sheet.
    */
   const handleCloseSheet = useCallback(() => {
     Keyboard.dismiss();
   }, []);
 
-  // [FIXED P0-3 / P1] Backdrop empêchant le contenu (et le texte) de transparaître
-  // Backdrop preventing content/text from showing behind the sheet
-  // [FIXED P1] Opacité augmentée (0.5 → 0.7) : l'EmptyState du sheet n'est plus
-  // visuellement parasité par les textes de l'écran en arrière-plan.
+  // [FIXED P0-3 / P1] Backdrop preventing content/text from showing behind the sheet
+  // [FIXED P1] Opacity raised (0.5 → 0.7): the sheet's EmptyState is no longer
+  // visually cluttered by the texts of the screen in the background.
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
       <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} opacity={0.7} />
@@ -157,14 +163,13 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   );
 
   /**
-   * Gère la sélection d'un résultat.
    * Handles result selection.
    *
-   * @param result - Résultat sélectionné / Selected result
+   * @param result - Selected result
    */
   const handleSelectResult = useCallback(
     (result: GeocodeResult) => {
-      onSelectResult(result, pendingDisplayName || undefined);
+      onSelectResult(result, displayName);
       sheetRef.current?.dismiss();
       setQuery('');
       Keyboard.dismiss();
@@ -173,22 +178,20 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
           'Result selected, sheet closed',
       );
     },
-    [onSelectResult, pendingDisplayName],
+    [onSelectResult, displayName],
   );
 
   /**
-   * Gère le clic sur le bouton GPS.
    * Handles GPS button press.
    */
   const handleUseGps = useCallback(() => {
-    onUseGps(pendingDisplayName || undefined);
-  }, [onUseGps, pendingDisplayName]);
+    onUseGps(displayName);
+  }, [onUseGps, displayName]);
 
   /**
-   * Rendu du contenu conditionnel du bottom sheet.
    * Renders the conditional bottom sheet content.
    *
-   * @returns Le contenu du bottom sheet / The bottom sheet content
+   * @returns The bottom sheet content
    */
   const renderSheetContent = () => {
     const trimmedQuery = query.trim();
@@ -218,8 +221,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     }
 
     if (error != null) {
-      // [FIXED P1] Message d'erreur réseau distinct de "aucun résultat" (ERR-001/003)
-      // Network error message distinct from "no results" (ERR-001/003)
+      // [FIXED P1] Network error message distinct from "no results" (ERR-001/003)
       return (
         <EmptyState
           icon={AlertCircle}
@@ -241,8 +243,8 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     }
 
     return (
-      // [FIXED P1] BottomSheetFlatList : se redimensionne avec le sheet quand le
-      // clavier s'ouvre, donc les résultats restent visibles au-dessus du clavier.
+      // [FIXED P1] BottomSheetFlatList: resizes with the sheet when the keyboard
+      // opens, so the results stay visible above the keyboard.
       <BottomSheetFlatList
         data={results}
         keyExtractor={(item) => item.externalId}
@@ -265,22 +267,25 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   return (
     <>
       <View style={styles.container} testID={testID}>
-        {/* [ADDED] Input nom (optionnel) */}
-        <View style={styles.inputWrapper}>
-          <TextInput
-            value={pendingDisplayName}
-            onChangeText={setPendingDisplayName}
-            placeholder={t('autocomplete.namePlaceholder')}
-            placeholderTextColor={theme.color.text.tertiary}
-            style={[styles.textInput, isDisabled ? styles.inputDisabled : undefined]}
-            editable={!isDisabled}
-            accessibilityLabel={t('autocomplete.nameLabel')}
-            accessibilityHint={t('autocomplete.nameHint')}
-            testID={testID ? `${testID}-name-input` : undefined}
-          />
-        </View>
+        {/* [ADDED] Name input (optional) */}
+        {/* [MODIFIED] F5 — rendered only when showNameField is true */}
+        {showNameField ? (
+          <View style={styles.inputWrapper}>
+            <TextInput
+              value={pendingDisplayName}
+              onChangeText={setPendingDisplayName}
+              placeholder={t('autocomplete.namePlaceholder')}
+              placeholderTextColor={theme.color.text.tertiary}
+              style={[styles.textInput, isDisabled ? styles.inputDisabled : undefined]}
+              editable={!isDisabled}
+              accessibilityLabel={t('autocomplete.nameLabel')}
+              accessibilityHint={t('autocomplete.nameHint')}
+              testID={testID ? `${testID}-name-input` : undefined}
+            />
+          </View>
+        ) : null}
 
-        {/* [MODIFIED] Input adresse — au focus, ouvre le bottom sheet */}
+        {/* [MODIFIED] Address input — opens the bottom sheet on focus */}
         <View style={styles.inputWrapper}>
           <View style={styles.inputWithIcon}>
             <Search size={theme.typography.fontSize.body} color={theme.color.text.tertiary} />
@@ -299,7 +304,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
           </View>
         </View>
 
-        {/* [ADDED] Bouton "Ma position" */}
+        {/* [ADDED] "My location" button */}
         <Pressable
           onPress={handleUseGps}
           disabled={isDisabled || isAddingByGps}
@@ -325,9 +330,9 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         </Pressable>
       </View>
 
-      {/* [ADDED] Bottom Sheet — autocomplete résultats */}
-      {/* [FIXED P1] BottomSheetModal : présenté/dismissé via present()/dismiss(),
-          rendu en overlay racine (plus de champ fantôme dans le ScrollView). */}
+      {/* [ADDED] Bottom Sheet — autocomplete results */}
+      {/* [FIXED P1] BottomSheetModal: presented/dismissed via present()/dismiss(),
+          rendered as a root overlay (no more ghost field in the ScrollView). */}
       <BottomSheetModal
         ref={sheetRef}
         snapPoints={snapPoints}
@@ -342,7 +347,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         {...(testID != null && { testID: `${testID}-bottom-sheet` })}
       >
         <BottomSheetView style={styles.sheetContent}>
-          {/* [ADDED] Input dans le sheet pour continuer la saisie */}
+          {/* [ADDED] Input inside the sheet to keep typing */}
           <View
             style={styles.sheetInputWrapper}
             {...(testID != null && { testID: `${testID}-sheet` })}
@@ -360,9 +365,9 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
             />
           </View>
 
-          {/* [ADDED] Contenu conditionnel */}
-          {/* [FIXED P1] Corps en flex:1 — l'EmptyState/erreur occupe l'espace
-              propre du sheet, sans superposition avec l'input ni le fond. */}
+          {/* [ADDED] Conditional content */}
+          {/* [FIXED P1] Body with flex:1 — the EmptyState/error takes the sheet's
+              own space, without overlapping the input or the background. */}
           <View style={styles.sheetBody}>{renderSheetContent()}</View>
         </BottomSheetView>
       </BottomSheetModal>
@@ -442,11 +447,11 @@ const buildStyles = (theme: Theme) =>
       flex: 1,
       paddingBottom: theme.spacing.lg,
     },
-    // [FIXED P1] Corps du sheet (sous l'input) — occupe l'espace restant
+    // [FIXED P1] Sheet body (below the input) — takes the remaining space
     sheetBody: {
       flex: 1,
     },
-    // [FIXED P1] Padding bas pour que le dernier résultat ne colle pas au clavier
+    // [FIXED P1] Bottom padding so the last result does not stick to the keyboard
     resultsListContent: {
       paddingBottom: theme.spacing.lg,
     },

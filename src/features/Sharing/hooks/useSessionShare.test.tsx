@@ -1,19 +1,18 @@
 /**
  * @file useSessionShare.test.tsx
- * @description Tests unitaires du hook d'orchestration useSessionShare (F5).
- *              Unit tests for the useSessionShare orchestration hook (F5).
+ * @description Unit tests for the useSessionShare orchestration hook (F5).
  *
- *              Couvre : share() → ShareSessionUseCase + Share.share natif,
- *              join() → JoinSessionUseCase + loadSharedSession + state partagé,
- *              gardes (< 2 participants, pas d'user, pas de point de départ),
- *              errorCode exposé, isBusy.
+ *              Covers: share() → ShareSessionUseCase + native Share.share,
+ *              join() → JoinSessionUseCase + loadSharedSession + shared state,
+ *              guards (< 2 participants, no user), exposed errorCode, isBusy.
  *
  * @module features/Sharing/hooks/useSessionShare.test
  */
 
-// [ADDED] F5 — Tests unitaires useSessionShare
+// [ADDED] F5 — useSessionShare unit tests
 import { act, renderHook } from '@testing-library/react-native';
 import { Share } from 'react-native';
+import type { Location } from '@entities/Location';
 import type { MidpointSession, Participant } from '@entities/MidpointSession';
 import {
   SHARE_TTL_GUEST_MS,
@@ -29,16 +28,20 @@ import { useSessionStore } from '@state/useSessionStore';
 import { useSharedSessionStore } from '@state/useSharedSessionStore';
 
 // ─── Mock DI container ──────────────────────────────────────
-// useAuthStore est persisté (zustand persist) → expose un zustandStorage in-memory
-// pour que setState ne casse pas au montage du middleware.
+// useAuthStore is persisted (zustand persist) → expose an in-memory zustandStorage
+// so that setState does not break when the middleware mounts.
 const mockShareExecute = jest.fn();
 const mockJoinExecute = jest.fn();
+// [ADDED] Guest profile created by join() when the device has no user (ADR-004)
+const mockCreateGuestExecute = jest.fn();
 const mockStorage = new Map<string, string>();
 
 jest.mock('@services/serviceContainer', () => ({
   getContainer: jest.fn(() => ({
     shareSessionUseCase: { execute: mockShareExecute },
     joinSessionUseCase: { execute: mockJoinExecute },
+    createGuestUserUseCase: { execute: mockCreateGuestExecute },
+    crashReporter: { setUser: jest.fn() },
     zustandStorage: {
       getItem: (key: string) => mockStorage.get(key) ?? null,
       setItem: (key: string, value: string) => {
@@ -65,6 +68,13 @@ const makeParticipant = (id: string, overrides: Partial<Participant> = {}): Part
   },
   ...overrides,
 });
+
+// [ADDED] Start point chosen on the join screen, distinct from any local participant address
+const START_LOCATION: Location = {
+  id: '9b2f6a1e-3c4d-4e5f-8a9b-0c1d2e3f4a5b',
+  coordinates: { latitude: 45.764, longitude: 4.8357 },
+  formattedAddress: 'Place Bellecour, Lyon',
+};
 
 const makeLocalSession = (participants: Participant[]): MidpointSession => ({
   id: SESSION_ID,
@@ -164,7 +174,7 @@ describe('useSessionShare', () => {
       expect(link).toBe(shareResult.link);
       expect(useSharedSessionStore.getState().isShared).toBe(true);
       expect(useSharedSessionStore.getState().sessionId).toBe(SESSION_ID);
-      // create() → setShared(..., true) : cet appareil est PROPRIÉTAIRE.
+      // create() → setShared(..., true): this device is the OWNER.
       expect(useSharedSessionStore.getState().isOwner).toBe(true);
       expect(shareSpy).toHaveBeenCalledWith({ message: shareResult.link, url: shareResult.link });
     });
@@ -304,7 +314,7 @@ describe('useSessionShare', () => {
         const { result } = renderHook(() => useSessionShare());
 
         await act(async () => {
-          await result.current.join(SESSION_ID);
+          await result.current.join(SESSION_ID, START_LOCATION);
         });
         let link: string | null = null;
         await act(async () => {
@@ -390,7 +400,7 @@ describe('useSessionShare', () => {
         const { result } = renderHook(() => useSessionShare());
 
         await act(async () => {
-          await result.current.join(SESSION_ID);
+          await result.current.join(SESSION_ID, START_LOCATION);
         });
         act(() => {
           useSharedSessionStore.getState().clearShared();
@@ -418,47 +428,74 @@ describe('useSessionShare', () => {
 
       let ok = false;
       await act(async () => {
-        ok = await result.current.join(SESSION_ID);
+        ok = await result.current.join(SESSION_ID, START_LOCATION);
       });
 
       expect(ok).toBe(true);
       expect(mockJoinExecute).toHaveBeenCalledWith(
         expect.objectContaining({ sessionId: SESSION_ID }),
       );
-      // session locale reconstruite
+      // local session rebuilt
       expect(useSessionStore.getState().session?.participants).toHaveLength(2);
-      // store partagé synchronisé
+      // shared store synced
       const shared = useSharedSessionStore.getState();
       expect(shared.isShared).toBe(true);
       expect(shared.sessionId).toBe(SESSION_ID);
-      // join() → setShared(..., false) : simple membre, PAS propriétaire.
+      // join() → setShared(..., false): plain member, NOT owner.
       expect(shared.isOwner).toBe(false);
       expect(shared.members).toHaveLength(2);
       expect(shared.status).toBe('synced');
     });
 
-    it('builds the member from the current user + their local start location', async () => {
+    // [MODIFIED] The member carries the start point passed to join(), not the local participant's.
+    it('builds the member from the current user + the start location passed to join', async () => {
       useSessionStore.setState({
         session: makeLocalSession([makeParticipant(USER_ID), makeParticipant('other')]),
       });
       const { result } = renderHook(() => useSessionShare());
 
       await act(async () => {
-        await result.current.join(SESSION_ID);
+        await result.current.join(SESSION_ID, START_LOCATION);
       });
 
       const member = (mockJoinExecute.mock.calls[0]?.[0] as { member: SharedSessionMember }).member;
       expect(member.memberId).toBe(USER_ID);
-      expect(member.startLocation.formattedAddress).toBe(`Adresse ${USER_ID}`);
+      expect(member.startLocation).toEqual({
+        latitude: START_LOCATION.coordinates.latitude,
+        longitude: START_LOCATION.coordinates.longitude,
+        formattedAddress: START_LOCATION.formattedAddress,
+      });
     });
 
-    it('fails with no_user when there is no signed-in user', async () => {
+    // [MODIFIED] Replaces "fails with no_user when there is no signed-in user": a device without
+    // a profile now gets a guest profile (ADR-004) and joins.
+    it('creates a guest profile, then joins, when the device has no user', async () => {
       useAuthStore.setState({ user: null, isAuthenticated: false });
+      mockCreateGuestExecute.mockReturnValue(guestUser);
+      const { result } = renderHook(() => useSessionShare());
+
+      let ok = false;
+      await act(async () => {
+        ok = await result.current.join(SESSION_ID, START_LOCATION);
+      });
+
+      expect(ok).toBe(true);
+      expect(mockCreateGuestExecute).toHaveBeenCalledTimes(1);
+      expect(useAuthStore.getState().user).toEqual(guestUser);
+      const member = (mockJoinExecute.mock.calls[0]?.[0] as { member: SharedSessionMember }).member;
+      expect(member.memberId).toBe(USER_ID);
+    });
+
+    // [MODIFIED] Replaces "fails with no_location ...": `no_location` no longer exists. `no_user`
+    // stays as a defensive guard, should the guest creation leave no user.
+    it('fails with no_user when the guest creation leaves no user', async () => {
+      useAuthStore.setState({ user: null, isAuthenticated: false });
+      jest.spyOn(useAuthStore.getState(), 'signInAsGuest').mockImplementation(() => undefined);
       const { result } = renderHook(() => useSessionShare());
 
       let ok = true;
       await act(async () => {
-        ok = await result.current.join(SESSION_ID);
+        ok = await result.current.join(SESSION_ID, START_LOCATION);
       });
 
       expect(ok).toBe(false);
@@ -466,20 +503,61 @@ describe('useSessionShare', () => {
       expect(mockJoinExecute).not.toHaveBeenCalled();
     });
 
-    it('fails with no_location when the user has no local start location', async () => {
-      // Session locale sans participant correspondant à l'user (et >1 participant).
-      useSessionStore.setState({
-        session: makeLocalSession([makeParticipant('x'), makeParticipant('y')]),
+    // [ADDED] Condition 1 + 3: the guest exists before the join use case runs, and the member
+    // carries the start point chosen on the join screen (the device has no local session).
+    it('creates the guest before the join use case, with the chosen start location', async () => {
+      useAuthStore.setState({ user: null, isAuthenticated: false });
+      mockCreateGuestExecute.mockReturnValue(guestUser);
+      const { result } = renderHook(() => useSessionShare());
+
+      await act(async () => {
+        await result.current.join(SESSION_ID, START_LOCATION);
+      });
+
+      const guestOrder = mockCreateGuestExecute.mock.invocationCallOrder[0] ?? Infinity;
+      const joinOrder = mockJoinExecute.mock.invocationCallOrder[0] ?? -Infinity;
+      expect(guestOrder).toBeLessThan(joinOrder);
+      expect(mockJoinExecute).toHaveBeenCalledWith({
+        sessionId: SESSION_ID,
+        member: {
+          memberId: USER_ID,
+          displayName: guestUser.displayName,
+          startLocation: {
+            latitude: START_LOCATION.coordinates.latitude,
+            longitude: START_LOCATION.coordinates.longitude,
+            formattedAddress: START_LOCATION.formattedAddress,
+          },
+        },
+      });
+    });
+
+    it('does not create a guest when a user is already signed in', async () => {
+      const { result } = renderHook(() => useSessionShare());
+
+      await act(async () => {
+        await result.current.join(SESSION_ID, START_LOCATION);
+      });
+
+      expect(mockCreateGuestExecute).not.toHaveBeenCalled();
+      expect(mockJoinExecute).toHaveBeenCalledTimes(1);
+    });
+
+    it('fails with unknown, without joining, when the guest creation throws', async () => {
+      useAuthStore.setState({ user: null, isAuthenticated: false });
+      mockCreateGuestExecute.mockImplementationOnce(() => {
+        throw new Error('invalid guest');
       });
       const { result } = renderHook(() => useSessionShare());
 
       let ok = true;
       await act(async () => {
-        ok = await result.current.join(SESSION_ID);
+        ok = await result.current.join(SESSION_ID, START_LOCATION);
       });
 
       expect(ok).toBe(false);
-      expect(result.current.errorCode).toBe('no_location');
+      expect(result.current.errorCode).toBe('unknown');
+      expect(result.current.isBusy).toBe(false);
+      expect(useSharedSessionStore.getState().status).toBe('error');
       expect(mockJoinExecute).not.toHaveBeenCalled();
     });
 
@@ -490,7 +568,7 @@ describe('useSessionShare', () => {
 
       let ok = true;
       await act(async () => {
-        ok = await result.current.join(SESSION_ID);
+        ok = await result.current.join(SESSION_ID, START_LOCATION);
       });
 
       expect(ok).toBe(false);

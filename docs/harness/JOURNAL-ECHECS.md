@@ -83,6 +83,8 @@
 | J-066 | Règles RTDB refusant le partage F5, invisible à Firebase mocké      | OUVERT  |
 | J-067 | Marqueur live sous 3:1 sur la tuile, hors du modèle de contraste    | RÉSOLU  |
 | J-068 | Refus de localisation affiché comme un refus du service temps réel  | RÉSOLU  |
+| J-069 | Écran déplacé, ancien chemin dans l'arborescence hors `docclaims`   | RÉSOLU  |
+| J-070 | Rôle propriétaire lu après `clearShared`, chemin sans écran         | RÉSOLU  |
 
 ---
 
@@ -3161,3 +3163,89 @@ sien : ils rougissent sur l'ancien `toErrorCode` (vérifié en retirant le corre
 Reste non couvert par un capteur : un nouveau code partagé entre deux domaines d'erreur. Le
 reviewer vérifie, pour tout mapping vers une clé i18n, que chaque code source a le sens du texte
 affiché.
+
+## J-069 — Écran déplacé, ancien chemin dans l'arborescence d'`ARCHITECTURE.md`, hors de `docclaims`
+
+**Date** : 2026-11-26 · **Statut** : RÉSOLU pour l'occurrence (`fix/jonction-invite-fin-de-session`) ;
+la règle proposée reste à appliquer par Cédric
+
+**Observé.** Le lot a déplacé `JoinSessionScreen` de `src/features/Sharing/screens/` vers
+`src/features/Session/screens/JoinSessionScreen/`. `ARCHITECTURE.md` plaçait toujours l'écran dans
+Sharing (ligne `Sharing/ … screens/JoinSessionScreen/` de l'arborescence), et `npm run check`
+restait vert. C'est la relecture des docs qui l'a vu. La même relecture a trouvé deux chemins morts
+plus anciens dans le même fichier : `navigation/linking.ts` et `navigation/types.ts`, alors que le
+dossier est `src/navigations/`.
+
+**Cause.** `docclaims` (`scripts/check-docs-claims.py`) ne teste que les chemins **entre
+backticks qui commencent par `src/`**, et il **saute les blocs de code**. Or l'arborescence de
+`ARCHITECTURE.md` est un bloc de code, dont les chemins sont relatifs à leur ligne
+(`Sharing/` + `screens/JoinSessionScreen/`), et le texte cite souvent des chemins sans le préfixe
+`src/` (`navigation/linking.ts`, `features/Session/components/`). Le capteur annonce cette limite
+dans son en-tête (« only `src/` paths are checked for existence ») : il n'est pas faux, il ne
+regarde pas là où la doc décrit l'arbre.
+
+**Correctif.** Arborescence corrigée (Session porte `JoinSessionScreen`, `components/`,
+`useJoinStartPoint` ; Sharing n'a plus d'écran ; `gpsFailureCode` sous `domain/geolocation/`),
+chemins `navigations/` corrigés.
+
+**Règle proposée (à appliquer par Cédric).** Étendre `docclaims` à deux formes de chemin qu'il ne
+lit pas :
+
+1. L'arborescence de `ARCHITECTURE.md` (bloc sous « Arborescence réelle de `src/` ») : pour chaque
+   ligne de feature, développer `screens/{A,B}/`, `hooks/{x,y}` et `components/{…}` en chemins
+   `src/features/<Feature>/…` et vérifier qu'ils existent (un hook = `x.ts` ou `x.tsx`). Le sens
+   inverse, chaque dossier de `src/features/*/screens/` présent dans l'arborescence, aurait aussi
+   vu l'écran absent de la ligne Session.
+2. Les chemins entre backticks d'une doc de contexte qui commencent par un dossier de premier niveau
+   de `src/` (`features/`, `services/`, `navigations/`, `components/`…) : les résoudre depuis
+   `src/`. Cela aurait vu `navigation/linking.ts`.
+
+Le seul test « chaque chemin `src/…` cité existe » ne suffit pas : il est déjà en place, et les
+trois chemins morts lui échappaient.
+
+**Numérotation.** La branche `fix/ios-sdk-27` (non fusionnée) numérote aussi J-065 et J-066, avec
+d'autres sujets que ceux de ce fichier : collision à résoudre à la fusion. J-069 n'y est pas pris.
+
+## J-070 — Rôle propriétaire lu après `clearShared`, dans un chemin qu'aucun écran n'atteint
+
+**Date** : 2026-11-26 · **Statut** : RÉSOLU pour l'occurrence (`fix/jonction-invite-fin-de-session`) ;
+la règle de test est en place, la piste de capteur reste à évaluer par Cédric
+
+**Observé.** Défaut latent, trouvé par le reviewer et non par le harness : `npm run check` était
+vert. `useSharedSessionSync` lisait `isOwner` à l'arrivée de l'événement « nœud supprimé ». Or
+`useCreateSessionFlow.reset` enchaîne `deleteSharedSession`, puis `clearShared()`, qui remet
+`isOwner` à false, puis `resetSession`. RNFirebase livre l'événement null de façon asynchrone,
+donc après `clearShared()` : le propriétaire qui termine sa session aurait pris le chemin membre,
+avec `stop()` du suivi et l'alerte « session terminée » sur son propre appareil. Latent, parce
+qu'aucun écran n'appelle `reset` aujourd'hui : le nœud ne disparaît que par la purge à
+expiration (`purgeExpiredSessions`).
+
+**Cause.** Les tests du hook posaient `isOwner: true` dans le store, puis déclenchaient la
+suppression : ils ne passaient jamais par le vrai `reset`, qui change le rôle avant l'événement.
+L'ordre réel (`clearShared` avant le null de RNFirebase) n'existait dans aucun test. Et la doc
+décrivait le chemin propriétaire (« le propriétaire, qui a lui-même terminé la session… ») comme
+s'il avait une interface.
+
+**Correctif.** `useSharedSessionSync` lit le rôle au moment de l'abonnement
+(`useSharedSessionStore.getState()` dans le corps de l'effet). `setShared` pose `isOwner` avec
+`sessionId`, qui figure déjà dans les dépendances de l'effet : une nouvelle session réabonne et
+relit le rôle. Tests ajoutés dans `useSharedSessionSync.test.tsx` : rôle lu à l'abonnement,
+suppression arrivée après `clearShared()`, rôle de la dernière souscription après réabonnement.
+Doc corrigée : le chemin propriétaire est prêt, mais aucun écran ne termine la session (TODO,
+« Bouton “Terminer la session” », ⚠️ À SPÉCIFIER).
+
+**Règle proposée.** Un hook qui réagit à un événement distant provoqué par un autre hook se teste
+avec ce hook réel, dans l'ordre réel : monter `useSharedSessionSync` avec le vrai
+`useCreateSessionFlow`, appeler `reset()`, puis déclencher l'événement null de façon asynchrone
+(dans le mock de `deleteSharedSession`, après un `await`). Ce test existe : « owner: reset() of the
+creation flow followed by an async removal neither resets nor calls back ». Il n'a pas été
+rejoué contre l'ancienne lecture du rôle dans cette passe de doc ; par construction, il attend
+`resetSession` appelé une seule fois et aucun appel à `onEndedRemotely`, ce que l'ancien code
+violait.
+
+**Piste du reviewer (à évaluer par Cédric).** Un capteur qui signale les méthodes exposées par un
+hook qu'aucun écran ne consomme (ici `useCreateSessionFlow.reset`, appelée seulement par les
+tests). Une telle méthode révèle un chemin documenté mais inatteignable : la doc et les tests le
+décrivent, l'utilisateur ne peut pas le provoquer, et le plan de test sur appareil (T9) ne peut
+pas l'exercer. Limites à trancher : les hooks consommés par d'autres hooks, les méthodes gardées
+volontairement pour une feature à venir (liste d'exceptions justifiées).

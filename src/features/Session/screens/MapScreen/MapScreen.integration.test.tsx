@@ -24,6 +24,7 @@ import MapScreen from '@features/Session/screens/MapScreen/MapScreen';
 import {
   SessionShareError,
   type CreateSharedSessionResult,
+  type SharedSessionUpdateHandler,
 } from '@services/domain/sharing/ISessionShareService'; // [ADDED] F5
 import { useAuthStore } from '@state/useAuthStore'; // [ADDED] F5
 import { useRealtimeStore } from '@state/useRealtimeStore';
@@ -524,6 +525,74 @@ describe('MapScreen integration', () => {
           'Impossible de partager la session',
           'Connexion perdue. Vérifie ta connexion internet.',
         );
+      });
+    });
+
+    describe('session ended remotely', () => {
+      let capturedHandler: SharedSessionUpdateHandler | undefined;
+
+      beforeEach(() => {
+        capturedHandler = undefined;
+        mockSubscribeToSharedSession.mockImplementation(
+          (_sessionId: string, handler: SharedSessionUpdateHandler) => {
+            capturedHandler = handler;
+            return mockUnsubscribe;
+          },
+        );
+        useSessionStore.setState({ session: computedSession });
+      });
+
+      it('member: stops the tracking, then alerts that the session has ended', () => {
+        useSharedSessionStore.setState({
+          isShared: true,
+          isOwner: false,
+          sessionId: 'session-001',
+        });
+        render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+
+        act(() => {
+          capturedHandler?.(null);
+        });
+
+        expect(mockStop).toHaveBeenCalledTimes(1);
+        expect(alertSpy).toHaveBeenCalledTimes(1);
+        expect(alertSpy).toHaveBeenCalledWith('share:ended.title', 'share:ended.message');
+        const stopOrder = mockStop.mock.invocationCallOrder[0] ?? Infinity;
+        const alertOrder = alertSpy.mock.invocationCallOrder[0] ?? -Infinity;
+        expect(stopOrder).toBeLessThan(alertOrder);
+      });
+
+      it('member: falls back to the "no session" empty state once the copy is purged', () => {
+        useSharedSessionStore.setState({
+          isShared: true,
+          isOwner: false,
+          sessionId: 'session-001',
+        });
+        render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+
+        act(() => {
+          capturedHandler?.(null);
+        });
+
+        expect(useSessionStore.getState().session).toBeNull();
+        expect(screen.getByText('Aucune session active')).toBeTruthy();
+      });
+
+      it('owner: neither stops the tracking nor alerts', () => {
+        useSharedSessionStore.setState({
+          isShared: true,
+          isOwner: true,
+          sessionId: 'session-001',
+        });
+        render(<MapScreen />, { wrapper: createQueryClientWrapper() });
+
+        act(() => {
+          capturedHandler?.(null);
+        });
+
+        expect(mockStop).not.toHaveBeenCalled();
+        expect(alertSpy).not.toHaveBeenCalled();
+        expect(useSharedSessionStore.getState().isShared).toBe(false);
       });
     });
   });

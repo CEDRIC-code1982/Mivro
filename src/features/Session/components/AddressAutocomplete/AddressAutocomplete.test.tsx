@@ -328,4 +328,73 @@ describe('AddressAutocomplete', () => {
       expect(getByTestId('mock-backdrop')).toBeTruthy();
     });
   });
+
+  describe('showNameField', () => {
+    it('renders the name input by default', () => {
+      const { getByTestId } = render(
+        <AddressAutocomplete {...defaultProps} testID="autocomplete" />,
+      );
+
+      expect(getByTestId('autocomplete-name-input')).toBeTruthy();
+    });
+
+    it('does not render the name input when showNameField is false', () => {
+      const { queryByTestId, getByTestId } = render(
+        <AddressAutocomplete {...defaultProps} showNameField={false} testID="autocomplete" />,
+      );
+
+      expect(queryByTestId('autocomplete-name-input')).toBeNull();
+      expect(getByTestId('autocomplete-address-input')).toBeTruthy();
+      expect(getByTestId('autocomplete-gps-button')).toBeTruthy();
+    });
+
+    it('passes an undefined displayName to onUseGps when showNameField is false', () => {
+      const { getByTestId } = render(
+        <AddressAutocomplete {...defaultProps} showNameField={false} testID="autocomplete" />,
+      );
+
+      fireEvent.press(getByTestId('autocomplete-gps-button'));
+
+      expect(defaultProps.onUseGps).toHaveBeenCalledTimes(1);
+      expect(defaultProps.onUseGps).toHaveBeenCalledWith(undefined);
+    });
+
+    it('passes an undefined displayName to onSelectResult when showNameField is false', () => {
+      mockUseGeocodeQuery.mockReturnValue({
+        data: fakeResults,
+        isLoading: false,
+        error: null,
+      });
+      const { getByTestId } = render(
+        <AddressAutocomplete {...defaultProps} showNameField={false} testID="autocomplete" />,
+      );
+
+      fireEvent.changeText(getByTestId('autocomplete-address-input'), 'Tour Eiffel');
+      fireEvent.press(getByTestId('autocomplete-result-osm-12345'));
+
+      expect(defaultProps.onSelectResult).toHaveBeenCalledWith(fakeResults[0], undefined);
+    });
+
+    it('drops a name typed before the field was hidden', () => {
+      mockUseGeocodeQuery.mockReturnValue({
+        data: fakeResults,
+        isLoading: false,
+        error: null,
+      });
+      const { getByTestId, rerender } = render(
+        <AddressAutocomplete {...defaultProps} testID="autocomplete" />,
+      );
+      fireEvent.changeText(getByTestId('autocomplete-name-input'), 'Sophie');
+
+      rerender(
+        <AddressAutocomplete {...defaultProps} showNameField={false} testID="autocomplete" />,
+      );
+      fireEvent.press(getByTestId('autocomplete-gps-button'));
+      fireEvent.changeText(getByTestId('autocomplete-address-input'), 'Tour Eiffel');
+      fireEvent.press(getByTestId('autocomplete-result-osm-12345'));
+
+      expect(defaultProps.onUseGps).toHaveBeenCalledWith(undefined);
+      expect(defaultProps.onSelectResult).toHaveBeenCalledWith(fakeResults[0], undefined);
+    });
+  });
 });

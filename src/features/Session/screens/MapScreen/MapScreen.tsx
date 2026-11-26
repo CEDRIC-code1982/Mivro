@@ -43,7 +43,7 @@ import { useSharedSessionStore } from '@state/useSharedSessionStore'; // [ADDED]
 /**
  * Map Screen F2 — displays the calculated midpoint on an interactive map.
  *
- * @returns Composant MapScreen / MapScreen component
+ * @returns MapScreen component
  */
 const MapScreen: React.FC = () => {
   const { t } = useTranslation('map');
@@ -68,7 +68,15 @@ const MapScreen: React.FC = () => {
   // [ADDED] F5 — LIVE sync: while the session is shared, subscribe to the roster and to the
   // midpoint recomputed live (the hook unsubscribes on unmount). Inert if the session is not
   // shared.
-  useSharedSessionSync();
+  // [MODIFIED] "Fin de session côté invité": on a member's device, the hook purges the local copy
+  // of a session ended remotely (the screen then shows its "no session" empty state), and calls
+  // back here to stop the tracking and tell the guest. `stop()` also purges the real-time store,
+  // sharing consent included (`stopTracking` resets it to its initial state).
+  const handleSessionEndedRemotely = useCallback(() => {
+    stop();
+    Alert.alert(t('share:ended.title'), t('share:ended.message'));
+  }, [stop, t]);
+  useSharedSessionSync({ onEndedRemotely: handleSessionEndedRemotely });
 
   const handleShareSession = useCallback(() => {
     // [MAJEUR 3 — ERR-003] The failure can NO LONGER be swallowed: wait for the result (link or

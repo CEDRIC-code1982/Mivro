@@ -11,6 +11,15 @@
     "shared": "Invite link ready to share"
   },
   "join": {
+    "startPointTitle": "Where are you starting from?",
+    "startPointDescription": "Set your start point: the meeting point will be recomputed with it.",
+    "locatingTitle": "Locating you…",
+    "selectedTitle": "Your start point",
+    "gpsAddressUnresolved": "Address not found offline: your GPS position will be used as is.",
+    "confirm": "Join",
+    "confirmHint": "Joins the session with this start point",
+    "change": "Change",
+    "changeHint": "Pick another start point",
     "loadingTitle": "Connecting to the session…",
     "loadingDescription": "Fetching the meeting point and participants.",
     "loadingAccessibilityLabel": "Connecting to the session",
@@ -18,7 +27,20 @@
     "successDescription": "The meeting point was recomputed with your location.",
     "openMap": "View map",
     "retry": "Try again",
-    "cancel": "Cancel"
+    "retryHint": "Tries to join the session again with the same start point",
+    "cancel": "Cancel",
+    "cancelHint": "Gives up joining the session and goes back to the create screen"
+  },
+  "startPointErrors": {
+    "gps_permission_denied": "Location permission denied. Turn it on in the settings.",
+    "gps_unavailable": "Location service unavailable.",
+    "gps_timeout": "Getting your location took too long. Try again.",
+    "gps_inaccurate": "Location too imprecise. Try outdoors.",
+    "gps_unknown": "Could not get your location. Try again."
+  },
+  "ended": {
+    "title": "Session ended",
+    "message": "This session has ended or expired. The other participants' addresses were removed from your device."
   },
   "errors": {
     "title": "Could not join the session",
@@ -30,7 +52,6 @@
     "network": "Connection lost. Check your internet connection.",
     "permission_denied": "Access to the sharing service was denied.",
     "invalid_data": "Invalid session data received.",
-    "no_location": "Your start location is required to join.",
     "no_user": "You must be signed in to join a session.",
     "unknown": "An unexpected error occurred."
   }

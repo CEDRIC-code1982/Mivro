@@ -1,19 +1,23 @@
 /**
  * @file useSharedSessionSync.test.tsx
- * @description Tests unitaires du hook d'orchestration useSharedSessionSync (F5).
- *              Unit tests for the useSharedSessionSync orchestration hook (F5).
+ * @description Unit tests for the useSharedSessionSync orchestration hook (F5).
  *
- *              Couvre : souscription quand `isShared && sessionId` (appel à
- *              `subscribeToSharedSession`), propagation du callback distant
- *              (→ `syncFromRemote` + `useSessionStore.loadSharedSession`), purge
- *              RGPD (`clearShared`) quand le nœud disparaît (callback `null`),
- *              désabonnement au démontage ET au changement de sessionId, inerte
- *              en mode non partagé.
+ *              Covers: subscription when `isShared && sessionId` (call to
+ *              `subscribeToSharedSession`), propagation of the remote callback
+ *              (→ `syncFromRemote` + `useSessionStore.loadSharedSession`), GDPR
+ *              purge (`clearShared`) when the node disappears (`null` callback),
+ *              unsubscription on unmount AND on sessionId change, inert in
+ *              non-shared mode.
+ *              [MODIFIED] The role (`isOwner`) is the one captured when the hook subscribes:
+ *              an owner whose `clearShared()` ran before the null event (as in
+ *              `useCreateSessionFlow.reset`) still takes the owner path. One case renders the real
+ *              `useCreateSessionFlow` next to the hook, with the null event delivered
+ *              asynchronously after `deleteSharedSession`.
  *
  * @module features/Sharing/hooks/useSharedSessionSync.test
  */
 
-// [ADDED] F5 — Tests unitaires useSharedSessionSync
+// [ADDED] F5 — useSharedSessionSync unit tests
 import { act, renderHook } from '@testing-library/react-native';
 import {
   SHARE_TTL_GUEST_MS,
@@ -21,6 +25,7 @@ import {
   type SharedSessionMember,
   type SharedSessionMeta,
 } from '@entities/SharedSession';
+import { useCreateSessionFlow } from '@features/Session/hooks/useCreateSessionFlow';
 import { useSharedSessionSync } from '@features/Sharing/hooks/useSharedSessionSync';
 import type { SharedSessionUpdateHandler } from '@services/domain/sharing/ISessionShareService';
 import { useSessionStore } from '@state/useSessionStore';
@@ -28,13 +33,24 @@ import { useSharedSessionStore } from '@state/useSharedSessionStore';
 
 // ─── Mock DI container ──────────────────────────────────────
 const mockSubscribe = jest.fn();
+const mockDeleteSharedSession = jest.fn<Promise<void>, [string]>();
 
 jest.mock('@services/serviceContainer', () => ({
   getContainer: jest.fn(() => ({
     sessionShareService: {
       subscribeToSharedSession: mockSubscribe,
+      deleteSharedSession: mockDeleteSharedSession,
     },
   })),
+}));
+
+// ─── Mocks needed by the real useCreateSessionFlow (integration case) ─
+jest.mock('uuid', () => ({
+  v4: () => 'test-uuid-0001',
+}));
+
+jest.mock('@features/Profile/hooks/useAuth', () => ({
+  useAuthUser: () => null,
 }));
 
 const NOW = 1_700_000_000_000;
@@ -96,7 +112,7 @@ describe('useSharedSessionSync', () => {
     jest.restoreAllMocks();
   });
 
-  // ─── Non partagé (inerte) ─────────────────────────────────
+  // ─── Not shared (inert) ───────────────────────────────────
   describe('inert when not shared', () => {
     it('does NOT subscribe when isShared is false', () => {
       renderHook(() => useSharedSessionSync());
@@ -113,7 +129,7 @@ describe('useSharedSessionSync', () => {
     });
   });
 
-  // ─── Souscription ─────────────────────────────────────────
+  // ─── Subscription ─────────────────────────────────────────
   describe('subscription', () => {
     it('subscribes to the shared session when isShared && sessionId', () => {
       useSharedSessionStore.setState({ isShared: true, sessionId: SESSION_ID });
@@ -125,7 +141,7 @@ describe('useSharedSessionSync', () => {
     });
   });
 
-  // ─── Propagation des mises à jour distantes ───────────────
+  // ─── Remote update propagation ───────────────────────────
   describe('remote update propagation', () => {
     it('propagates a remote update to syncFromRemote + loadSharedSession', () => {
       useSharedSessionStore.setState({ isShared: true, sessionId: SESSION_ID });
@@ -177,7 +193,7 @@ describe('useSharedSessionSync', () => {
     });
   });
 
-  // ─── Purge RGPD quand le nœud disparaît ───────────────────
+  // ─── GDPR purge when the node disappears ──────────────────
   describe('remote removal (GDPR purge)', () => {
     it('clears the shared state when the node disappears (callback null)', () => {
       useSharedSessionStore.setState({
@@ -212,7 +228,185 @@ describe('useSharedSessionSync', () => {
     });
   });
 
-  // ─── Désabonnement (cleanup) ──────────────────────────────
+  describe('session ended remotely', () => {
+    it('member: clears the shared state, resets the local session, then calls back, in order', () => {
+      useSharedSessionStore.setState({ isShared: true, isOwner: false, sessionId: SESSION_ID });
+      const clearSpy = jest.spyOn(useSharedSessionStore.getState(), 'clearShared');
+      const resetSpy = jest.spyOn(useSessionStore.getState(), 'resetSession');
+      const onEndedRemotely = jest.fn();
+
+      renderHook(() => useSharedSessionSync({ onEndedRemotely }));
+      act(() => {
+        capturedHandler?.(null);
+      });
+
+      expect(clearSpy).toHaveBeenCalledTimes(1);
+      expect(resetSpy).toHaveBeenCalledTimes(1);
+      expect(onEndedRemotely).toHaveBeenCalledTimes(1);
+      const clearOrder = clearSpy.mock.invocationCallOrder[0] ?? Infinity;
+      const resetOrder = resetSpy.mock.invocationCallOrder[0] ?? Infinity;
+      const callbackOrder = onEndedRemotely.mock.invocationCallOrder[0] ?? -Infinity;
+      expect(clearOrder).toBeLessThan(resetOrder);
+      expect(resetOrder).toBeLessThan(callbackOrder);
+    });
+
+    it('member: purges the local copy of the session', () => {
+      useSharedSessionStore.setState({ isShared: true, isOwner: false, sessionId: SESSION_ID });
+      renderHook(() => useSharedSessionSync());
+      act(() => {
+        capturedHandler?.(makeShared());
+      });
+      expect(useSessionStore.getState().session).not.toBeNull();
+
+      act(() => {
+        capturedHandler?.(null);
+      });
+
+      expect(useSessionStore.getState().session).toBeNull();
+      expect(useSharedSessionStore.getState().isShared).toBe(false);
+    });
+
+    it('member: works without a callback', () => {
+      useSharedSessionStore.setState({ isShared: true, isOwner: false, sessionId: SESSION_ID });
+      const resetSpy = jest.spyOn(useSessionStore.getState(), 'resetSession');
+
+      renderHook(() => useSharedSessionSync());
+
+      expect(() =>
+        act(() => {
+          capturedHandler?.(null);
+        }),
+      ).not.toThrow();
+      expect(resetSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('owner: only clears the shared state, without reset nor callback', () => {
+      useSharedSessionStore.setState({ isShared: true, isOwner: true, sessionId: SESSION_ID });
+      const clearSpy = jest.spyOn(useSharedSessionStore.getState(), 'clearShared');
+      const resetSpy = jest.spyOn(useSessionStore.getState(), 'resetSession');
+      const onEndedRemotely = jest.fn();
+
+      renderHook(() => useSharedSessionSync({ onEndedRemotely }));
+      act(() => {
+        capturedHandler?.(null);
+      });
+
+      expect(clearSpy).toHaveBeenCalledTimes(1);
+      expect(resetSpy).not.toHaveBeenCalled();
+      expect(onEndedRemotely).not.toHaveBeenCalled();
+    });
+
+    it('reads the role when it subscribes, not when the removal arrives', () => {
+      useSharedSessionStore.setState({ isShared: true, isOwner: false, sessionId: SESSION_ID });
+      const resetSpy = jest.spyOn(useSessionStore.getState(), 'resetSession');
+      const onEndedRemotely = jest.fn();
+      renderHook(() => useSharedSessionSync({ onEndedRemotely }));
+
+      // Role flipped without a sessionId change: no re-subscription, the captured role stays.
+      act(() => {
+        useSharedSessionStore.setState({ isOwner: true });
+      });
+      act(() => {
+        capturedHandler?.(null);
+      });
+
+      expect(mockSubscribe).toHaveBeenCalledTimes(1);
+      expect(resetSpy).toHaveBeenCalledTimes(1);
+      expect(onEndedRemotely).toHaveBeenCalledTimes(1);
+    });
+
+    it('owner: a removal arriving after clearShared() still takes the owner path', () => {
+      useSharedSessionStore.setState({ isShared: true, isOwner: true, sessionId: SESSION_ID });
+      const resetSpy = jest.spyOn(useSessionStore.getState(), 'resetSession');
+      const onEndedRemotely = jest.fn();
+      renderHook(() => useSharedSessionSync({ onEndedRemotely }));
+
+      // Same order as `useCreateSessionFlow.reset`: the shared state (isOwner included) is purged
+      // before the backend delivers the null event.
+      act(() => {
+        useSharedSessionStore.getState().clearShared();
+      });
+      expect(useSharedSessionStore.getState().isOwner).toBe(false);
+      act(() => {
+        capturedHandler?.(null);
+      });
+
+      expect(resetSpy).not.toHaveBeenCalled();
+      expect(onEndedRemotely).not.toHaveBeenCalled();
+    });
+
+    it('uses the role of the latest subscription after a re-subscription', () => {
+      useSharedSessionStore.setState({ isShared: true, isOwner: false, sessionId: SESSION_ID });
+      const resetSpy = jest.spyOn(useSessionStore.getState(), 'resetSession');
+      const onEndedRemotely = jest.fn();
+      renderHook(() => useSharedSessionSync({ onEndedRemotely }));
+
+      // `setShared`-like change: new sessionId and new role together, hence a new subscription.
+      act(() => {
+        useSharedSessionStore.setState({ isOwner: true, sessionId: 'session-002' });
+      });
+      expect(mockSubscribe).toHaveBeenCalledTimes(2);
+      act(() => {
+        capturedHandler?.(null);
+      });
+
+      expect(resetSpy).not.toHaveBeenCalled();
+      expect(onEndedRemotely).not.toHaveBeenCalled();
+    });
+
+    it('owner: reset() of the creation flow followed by an async removal neither resets nor calls back', async () => {
+      useSessionStore.getState().createSession();
+      useSharedSessionStore.setState({ isShared: true, isOwner: true, sessionId: SESSION_ID });
+      // The backend delivers the null event asynchronously, once the deletion has been sent —
+      // i.e. after `reset` has already run `clearShared()` (isOwner back to false).
+      mockDeleteSharedSession.mockImplementation(async () => {
+        await Promise.resolve();
+        capturedHandler?.(null);
+      });
+      const resetSpy = jest.spyOn(useSessionStore.getState(), 'resetSession');
+      const onEndedRemotely = jest.fn();
+      const { result } = renderHook(() => {
+        useSharedSessionSync({ onEndedRemotely });
+        return useCreateSessionFlow();
+      });
+
+      await act(async () => {
+        result.current.reset();
+        await Promise.resolve();
+      });
+
+      expect(mockDeleteSharedSession).toHaveBeenCalledWith(SESSION_ID);
+      expect(useSharedSessionStore.getState().isShared).toBe(false);
+      // Only the flow's own reset: the sync hook did not take the member path.
+      expect(resetSpy).toHaveBeenCalledTimes(1);
+      expect(onEndedRemotely).not.toHaveBeenCalled();
+    });
+
+    it('does not re-subscribe when the callback changes between renders, and calls the latest', () => {
+      useSharedSessionStore.setState({ isShared: true, isOwner: false, sessionId: SESSION_ID });
+      const first = jest.fn();
+      const second = jest.fn();
+
+      const { rerender } = renderHook(
+        ({ onEndedRemotely }: { onEndedRemotely: () => void }) =>
+          useSharedSessionSync({ onEndedRemotely }),
+        { initialProps: { onEndedRemotely: first } },
+      );
+      rerender({ onEndedRemotely: second });
+
+      expect(mockSubscribe).toHaveBeenCalledTimes(1);
+      expect(unsubscribe).not.toHaveBeenCalled();
+
+      act(() => {
+        capturedHandler?.(null);
+      });
+
+      expect(first).not.toHaveBeenCalled();
+      expect(second).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ─── Unsubscription (cleanup) ─────────────────────────────
   describe('unsubscription (cleanup)', () => {
     it('unsubscribes on unmount', () => {
       useSharedSessionStore.setState({ isShared: true, sessionId: SESSION_ID });
@@ -236,7 +430,7 @@ describe('useSharedSessionSync', () => {
       });
       rerender(undefined);
 
-      // L'ancien abonnement est coupé puis un nouveau est ouvert sur le nouvel id.
+      // The old subscription is closed, then a new one is opened on the new id.
       expect(unsubscribe).toHaveBeenCalledTimes(1);
       expect(mockSubscribe).toHaveBeenCalledTimes(2);
       expect(mockSubscribe).toHaveBeenLastCalledWith('session-002', expect.any(Function));
@@ -254,7 +448,7 @@ describe('useSharedSessionSync', () => {
       rerender(undefined);
 
       expect(unsubscribe).toHaveBeenCalledTimes(1);
-      // Pas de nouvel abonnement : on est sorti du mode partagé.
+      // No new subscription: shared mode has been left.
       expect(mockSubscribe).toHaveBeenCalledTimes(1);
     });
   });
