@@ -22,8 +22,10 @@ with this SDK » ; « Ok, on suit ta reco, applique-le ».
 
 **Hors périmètre explicite** :
 
-- Tests sur appareil des liens `mivro://` à froid et à chaud, et de la pile temps réel : reportés
-  par Cédric (« On fera les tests plus tard mais ca compile sur iOS »).
+- Tests sur appareil de la scène reconnectée (non déclenchable à la demande) et de la pile temps
+  réel : reportés. Le report du 2026-11-23 (« On fera les tests plus tard mais ca compile sur iOS »)
+  couvrait aussi les liens `mivro://` à froid et à chaud, faits depuis : iPhone 13 le 2026-11-23,
+  iPad le 2026-11-26.
 - Android : partie native non touchée, le SDK iOS 27 ne la concerne pas. Le `getInitialURL` JS de
   `linking.ts` (J-066) s'y applique aussi ; le lien à froid Android reste à tester sur appareil
   (TODO F5).
@@ -42,10 +44,10 @@ with this SDK » ; « Ok, on suit ta reco, applique-le ».
 | 5   | Un lien `mivro://` à chaud est transmis à `RCTLinkingManager`                                                   | `scene(_:openURLContexts:)` ; ✅ sur iPhone 13                                            |
 | 6   | Le schéma Xcode reste en Debug                                                                                  | Capteur `native` vert dans `npm run check`                                                |
 | 7   | Le défaut des liens à chaud est consigné avec la règle qui l'aurait attrapé                                     | Entrée J-065 dans `docs/harness/JOURNAL-ECHECS.md`                                        |
-| 8   | `AppDelegate` garde `window`, affectée par le `SceneDelegate` (React Native la lit)                             | Relecture de `AppDelegate.swift` ; fermeture de LogBox en Debug au test appareil          |
+| 8   | `AppDelegate` garde `window`, affectée par le `SceneDelegate` (React Native la lit)                             | Relecture de `AppDelegate.swift` ; fermeture de LogBox en Debug ✅ (Cédric, 2026-11-26)   |
 | 9   | Scène reconnectée, hôte déjà lancé : l'écran existant est repris, le lien est relayé à chaud, rien n'est rejoué | `hostAlreadyRunning` dans `SceneDelegate.scene(_:willConnectTo:)` ; test appareil reporté |
 | 10  | Un lien à froid qui arrive après 150 ms n'est plus perdu par React Navigation (J-066)                           | `getInitialURL` de `linking.ts` et ses tests ; à froid ✅ sur iPhone 13 (2026-11-23)      |
-| 11  | Pendant la lecture du lien initial, l'app affiche l'écran de chargement, pas un écran blanc                     | `fallback={<LoadingScreen />}` du `NavigationContainer` dans `src/App.tsx`                |
+| 11  | Pendant la lecture du lien initial, l'app affiche l'écran de chargement, pas un écran blanc                     | `fallback={<LoadingScreen />}` dans `src/App.tsx` ; ✅ sur appareil (Cédric, 2026-11-26)  |
 
 ---
 
@@ -67,9 +69,9 @@ with this SDK » ; « Ok, on suit ta reco, applique-le ».
 
 ## Ce qui reste à Cédric
 
-- [ ] Tester sur appareil iOS un lien `mivro://session/<id>` à froid (app tuée) et à chaud (app en
-      arrière-plan) : l'écran `JoinSession` doit s'ouvrir dans les deux cas. — Fait sur iPhone 13
-      le 2026-11-23 (les deux ✅, à froid après le correctif J-066) ; reste l'iPad.
+- [x] Tester sur appareil iOS un lien `mivro://session/<id>` à froid (app tuée) et à chaud (app en
+      arrière-plan) : l'écran `JoinSession` doit s'ouvrir dans les deux cas. — iPhone 13 le
+      2026-11-23 (à froid après le correctif J-066), iPad par Cédric le 2026-11-26.
 - [ ] Appliquer au capteur `native` les deux règles proposées en J-065.
-- [ ] Pousser la branche (`git push -u origin fix/ios-sdk-27`) ; pas de PR tant que le verrou de
-      facturation GitHub tient.
+- [x] Pousser la branche (`git push -u origin fix/ios-sdk-27`) ; pas de PR tant que le verrou de
+      facturation GitHub tient. — Poussée (cd9a907, 6939e21).

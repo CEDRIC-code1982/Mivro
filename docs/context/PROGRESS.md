@@ -1,7 +1,7 @@
 # PROGRESS.md — Mivro
 
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-11-23 (correctif iOS SDK 27 — UIScene et cibles de déploiement des Pods).
+> Dernière mise à jour : 2026-11-26 (correctif iOS SDK 27 — validations appareil : iPad, LogBox, écran de chargement).
 
 ## Correctif iOS SDK 27 (2026-11-23, branche `fix/ios-sdk-27`)
 
@@ -35,8 +35,10 @@ Navigation abandonne au bout de 150 ms, et le module natif `Linking` répond plu
 (`INITIAL_URL_TIMEOUT_MS`), qui rend `null` en cas d'échec ou de délai dépassé.
 
 **Validé** : compilation et démarrage sur iPad, par Cédric ; liens à chaud et à froid (correctif
-J-066) sur iPhone 13. **Reste à tester sur appareil** : les liens sur iPad, LogBox, la scène
-reconnectée et la pile temps réel (`TODO.md`).
+J-066) sur iPhone 13 ; le 2026-11-26, par Cédric, écran de chargement pendant la lecture du lien à
+froid, fermeture de LogBox en Debug, liens et rotation sur iPad. **Reste à tester sur appareil** :
+la scène reconnectée (non déclenchable à la demande), le lien à froid Android et la pile temps réel
+(`TODO.md`).
 
 ## Harness v2 — frontière de confiance (2026-09-26, branche `harness/beton`, non commité)
 
