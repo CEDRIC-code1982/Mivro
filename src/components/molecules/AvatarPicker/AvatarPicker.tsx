@@ -1,14 +1,10 @@
 /**
  * @file AvatarPicker.tsx
- * @description Molecule AvatarPicker — grille de sélection des 20 avatars emoji.
- *              AvatarPicker molecule — grid to pick from the 20 emoji avatars.
+ * @description AvatarPicker molecule — grid to pick from the 20 emoji avatars.
  *
- *              F7 (1re passe) : avatars prédéfinis uniquement (pas de photo).
- *              Chaque cellule est un bouton accessible (A11Y-002/003) ; l'avatar
- *              sélectionné est mis en évidence par un anneau + état a11y.
  *              F7 (first pass): predefined avatars only (no photo).
- *              Each cell is an accessible button; the selected avatar is
- *              highlighted with a ring + a11y selected state.
+ *              Each cell is an accessible button (A11Y-002/003); the selected
+ *              avatar is highlighted with a ring + a11y selected state.
  *
  * @example
  * ```tsx
@@ -18,7 +14,7 @@
  * @module components/molecules/AvatarPicker/AvatarPicker
  */
 
-// [ADDED] F7 — Molecule AvatarPicker (grille des 20 avatars)
+// [ADDED] F7 — AvatarPicker molecule (grid of the 20 avatars)
 import { useTheme, type Theme } from '@theme';
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -26,24 +22,22 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Avatar } from '@components/atoms';
 import { AVATARS, type AvatarId, type PredefinedAvatar } from '@entities/Avatar';
 
-/** Diamètre d'un avatar dans la grille / Avatar diameter in the grid */
+/** Avatar diameter in the grid */
 const GRID_AVATAR_SIZE = 56;
 
 /**
- * Props du composant AvatarPicker.
  * AvatarPicker component props.
  */
 export interface AvatarPickerProps {
-  /** Avatar actuellement sélectionné / Currently selected avatar */
+  /** Currently selected avatar */
   selectedAvatarId?: AvatarId | undefined;
-  /** Callback de sélection d'un avatar / Avatar selection callback */
+  /** Avatar selection callback */
   onSelect: (avatarId: AvatarId) => void;
-  /** ID de test / Test ID */
+  /** Test ID */
   testID?: string;
 }
 
 /**
- * Cellule individuelle d'avatar (bouton sélectionnable).
  * Single avatar cell (selectable button).
  */
 interface AvatarCellProps {
@@ -84,22 +78,24 @@ const AvatarCell: React.FC<AvatarCellProps> = ({
       ]}
       testID={testID}
     >
+      {/* `fallbackName` is unreachable here: `avatar.id` always comes from the
+          AVATARS grid, so the atom resolves it through `getAvatarById` and
+          renders the emoji (render order photo > emoji via `avatarId` >
+          initial via `getInitial(fallbackName)`; no `photoUri` is passed). It
+          is only passed because the prop is required by the `Avatar` atom. */}
       <Avatar avatarId={avatar.id} fallbackName={avatar.emoji} size={GRID_AVATAR_SIZE} />
     </Pressable>
   );
 };
 
 /**
- * Molecule AvatarPicker du Design System Mivro.
  * Mivro Design System AvatarPicker molecule.
  *
- * Affiche les 20 avatars prédéfinis en grille fluide (wrap). La sélection est
- * contrôlée par le parent via `selectedAvatarId` + `onSelect`.
  * Displays the 20 predefined avatars in a fluid wrapping grid. Selection is
  * controlled by the parent via `selectedAvatarId` + `onSelect`.
  *
  * @param props - {@link AvatarPickerProps}
- * @returns Composant AvatarPicker / AvatarPicker component
+ * @returns AvatarPicker component
  */
 const AvatarPicker: React.FC<AvatarPickerProps> = ({ selectedAvatarId, onSelect, testID }) => {
   const { t } = useTranslation('profile');
@@ -137,8 +133,8 @@ const buildStyles = (theme: Theme) =>
       gap: theme.spacing.sm,
     },
     cell: {
-      // Touch target ≥ touchTarget.min garanti par minWidth/minHeight (A11Y-002) ;
-      // l'avatar (56) dépasse déjà cette cible.
+      // Touch target ≥ touchTarget.min guaranteed by minWidth/minHeight (A11Y-002);
+      // the avatar (56) already exceeds this target.
       padding: theme.spacing.xs,
       borderRadius: theme.radius.full,
       borderWidth: theme.borderWidth.thin,

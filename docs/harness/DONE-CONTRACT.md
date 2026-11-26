@@ -11,23 +11,32 @@
 
 ## Tâche
 
-**Titre** : <titre court>
+**Titre** : Dette F7 (photo de profil, avatars) et liste des ADR de POLICIES à jour
 
-**Demande d'origine** : « <la demande, citée> »
+**Demande d'origine** : « c'est poussé, on enchaîne sur le lot suivant » (2026-11-26) : le lot
+dette F7 du TODO (`normalizePath`, TSDoc de `deletePhoto`, fallback de `AvatarPicker`,
+`cameraType: 'front'` gardé et documenté, décision de Cédric du même jour).
 
-**Branche** : `<branche>`, issue de `<base>`.
+**Branche** : `fix/dette-f7`, issue de `fix/cause-gps-et-blocage-jest` (bfb94d6).
 
 **Hors périmètre explicite** :
 
-- <ce qui n'est pas fait, et qui le fera>
+- Règle `meta` provisoire (`".write": "newData.exists()"`, F5) : lot à part, déploiement des
+  rules par Cédric.
+- Vérification sur appareil de la photo de profil : reportée.
 
 ---
 
 ## Conditions de fin
 
-| #   | Condition   | Comment on le vérifie |
-| --- | ----------- | --------------------- |
-| 1   | <condition> | <commande ou preuve>  |
+| #   | Condition                                                                                                                                                                 | Comment on le vérifie                                                                        |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| 1   | `normalizePath` ne retire le préfixe `file://` qu'en tête et décode les caractères encodés (espaces, accents) ; une URI mal encodée retombe sur le chemin brut sans lever | Tests de `ImagePickerProfilePhotoService` : chemin encodé, chemin sans préfixe, `%` invalide |
+| 2   | La TSDoc de `IProfilePhotoService.deletePhoto` dit que la méthode ne rejette jamais (best-effort), et l'adapter tient ce contrat                                          | Relecture ; test de l'adapter : `unlink` qui rejette → la promesse se résout                 |
+| 3   | Le `fallbackName={avatar.emoji}` de `AvatarPicker` est documenté comme inatteignable pour un id connu                                                                     | Relecture ; tests de `AvatarPicker` verts                                                    |
+| 4   | `cameraType: 'front'` est gardé et documenté comme choix produit de Cédric (2026-11-26)                                                                                   | Relecture du commentaire à l'endroit du choix                                                |
+| 5   | `POLICIES.md` liste les ADR jusqu'à 016, et la section « ADR rattrapage » ne dit plus qu'il en manque                                                                     | Relecture, capteurs `docrefs` et `docclaims`                                                 |
+| 6   | Les quatre items F7 du TODO sont cochés                                                                                                                                   | Relecture, capteur `docfacts`                                                                |
 
 ---
 
@@ -45,4 +54,4 @@
 
 ## Ce qui reste à Cédric
 
-- [ ] <action hors de portée de l'agent>
+- [ ] Pousser la branche ; pas de PR tant que le verrou de facturation GitHub tient.

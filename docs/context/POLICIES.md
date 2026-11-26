@@ -188,7 +188,10 @@ docs-site/docs/
 │   ├── ADR-010-sentry-posthog.md
 │   ├── ADR-011-rename-midpoint-to-mivro.md
 │   ├── ADR-012-emoji-avatars-vs-svg.md
-│   └── ADR-013-profile-photo-filesystem-vs-base64.md
+│   ├── ADR-013-profile-photo-filesystem-vs-base64.md
+│   ├── ADR-014-feature-first-services-layout.md
+│   ├── ADR-015-feature-local-components.md
+│   └── ADR-016-harness-trust-boundary.md
 └── api/                       # Généré par TypeDoc
 ```
 
@@ -305,24 +308,25 @@ TypeScript · Documentation · Batterie (GPS) · Coût Firebase · Vie privée
 | F4      | Temps réel Firebase (RTDB) — code+rules+projet EU câblés, testé, reviewé                                  | `1c73eeb` `c9a76d1` (2026-06-29)        |
 | F5      | Partage de session — deep link `mivro://` + join collaboratif live, testé 1021, reviewé                   | `d112edb` (2026-06-29)                  |
 | F8      | Biométrie — verrou Face ID/Touch ID opt-in (guest inclus), anti-lockout double filet, testé 1133, reviewé | non commité (2026-06-29)                |
+| ADR     | ADR rattrapage — ADR-001→005, 007→010 et 014 écrits ; série ADR-001→016 complète depuis 2026-10-05        | `3eaa6d4` (2026-07-14)                  |
 
 Atoms livrés : `Text`, `Screen`, `TabBarIcon`, `CategoryChip`, `Avatar`
 Molecules livrés : `ParticipantCard`, `EmptyState`, `AddressAutocomplete`, `AvatarPicker`, `SessionMapView`, `POICard`, `POIDetailSheet`, `POIListView`, `POIMapView`, `POIScreenHeader`
 
 > ⚠️ Divergence à corriger : le README/anciennes notes mentionnaient des atoms `Button`/`Input`/`IconButton`/`Card`/`Spinner` — **ils n'existent pas encore**. À créer au besoin via le skill `create-atom`.
 
-### 🔜 Sprint en cours / suivant — plus aucune feature sans blocker hors ADR rattrapage
+### 🔜 Sprint en cours / suivant — plus aucune feature sans blocker
 
 **F8 Biométrie** ✅ (2026-06-29) : **code complet, testé (1133 tests) + reviewé APPROVED** (1 tour : 1 bloquant + 1 majeur + 2 mineurs corrigés). Non commité. Verrou **Face ID / Touch ID / empreinte**, **opt-in pour TOUT utilisateur (guest inclus)** — « compte requis » relâché car F6 bloqué (réversible quand F6 existera). Port `IBiometricService` + adapter `KeychainBiometricService` (secret sentinelle `BIOMETRY_ANY_OR_DEVICE_PASSCODE`, jamais loggé) + hook `useBiometricLock` (re-lock background/inactive + active ; **anti-lockout double filet** : fallback passcode device + échappatoire applicative) + molecule `BiometricLockScreen` (overlay) + gate `BiometricLockGate` dans `App.tsx` + toggle `ProfileScreen`. i18n `biometric` FR+EN ; natif iOS `NSFaceIDUsageDescription` + Android `USE_BIOMETRIC`. ⚠️ Restent à Cédric : tests device (Face ID/Touch ID, fallback passcode, échappatoire, masquage app-switcher) — voir `docs/context/TODO.md`.
 **F5 Partage de session** ✅ (2026-06-29, `d112edb`) : deep link **`mivro://session/{id}`** + **join collaboratif live** ; étend le modèle Firebase F4 (`meta` + `members`). ⚠️ Restent à Cédric : redéployer les rules étendues, `pod install`, rebuild natif, tester le deep link + join multi-devices.
 **F4 Temps réel Firebase** ✅ (2026-06-29, `1c73eeb` `c9a76d1`) : transport tranché = Firebase RTDB (**ADR-006**), projet EU `mivro-40125` (europe-west1, RGPD OK) câblé. ⚠️ Restent à Cédric : `GoogleService-Info.plist` (iOS) + `google-services.json` (Android), déploiement des rules, `pod install`. _(⚠️ obsolète : les deux fichiers de config sont en place depuis le 2026-08-24 ; il ne reste que `firebase deploy --only database` — voir `RUNBOOK.md > Configuration Firebase`.)_
 **F7 Profil entièrement livrée** ✅ (`0ade2e2` + `ebf1215`) : avatars emoji (ADR-012) + photo FileSystem (ADR-013). Reste la **vérif device**.
-**Plus aucune feature livrable sans blocker externe** : il ne reste que **F6 Auth** (comptes dev Google/Apple), **PostHog** (VPS auto-hébergé) et **Beta TestFlight/Play** (signing + clés prod) — toutes en ⚠️ PAUSE OBLIGATOIRE — plus l'**ADR rattrapage** (ADR-001→005, 007→010), seul chantier **sans blocker** restant.
+**Plus aucune feature livrable sans blocker externe** : il ne reste que **F6 Auth** (comptes dev Google/Apple), **PostHog** (VPS auto-hébergé) et **Beta TestFlight/Play** (signing + clés prod) — toutes en ⚠️ PAUSE OBLIGATOIRE. L'**ADR rattrapage** est fait (2026-07-14, `3eaa6d4`) : la série ADR-001→016 est complète.
 ⚠️ Restent à re-vérifier sur device (QA P1) : layout Dynamic Type 200 % et champ fantôme F1 (fixes posés).
 
 ### 📋 Backlog priorisé
 
-Ordre recommandé : **Fix QA P1 → F7 → F4 → F5 → F8 → F6 → ADR → PostHog → Beta**. _(Fix QA P1, F7, F4, F5, **F8 faits** — F4/F5/F8 attendent la vérif device par Cédric. Il ne reste que des features à blocker externe (F6 comptes dev, PostHog VPS, Beta signing) + l'ADR rattrapage, seul chantier sans blocker.)_
+Ordre recommandé : **Fix QA P1 → F7 → F4 → F5 → F8 → F6 → ADR → PostHog → Beta**. _(Fix QA P1, F7, F4, F5, **F8 et ADR rattrapage faits** — F4/F5/F8 attendent la vérif device par Cédric. Il ne reste que des features à blocker externe : F6 comptes dev, PostHog VPS, Beta signing.)_
 Pour chaque feature : objectif · couches · composants · dépendances · décisions tranchées · done · complexité.
 
 ---
@@ -394,13 +398,11 @@ Pour chaque feature : objectif · couches · composants · dépendances · déci
 - **Complexité** : M.
 - **⚠️ PAUSE OBLIGATOIRE** : comptes développeur requis (Google Cloud OAuth client + Apple Developer / Sign in with Apple capability).
 
-#### ADR rattrapage
+#### ADR rattrapage — ✅ FAIT (2026-07-14, `3eaa6d4`)
 
-- **Objectif** : documenter rétroactivement les décisions déjà prises. **ADR-006, ADR-011, ADR-012, ADR-013 existent déjà** ; il manque **ADR-001 → ADR-005, ADR-007 → ADR-010** (référencés dans la section DOCUMENTATION).
-- **À écrire** : ADR-001 Nominatim vs Google, ADR-002 Clean Architecture, ADR-003 Expo vs RN CLI, ADR-004 Guest-first auth, ADR-005 Zustand vs Redux, ~~ADR-006 Firebase Realtime~~ (écrit avec F4), ADR-007 New Architecture, ADR-008 MMKV, ADR-009 External APIs scaling, ADR-010 Sentry+PostHog.
-- **Format** : voir DOCUMENTATION > Format ADR. Emplacement `docs-site/docs/adr/`.
-- **Done** : `npm run docs` passe ; chaque ADR au format imposé.
-- **Complexité** : M (rédaction).
+- **Objectif** : documenter rétroactivement les décisions déjà prises.
+- **Fait** : ADR-001 → ADR-005 et ADR-007 → ADR-010 écrits le 2026-07-14 (`3eaa6d4`), avec ADR-014 ; ADR-006 (F4), ADR-011, ADR-012 et ADR-013 existaient déjà ; ADR-015 (2026-08-24) et ADR-016 (2026-10-05) ont suivi. La série ADR-001 → ADR-016 est complète dans `docs-site/docs/adr/` (arborescence : section DOCUMENTATION). Détail : `docs/context/PROGRESS.md` > « ADR rattrapage ».
+- **Format** : voir DOCUMENTATION > Format ADR.
 
 #### PostHog analytics
 

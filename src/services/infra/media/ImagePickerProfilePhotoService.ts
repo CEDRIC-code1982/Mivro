@@ -1,24 +1,21 @@
 /**
  * @file ImagePickerProfilePhotoService.ts
- * @description Implémentation IProfilePhotoService basée sur
- *              react-native-image-picker + @dr.pogodin/react-native-fs.
- *              IProfilePhotoService implementation based on
+ * @description IProfilePhotoService implementation based on
  *              react-native-image-picker + @dr.pogodin/react-native-fs.
  *
- *              Responsabilités / Responsibilities:
- *              - Sélection galerie/caméra avec resize natif (maxWidth/maxHeight 200)
- *              - Copie du fichier sélectionné dans Documents/profile-photos/
- *              - Suppression (cleanup) d'une photo locale
- *              - Mapping des erreurs natives → ProfilePhotoError typé (ERR-001)
- *              - Validation Zod de la réponse native (TS-004)
+ *              Responsibilities:
+ *              - Library/camera picking with native resize (maxWidth/maxHeight 200)
+ *              - Copy of the picked file into Documents/profile-photos/
+ *              - Deletion (cleanup) of a local photo
+ *              - Mapping of native errors → typed ProfilePhotoError (ERR-001)
+ *              - Zod validation of the native response (TS-004)
  *
- *              ⚠️ L'annulation utilisateur n'est PAS une erreur → renvoie null.
  *              ⚠️ User cancellation is NOT an error → returns null.
  *
  * @module services/infra/media/ImagePickerProfilePhotoService
  */
 
-// [ADDED] F7 passe 2 — Adapter ImagePickerProfilePhotoService
+// [ADDED] F7 pass 2 — Adapter ImagePickerProfilePhotoService
 import {
   copyFile,
   exists,
@@ -42,17 +39,16 @@ import {
   type PickProfilePhotoResult,
 } from '@services/domain/user/IProfilePhotoService';
 
-/** Côté cible de la photo de profil en points / Target profile photo side in points */
+/** Target profile photo side in points */
 const PHOTO_SIZE = 200;
 
-/** Qualité de compression JPEG (0..1) / JPEG compression quality (0..1) */
+/** JPEG compression quality (0..1) */
 const PHOTO_QUALITY = 0.8;
 
-/** Sous-dossier de stockage des photos de profil / Profile photos storage subfolder */
+/** Profile photos storage subfolder */
 const PHOTO_DIR = `${DocumentDirectoryPath}/profile-photos`;
 
 /**
- * Schéma de validation de la réponse native du picker (TS-004 — données externes).
  * Native picker response validation schema (TS-004 — external data).
  */
 const PickerResponseSchema = z.object({
@@ -69,10 +65,9 @@ const PickerResponseSchema = z.object({
 });
 
 /**
- * Implémentation du port IProfilePhotoService via image-picker + FS.
  * IProfilePhotoService implementation via image-picker + FS.
  *
- * @param crashReporter - Crash reporter optionnel pour Sentry / Optional crash reporter
+ * @param crashReporter - Optional crash reporter (Sentry)
  *
  * @example
  *   const service = new ImagePickerProfilePhotoService(crashReporter);
@@ -82,11 +77,10 @@ export class ImagePickerProfilePhotoService implements IProfilePhotoService {
   constructor(private readonly crashReporter?: ICrashReporter) {}
 
   /**
-   * Ouvre la galerie, redimensionne 200×200 et copie dans Documents.
    * Opens the library, resizes to 200×200 and copies into Documents.
    *
-   * @returns Chemin local ou null (annulation) / Local path or null (cancellation)
-   * @throws {ProfilePhotoError} Permission refusée ou échec de traitement / Permission denied or processing failure
+   * @returns Local path, or null (cancellation)
+   * @throws {ProfilePhotoError} Permission denied or processing failure
    */
   async pickFromLibrary(): Promise<PickProfilePhotoResult> {
     const options: ImageLibraryOptions = {
@@ -107,11 +101,10 @@ export class ImagePickerProfilePhotoService implements IProfilePhotoService {
   }
 
   /**
-   * Ouvre la caméra, redimensionne 200×200 et copie dans Documents.
    * Opens the camera, resizes to 200×200 and copies into Documents.
    *
-   * @returns Chemin local ou null (annulation) / Local path or null (cancellation)
-   * @throws {ProfilePhotoError} Permission refusée, caméra indisponible ou échec / Permission denied, camera unavailable or failure
+   * @returns Local path, or null (cancellation)
+   * @throws {ProfilePhotoError} Permission denied, camera unavailable or failure
    */
   async pickFromCamera(): Promise<PickProfilePhotoResult> {
     const options: CameraOptions = {
@@ -121,6 +114,8 @@ export class ImagePickerProfilePhotoService implements IProfilePhotoService {
       quality: PHOTO_QUALITY,
       saveToPhotos: false,
       includeBase64: false,
+      // Front camera on purpose: product choice validated by Cédric on 2026-11-26
+      // (a profile photo is a selfie). Kept deliberately, do not switch to 'back'.
       cameraType: 'front',
     };
 
@@ -133,10 +128,14 @@ export class ImagePickerProfilePhotoService implements IProfilePhotoService {
   }
 
   /**
-   * Supprime une photo locale (idempotent — ignore si absente).
    * Deletes a local photo (idempotent — ignored if missing).
    *
-   * @param uri - Chemin local de la photo / Local path of the photo
+   * Never rejects, as required by the port contract
+   * (IProfilePhotoService.deletePhoto): every failure, path normalization
+   * included, is caught below and reported to the crash reporter at warning
+   * level.
+   *
+   * @param uri - Local path (or `file://` URI) of the photo
    */
   async deletePhoto(uri: string): Promise<void> {
     try {
@@ -151,34 +150,37 @@ export class ImagePickerProfilePhotoService implements IProfilePhotoService {
           'Profile photo deleted',
       );
     } catch (error: unknown) {
-      // Le cleanup ne doit jamais casser le flux : on logge + report sans throw.
       // Cleanup must never break the flow: log + report without throwing.
       console.warn(
         `[WARN][ImagePickerProfilePhotoService][deletePhoto][?][${this.timestamp()}] ` +
           'Failed to delete profile photo',
         error,
       );
-      this.crashReporter?.captureException(
-        error instanceof Error ? error : new Error('deletePhoto failed'),
-        { tags: { feature: 'profile-photo' }, level: 'warning' },
-      );
+      try {
+        this.crashReporter?.captureException(
+          error instanceof Error ? error : new Error('deletePhoto failed'),
+          { tags: { feature: 'profile-photo' }, level: 'warning' },
+        );
+      } catch {
+        // Reporting must not make deletePhoto reject: the port promises that
+        // deletePhoto never rejects, so a crash reporter failure is swallowed.
+      }
     }
   }
 
   /**
-   * Traite la réponse du picker : annulation, erreur, ou copie du fichier.
    * Handles the picker response: cancellation, error, or file copy.
    *
-   * @param response - Réponse brute du picker / Raw picker response
-   * @param fn - Nom de la fonction appelante (logging) / Caller function name (logging)
-   * @returns Chemin local ou null / Local path or null
-   * @throws {ProfilePhotoError} En cas d'erreur de permission ou de traitement / On permission or processing error
+   * @param response - Raw picker response
+   * @param fn - Caller function name (logging)
+   * @returns Local path or null
+   * @throws {ProfilePhotoError} On permission or processing error
    */
   private async handlePickerResponse(
     response: ImagePickerResponse,
     fn: string,
   ): Promise<PickProfilePhotoResult> {
-    // Validation Zod de la réponse native (TS-004)
+    // Zod validation of the native response (TS-004)
     const parsed = PickerResponseSchema.safeParse(response);
     if (!parsed.success) {
       this.crashReporter?.captureException(new Error('Picker response shape invalid'), {
@@ -189,7 +191,7 @@ export class ImagePickerProfilePhotoService implements IProfilePhotoService {
 
     const { didCancel, errorCode, errorMessage, assets } = parsed.data;
 
-    // Annulation utilisateur : pas une erreur
+    // User cancellation: not an error
     if (didCancel === true) {
       console.log(
         `[INFO][ImagePickerProfilePhotoService][${fn}][?][${this.timestamp()}] ` +
@@ -198,14 +200,14 @@ export class ImagePickerProfilePhotoService implements IProfilePhotoService {
       return null;
     }
 
-    // Erreur native du picker → mapping typé
+    // Native picker error → typed mapping
     if (errorCode !== undefined) {
       throw this.mapPickerErrorCode(errorCode, errorMessage, fn);
     }
 
     const firstAsset = assets?.[0];
     if (firstAsset?.uri == null) {
-      // Réponse sans asset ni erreur ni annulation : cas anormal
+      // Response with no asset, no error and no cancellation: abnormal case
       throw new ProfilePhotoError('Picker returned no usable asset', 'processing_failed');
     }
 
@@ -213,14 +215,12 @@ export class ImagePickerProfilePhotoService implements IProfilePhotoService {
   }
 
   /**
-   * Copie le fichier sélectionné (déjà redimensionné par le picker) dans
-   * Documents/profile-photos/ sous un nom unique, et renvoie le chemin.
    * Copies the picked (already resized) file into Documents/profile-photos/
    * under a unique name, and returns the path.
    *
-   * @param sourceUri - URI du fichier source (file://…) / Source file URI
-   * @returns Chemin de destination dans Documents / Destination path in Documents
-   * @throws {ProfilePhotoError} Si la copie échoue / If the copy fails
+   * @param sourceUri - Source file URI (file://…)
+   * @returns Destination path in Documents
+   * @throws {ProfilePhotoError} If the copy fails
    */
   private async copyIntoDocuments(sourceUri: string): Promise<string> {
     try {
@@ -248,24 +248,48 @@ export class ImagePickerProfilePhotoService implements IProfilePhotoService {
   }
 
   /**
-   * Normalise une URI `file://` en chemin filesystem absolu.
    * Normalizes a `file://` URI into an absolute filesystem path.
    *
-   * @param uri - URI ou chemin / URI or path
-   * @returns Chemin filesystem / Filesystem path
+   * Only a URI that starts with `file://` is transformed: the leading scheme is
+   * stripped, then the rest is percent-decoded, because a picker URI is a URL
+   * and a space or an accented character in the path arrives as `%20` /
+   * `%C3%A9`, which the filesystem would not find verbatim.
+   *
+   * Anything without that leading prefix is already a filesystem path and is
+   * returned untouched, never decoded: the paths stored by `copyIntoDocuments`
+   * (`<Documents>/profile-photos/<uuid>.jpg`) and later passed to
+   * `deletePhoto` must never be rewritten (a literal `%xx` in a raw path would
+   * otherwise be altered).
+   *
+   * Never throws: on a malformed percent-escape, `decodeURIComponent` raises a
+   * `URIError` (the only error it can raise) and the path is returned with the
+   * scheme stripped but undecoded. Silent fallback on purpose: the caller then
+   * works on that path, and any real filesystem failure surfaces from the FS
+   * call itself.
+   *
+   * @param uri - URI or path
+   * @returns Filesystem path
    */
   private normalizePath(uri: string): string {
-    return uri.startsWith('file://') ? uri.replace('file://', '') : uri;
+    const FILE_SCHEME = 'file://';
+    if (!uri.startsWith(FILE_SCHEME)) {
+      return uri;
+    }
+    const withoutScheme = uri.slice(FILE_SCHEME.length);
+    try {
+      return decodeURIComponent(withoutScheme);
+    } catch {
+      return withoutScheme;
+    }
   }
 
   /**
-   * Mappe un code d'erreur natif du picker vers une ProfilePhotoError typée.
    * Maps a native picker error code to a typed ProfilePhotoError.
    *
-   * @param code - Code natif / Native code
-   * @param message - Message natif optionnel / Optional native message
-   * @param fn - Nom de la fonction appelante / Caller function name
-   * @returns ProfilePhotoError typée / Typed ProfilePhotoError
+   * @param code - Native code
+   * @param message - Optional native message
+   * @param fn - Caller function name
+   * @returns Typed ProfilePhotoError
    */
   private mapPickerErrorCode(
     code: 'camera_unavailable' | 'permission' | 'others',
@@ -301,15 +325,14 @@ export class ImagePickerProfilePhotoService implements IProfilePhotoService {
   }
 
   /**
-   * Convertit une erreur inattendue (rejet de promesse) en ProfilePhotoError.
    * Converts an unexpected error (promise rejection) into a ProfilePhotoError.
    *
-   * @param error - Erreur capturée / Caught error
-   * @param fn - Nom de la fonction appelante / Caller function name
-   * @returns ProfilePhotoError typée / Typed ProfilePhotoError
+   * @param error - Caught error
+   * @param fn - Caller function name
+   * @returns Typed ProfilePhotoError
    */
   private toProfilePhotoError(error: unknown, fn: string): ProfilePhotoError {
-    // Déjà typée : on la propage telle quelle (ex : depuis copyIntoDocuments)
+    // Already typed: propagate it as is (e.g. from copyIntoDocuments)
     if (error instanceof ProfilePhotoError) {
       return error;
     }
@@ -331,10 +354,9 @@ export class ImagePickerProfilePhotoService implements IProfilePhotoService {
   }
 
   /**
-   * Génère un timestamp HH:mm:ss pour le logging (LOG-001).
    * Generates an HH:mm:ss timestamp for logging (LOG-001).
    *
-   * @returns Timestamp formaté / Formatted timestamp
+   * @returns Formatted timestamp
    */
   private timestamp(): string {
     return new Date().toISOString().slice(11, 19);

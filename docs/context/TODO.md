@@ -1,7 +1,7 @@
 # TODO.md — Mivro
 
 > Tâches restantes priorisées. Cocher au fur et à mesure, ajouter les découvertes (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-11-26 (cause GPS prioritaire dans l'erreur de suivi, Jest qui rend la main sur les tests TanStack Query, `fix/cause-gps-et-blocage-jest`).
+> Dernière mise à jour : 2026-11-26 (dette F7 : `normalizePath`, contrat de `deletePhoto`, fallback d'`AvatarPicker`, `cameraType: 'front'`, `fix/dette-f7`).
 
 ## Refactor archi (2026-07-13) — ✅ FAIT
 
@@ -204,10 +204,10 @@ _Estimation : L. Dépendances : comptes stores._
 - [ ] **`SessionsScreen`** : squelette 72 l. — historique sessions à implémenter (AsyncStorage, cf. STORAGE).
 - [ ] **react-native-maps shim** : `skipLibCheck` désactive le check des `.d.ts` libs — surveiller les régressions de types externes.
 - [x] ~~**`borderWidth: 1` en dur**~~ → **FAIT (2026-08-21, harness)** : tokens `theme.borderWidth` (`none`/`hairline`/`thin`/`thick`) et `theme.size.marker` ajoutés ; la règle ESLint `local-rules/no-magic-style-values` interdit désormais tout nouveau magic number dans un `StyleSheet.create()`.
-- [ ] **`AvatarPicker` `fallbackName={avatar.emoji}`** : fallback inatteignable pour un id connu (cosmétique / robustesse défensive). Relevé par la review F7 — à nettoyer ou documenter. (P3)
-- [ ] **`normalizePath` (F7 p2)** : `ImagePickerProfilePhotoService.normalizePath` fait `uri.replace('file://', '')` ; utiliser plutôt `decodeURIComponent(uri.replace(/^file:\/\//, ''))` pour gérer les chemins avec caractères encodés (espaces, accents). Relevé par la review F7 — durcissement. (P3)
-- [ ] **Contrat `IProfilePhotoService.deletePhoto` (F7 p2)** : renforcer la TSDoc pour stipuler que la méthode **ne doit JAMAIS rejeter** (best-effort : un fichier absent / non supprimable ne casse pas la mise à jour du profil). Relevé par la review F7. (P3)
-- [ ] **`cameraType: 'front'` (F7 p2)** : choix de la caméra frontale par défaut dans `ImagePickerProfilePhotoService` = décision produit implicite → à confirmer avec Cédric. (P3)
+- [x] **`AvatarPicker` `fallbackName={avatar.emoji}`** — ✅ FAIT (2026-11-26, `fix/dette-f7`), option « documenter » : la prop est gardée, car elle est obligatoire dans l'atom `Avatar`, avec un commentaire qui la dit inatteignable pour un id de la grille ; 1 test de plus. Constat d'origine : fallback inatteignable pour un id connu (cosmétique / robustesse défensive). Relevé par la review F7 — à nettoyer ou documenter. (P3)
+- [x] **`normalizePath` (F7 p2)** — ✅ FAIT (2026-11-26, `fix/dette-f7`) : seules les URI qui commencent par `file://` sont transformées (préfixe retiré en tête, puis `decodeURIComponent`) ; sur `URIError`, le chemin non décodé est rendu. Un chemin sans préfixe, comme ceux stockés dans `User.photoUri`, ressort intact. Constat d'origine : `ImagePickerProfilePhotoService.normalizePath` faisait `uri.replace('file://', '')` ; utiliser plutôt `decodeURIComponent(uri.replace(/^file:\/\//, ''))` pour gérer les chemins avec caractères encodés (espaces, accents). Relevé par la review F7 — durcissement. (P3)
+- [x] **Contrat `IProfilePhotoService.deletePhoto` (F7 p2)** — ✅ FAIT (2026-11-26, `fix/dette-f7`) : la TSDoc dit que la méthode ne rejette jamais (best-effort) ; l'adapter protège aussi l'appel au crash reporter dans son `catch`. Constat d'origine : renforcer la TSDoc pour stipuler que la méthode **ne doit JAMAIS rejeter** (best-effort : un fichier absent / non supprimable ne casse pas la mise à jour du profil). Relevé par la review F7. (P3)
+- [x] **`cameraType: 'front'` (F7 p2)** — ✅ FAIT (2026-11-26, `fix/dette-f7`) : caméra frontale gardée, choix produit de Cédric du 2026-11-26, consigné en commentaire dans l'adapter. Constat d'origine : choix de la caméra frontale par défaut dans `ImagePickerProfilePhotoService` = décision produit implicite → à confirmer avec Cédric. (P3)
 - [x] ~~**Label midpoint hardcodé (I18N-002)**~~ → corrigé le 2026-11-02 : le marker midpoint de
       `POIMapView.tsx` passe par `t('mapView.midpointMarker')` (namespace `poi`, FR + EN), avec un
       test. Même correction pour `src/components/molecules/SessionMapView/SessionMapView.tsx`

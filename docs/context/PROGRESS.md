@@ -1,7 +1,30 @@
 # PROGRESS.md — Mivro
 
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-11-26 (cause GPS prioritaire dans l'erreur de suivi, Jest qui rend la main sur les tests TanStack Query).
+> Dernière mise à jour : 2026-11-26 (dette F7 : `normalizePath`, contrat de `deletePhoto`, fallback d'`AvatarPicker`, `cameraType: 'front'`).
+
+## Dette F7 : chemins de photo, contrat de suppression, fallback d'avatar (2026-11-26, branche `fix/dette-f7`)
+
+Quatre items de dette relevés par la review F7 (passe 2), déjà inscrits au TODO.
+
+- **`normalizePath`** (`ImagePickerProfilePhotoService`) : seules les URI qui commencent par
+  `file://` sont transformées. Le préfixe est retiré en tête, puis `decodeURIComponent` décode les
+  caractères encodés (espaces, accents) ; sur `URIError`, le chemin non décodé est rendu. Un
+  chemin sans préfixe ressort intact : les chemins stockés dans `User.photoUri` ne sont jamais
+  retouchés.
+- **Contrat de `deletePhoto`** : la TSDoc d'`IProfilePhotoService.deletePhoto` dit que la méthode
+  ne rejette jamais (best-effort). L'adapter protège aussi l'appel au crash reporter dans son
+  `catch`, pour qu'un reporter qui lève ne fasse pas rejeter la suppression.
+- **`AvatarPicker`** : `fallbackName={avatar.emoji}` est gardé (la prop est obligatoire dans
+  l'atom `Avatar`), avec un commentaire qui le dit inatteignable pour un id de la grille.
+- **`cameraType: 'front'`** : gardé, choix produit de Cédric du 2026-11-26, consigné en
+  commentaire dans l'adapter.
+- Commentaires des trois fichiers applicatifs et des deux fichiers de test touchés passés en
+  anglais.
+- Tests : 14 de plus dans `ImagePickerProfilePhotoService.test.ts`, 1 dans
+  `AvatarPicker.test.tsx` ; Jest : 93 suites, 1472 → 1487 tests.
+- TODO : les quatre items de dette F7 cochés. L'immuabilité de `meta` (règle
+  `".write": "newData.exists()"`) reste ouverte, pour un lot à part.
 
 ## Cause GPS prioritaire dans l'erreur de suivi, Jest qui rend la main (2026-11-26, branche `fix/cause-gps-et-blocage-jest`)
 
@@ -434,7 +457,7 @@ sessions/{sessionId}/
 | F5 Partage     | 2026-06-29         | ✅ Fait    | `d112edb`                     |
 | F8 Biométrie   | 2026-06-29         | ✅ Fait\*  | non commité                   |
 | F6 Auth        | —                  | 📋 Backlog | —                             |
-| ADR rattrapage | —                  | 📋 Backlog | —                             |
+| ADR rattrapage | 2026-07-14         | ✅ Fait    | `3eaa6d4`                     |
 | PostHog        | —                  | 📋 Backlog | —                             |
 | Beta           | —                  | 📋 Backlog | —                             |
 
@@ -622,7 +645,7 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
 | Suites de tests                    | 93                                                                |
-| Tests (cas) — `npm run check`      | 1472                                                              |
+| Tests (cas) — `npm run check`      | 1487                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |
@@ -654,7 +677,7 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 - **Double validation Zod défensive** : `UpdateProfileUseCase` valide le patch ET re-valide le `User` complet (`UserSchema`) — la discriminated union guest/auth peut casser si on patche naïvement. `getAvatarById` fait du `safeParse` pour tolérer un `avatarId` inconnu venant du storage (robustesse, pas de throw).
 - **Découpler les libs natives derrière un port (F7 p2)** : `react-native-image-picker` / `@dr.pogodin/react-native-fs` ne sont importés QUE par l'adapter `ImagePickerProfilePhotoService` (infra). La presentation passe par `IProfilePhotoService` (DI) → testable sans device (mocks typés), et un futur backend (upload S3) ne touche pas l'UI. Le contrat « ne pas faire fuiter de type natif au-delà de l'infra » est ce qui rend la couche substituable.
 - **Stocker un chemin, pas un binaire (F7 p2)** : la photo de profil est copiée sur le FileSystem (`Documents/profile-photos/<uuid>.jpg`) et seul le **chemin** est persisté MMKV (`User.photoUri`). Évite de gonfler le store (pas de base64), survit aux redémarrages (≠ URI `tmp/` du picker qui peut être purgée). Voir ADR-013.
-- **Cleanup FileSystem best-effort (F7 p2)** : `deletePhoto` (suppression de l'ancien fichier au remplacement / à la suppression) **ne doit jamais rejeter** — un fichier déjà absent ou non supprimable ne doit pas faire échouer la mise à jour du profil. À durcir côté contrat (TSDoc) et `normalizePath` (voir TODO dette F7).
+- **Cleanup FileSystem best-effort (F7 p2)** : `deletePhoto` (suppression de l'ancien fichier au remplacement / à la suppression) **ne doit jamais rejeter** — un fichier déjà absent ou non supprimable ne doit pas faire échouer la mise à jour du profil. Contrat écrit dans la TSDoc et `normalizePath` durci le 2026-11-26 (`fix/dette-f7`).
 - **`BottomSheet` ≠ `BottomSheetModal`** (@gorhom) : `BottomSheet` n'est PAS un portail — placé dans un `ScrollView`, il se positionne dans le flux du scroll et son contenu « fermé » s'affiche en bas du contenu (champ fantôme F1). Pour un sheet par-dessus un écran scrollable, utiliser `BottomSheetModal` + `BottomSheetModalProvider` (rendu en portail racine). `present()`/`dismiss()` au lieu de `snapToIndex(0)`/`close()`, `onDismiss` au lieu de `onClose`, pas de prop `index`.
 - **RNFirebase v25 = API modulaire** : importer `getDatabase/ref/onValue/onDisconnect/update/remove/serverTimestamp` directement depuis `@react-native-firebase/database` (tree-shakable, recommandé v22+). Pas de `[FIRApp configure]` manuel : la config se fait via `GoogleService-Info.plist` / `google-services.json` au build. Les types du SDK suffisent : **`tsc` compile à 0 erreur sans les fichiers de config** (ils ne sont nécessaires qu'au runtime).
 - **Pods Swift Firebase → `use_modular_headers!`** : sans cette directive dans le Podfile, `pod install` échoue (« Swift pod cannot yet be integrated as a static library… depends upon … which do not define modules »). À placer juste après `prepare_react_native_project!`.

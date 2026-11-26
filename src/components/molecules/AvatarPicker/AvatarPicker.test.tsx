@@ -1,14 +1,13 @@
 /**
  * @file AvatarPicker.test.tsx
- * @description Tests unitaires de la molecule AvatarPicker (F7).
- *              Unit tests for the AvatarPicker molecule (F7).
+ * @description Unit tests for the AvatarPicker molecule (F7).
  *
  * @module components/molecules/AvatarPicker/AvatarPicker.test
  */
 
-// [ADDED] F7 — Tests unitaires AvatarPicker
+// [ADDED] F7 — AvatarPicker unit tests
 
-import { fireEvent, render } from '@testing-library/react-native';
+import { fireEvent, render, within } from '@testing-library/react-native';
 import React from 'react';
 import AvatarPicker from '@components/molecules/AvatarPicker';
 import { AVATARS } from '@entities/Avatar';
@@ -75,6 +74,20 @@ describe('AvatarPicker', () => {
     const other = getByTestId('picker-cat');
     expect(other.props.accessibilityState.selected).toBe(false);
     expect(other.props.accessibilityState.checked).toBe(false);
+  });
+
+  it('renders the emoji in every cell, never the name initial', () => {
+    const { getByTestId } = render(<AvatarPicker onSelect={jest.fn()} testID="picker" />);
+
+    for (const avatar of AVATARS) {
+      const cell = within(getByTestId(`picker-${avatar.id}`));
+      // The Avatar atom is decorative (hidden from a11y), hence includeHiddenElements.
+      expect(cell.getByText(avatar.emoji, { includeHiddenElements: true })).toBeTruthy();
+      // The initial fallback would render `fallbackName.charAt(0).toUpperCase()`,
+      // i.e. a lone surrogate for these astral emojis: it must never appear.
+      const initial = avatar.emoji.trim().charAt(0).toUpperCase();
+      expect(cell.queryByText(initial, { includeHiddenElements: true })).toBeNull();
+    }
   });
 
   it('exposes each cell as a radio button with a label', () => {
