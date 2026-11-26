@@ -145,13 +145,14 @@ vide. Choix de `hasChildren` validé par Cédric le 2026-11-26.
 
 Écritures légitimes, vérifiées une par une :
 
-| Écriture                                                           | Pourquoi elle reste permise                                                                                                  |
-| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| `createSharedSession` — `update({ meta, members })`                | accordée au niveau `sessions/$sessionId` tant que `meta` n'existe pas, et un `.write` accordé vaut pour toute la descendance |
-| `updateMidpoint` — `update(metaRef, { midpoint, midpointRadius })` | les quatre champs restent en place, tant que `meta` existe (sinon, voir « Risque résiduel » ci-dessous)                      |
-| `deleteSharedSession` — `remove()` de la session entière           | accordée au niveau session (`!newData.exists()`)                                                                             |
-| Re-partage d'une session déjà partagée                             | toujours **refusé** par l'immuabilité de `createdAt`, comme avant (le client ne le tente plus)                               |
-| Purge `purgeExpiredSessions` (`functions/index.js`)                | Admin SDK, qui ignore les règles                                                                                             |
+| Écriture                                                           | Pourquoi elle reste permise                                                                                                                                                                   |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createSharedSession` — `update({ meta, members })`                | accordée au niveau `sessions/$sessionId` tant que `meta` n'existe pas, et un `.write` accordé vaut pour toute la descendance                                                                  |
+| `updateMidpoint` — `update(metaRef, { midpoint, midpointRadius })` | les quatre champs restent en place, tant que `meta` existe ; le client ne l'appelle plus si sa relecture voit la session supprimée (fenêtre résiduelle : voir « Risque résiduel » ci-dessous) |
+| `removeMember` — `remove()` de `members/$memberId`                 | accordée par `members/$memberId: .write true` (une suppression n'évalue pas les `.validate`) ; ne touche pas `meta`                                                                           |
+| `deleteSharedSession` — `remove()` de la session entière           | accordée au niveau session (`!newData.exists()`)                                                                                                                                              |
+| Re-partage d'une session déjà partagée                             | toujours **refusé** par l'immuabilité de `createdAt`, comme avant (le client ne le tente plus)                                                                                                |
+| Purge `purgeExpiredSessions` (`functions/index.js`)                | Admin SDK, qui ignore les règles                                                                                                                                                              |
 
 Le test structurel `src/services/infra/realtime/databaseRules.test.ts` fige la
 chaîne exacte de la règle, et vérifie que la liste des champs exigés par
@@ -176,21 +177,40 @@ Le modèle MVP reste **sans Firebase Auth** : la protection repose sur le
 - rien n'oblige `meta/midpoint` à porter `latitude` **et** `longitude` ensemble
   (déjà vrai avant le 2026-11-26 ; suivi : item « Forme de `meta/midpoint` » de
   `docs/context/TODO.md`) ;
-- **nœud orphelin après une course à la jonction** : si la session est
-  supprimée (par le propriétaire ou par la purge) pendant qu'un invité la
-  rejoint, après sa lecture, `joinSharedSession` écrit quand même
-  `members/$memberId` (accordé par `members/$memberId: true`). La relecture
-  renvoie `null`, et `JoinSessionUseCase` retombe volontairement sur le roster
-  local, puis appelle `updateMidpoint` : le niveau `meta` refuse l'écriture mais
-  le niveau session l'accorde, puisque `meta` n'existe plus. Il reste alors un
-  nœud `{ members: { <invité> }, meta: { midpoint, midpointRadius } }` sans
-  `expiresAt`, que `purgeExpiredSessions` laisse en place (malformé) :
-  l'**adresse de départ exacte** de l'invité (latitude, longitude,
-  `formattedAddress`) et une coordonnée dérivée persistent en base. Déjà vrai
-  avant le 2026-11-26, fenêtre étroite. Anonymous Auth ne le fermerait pas (un
-  invité authentifié reste propriétaire de son `members/$memberId`). Suivi :
-  item « Jonction sur une session supprimée » (P2, fermeture côté client) et
-  item « Tests des règles RTDB » de `docs/context/TODO.md` ;
+- **nœud orphelin après une course à la jonction** : fermé côté client depuis
+  le 2026-11-26 (`fix/jonction-session-supprimee`). Si la session est supprimée
+  (par le propriétaire ou par la purge) pendant qu'un invité la rejoint, après
+  sa lecture, `joinSharedSession` écrit quand même `members/$memberId` (accordé
+  par `members/$memberId: .write true`). La relecture renvoie alors `null` :
+  `JoinSessionUseCase` lève `not_found`, n'appelle plus `updateMidpoint` (il ne
+  retombe plus sur le roster local) et, pour un nouveau membre seulement,
+  supprime d'abord en best-effort le `members/$memberId` qu'il vient d'écrire
+  (`removeMember`). Avant ce correctif, il restait un nœud
+  `{ members: { <invité> }, meta: { midpoint, midpointRadius } }` sans
+  `expiresAt`, ignoré par `purgeExpiredSessions`, avec l'**adresse de départ
+  exacte** de l'invité. Les règles, elles, acceptent toujours ces écritures :
+  la fermeture est côté client seulement. Deux résidus, non fermables côté
+  client sans transaction :
+
+  - si la session est supprimée **entre** la relecture et `updateMidpoint`,
+    il reste un `meta = { midpoint, midpointRadius }` orphelin, ignoré par la
+    purge. Il ne porte pas d'adresse, seulement une coordonnée dérivée (le
+    membre a été supprimé avec la session). Anonymous Auth **fermerait** ce
+    résidu si l'écriture de `meta` est réservée au créateur (`auth.uid`),
+    **y compris** sur le chemin de création au niveau `sessions/$sessionId`
+    (aujourd'hui accordé dès que `meta` n'existe pas, et cet accord descend
+    jusqu'à `meta`) : l'invité ne pourrait plus écrire `meta/midpoint`, mais
+    le recalcul du
+    midpoint à la jonction ne viendrait alors plus de l'invité (à repenser
+    dans cette story) ;
+  - si `removeMember` échoue (best-effort : l'échec part au crash reporter, la
+    méthode ne rejette jamais, l'invité voit quand même `not_found`), le
+    `members/$memberId` reste, avec l'adresse exacte de l'invité. Anonymous
+    Auth ne fermerait **pas** ce résidu : un invité authentifié reste
+    propriétaire de son `members/$memberId`.
+
+  Suivi : item « Tests des règles RTDB » de `docs/context/TODO.md` ;
+
 - l'immuabilité ci-dessus est appliquée **côté règles** (déclaratif) et ne
   remplace pas une véritable autorisation par identité.
 

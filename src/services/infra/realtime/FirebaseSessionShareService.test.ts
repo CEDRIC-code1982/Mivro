@@ -1,22 +1,23 @@
 /**
  * @file FirebaseSessionShareService.test.ts
- * @description Tests unitaires de l'adapter FirebaseSessionShareService (F5, API
- *              modulaire). Unit tests for the FirebaseSessionShareService adapter
- *              (F5, modular API).
+ * @description Unit tests for the FirebaseSessionShareService adapter (F5,
+ *              modular API).
  *
- *              Le mock de base de @react-native-firebase/database vient de
- *              jest.setup.js ; on récupère ici des références aux fonctions
- *              mockées et on les surcharge par test.
+ *              The base mock of @react-native-firebase/database comes from
+ *              jest.setup.js; here we grab references to the mocked functions
+ *              and override them per test.
  *
- *              Couvre : create/join/fetch/subscribe/updateMidpoint/delete sur les
- *              bons chemins (meta + members/$id, SANS toucher participants),
- *              parse Zod invalide → invalid_data, mapping erreurs (dont
- *              not_configured), absence de coords dans les logs.
+ *              Covers: create/join/fetch/subscribe/updateMidpoint/removeMember/
+ *              delete on the right paths (meta + members/$id, WITHOUT touching
+ *              participants), invalid Zod parse → invalid_data, error mapping
+ *              (including not_configured), no coords in the logs, and
+ *              removeMember never rejecting (remove failure, crash reporter
+ *              failure, Firebase not configured).
  *
  * @module services/infra/realtime/FirebaseSessionShareService.test
  */
 
-// [ADDED] F5 — Tests unitaires FirebaseSessionShareService
+// [ADDED] F5 — FirebaseSessionShareService unit tests
 import { getApp } from '@react-native-firebase/app';
 import { get, getDatabase, onValue, ref, remove, update } from '@react-native-firebase/database';
 import { mock } from 'jest-mock-extended';
@@ -58,7 +59,7 @@ const validSession: SharedSession = {
   members: [validMember],
 };
 
-/** Forme brute d'un nœud session telle que lue depuis Firebase (meta + members keyed). */
+/** Raw shape of a session node as read from Firebase (meta + keyed members). */
 const rawNode = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
   meta: {
     createdAt: NOW,
@@ -72,7 +73,7 @@ const rawNode = (overrides: Record<string, unknown> = {}): Record<string, unknow
       startLocation: { latitude: 48.8566, longitude: 2.3522, formattedAddress: '1 rue de Paris' },
     },
   },
-  // sous-nœud F4 — NE doit jamais être touché par cet adapter
+  // F4 sub-node — must NEVER be touched by this adapter
   participants: { 'p-1': { latitude: 1, longitude: 2, updatedAt: 1 } },
   ...overrides,
 });
@@ -107,7 +108,7 @@ describe('FirebaseSessionShareService', () => {
 
       expect(mockRef).toHaveBeenCalledWith({ __mockDatabase: true }, `sessions/${SESSION_ID}`);
       const [, payload] = mockUpdate.mock.calls[0] ?? [];
-      // Seules les clés meta + members sont fournies → update() ne remplace pas participants.
+      // Only the meta + members keys are provided → update() does not replace participants.
       expect(Object.keys(payload as object).sort()).toEqual(['members', 'meta']);
       expect(payload).not.toHaveProperty('participants');
     });
@@ -367,6 +368,72 @@ describe('FirebaseSessionShareService', () => {
     });
   });
 
+  // ─── removeMember ─────────────────────────────────────────
+  describe('removeMember', () => {
+    const memberPath = `sessions/${SESSION_ID}/members/${MEMBER_ID}`;
+
+    beforeEach(() => {
+      jest.spyOn(console, 'warn').mockImplementation();
+    });
+
+    it('removes only the members/{memberId} node (GDPR)', async () => {
+      await expect(service.removeMember(SESSION_ID, MEMBER_ID)).resolves.toBeUndefined();
+
+      expect(mockRef).toHaveBeenCalledWith({ __mockDatabase: true }, memberPath);
+      expect(mockRemove).toHaveBeenCalledTimes(1);
+      expect(mockRemove).toHaveBeenCalledWith({ __mockRef: true, path: memberPath });
+      expect(mockUpdate).not.toHaveBeenCalled();
+      expect(crashReporter.captureException).not.toHaveBeenCalled();
+    });
+
+    it('resolves and reports when remove() rejects', async () => {
+      mockRemove.mockRejectedValue(new Error('permission denied'));
+
+      await expect(service.removeMember(SESSION_ID, MEMBER_ID)).resolves.toBeUndefined();
+
+      expect(crashReporter.captureException).toHaveBeenCalledTimes(1);
+      expect(crashReporter.captureException).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'permission_denied' }),
+        { tags: { feature: 'share' }, extra: { code: 'permission_denied' } },
+      );
+    });
+
+    it('resolves even when the crash reporter throws', async () => {
+      mockRemove.mockRejectedValue(new Error('network unavailable'));
+      crashReporter.captureException.mockImplementationOnce(() => {
+        throw new Error('crash reporter down');
+      });
+
+      await expect(service.removeMember(SESSION_ID, MEMBER_ID)).resolves.toBeUndefined();
+
+      expect(crashReporter.captureException).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'network' }),
+        expect.objectContaining({ tags: { feature: 'share' } }),
+      );
+    });
+
+    it('resolves when Firebase is not configured (db() throws)', async () => {
+      mockGetDatabase.mockImplementation(() => {
+        throw new Error('No Firebase App "[DEFAULT]" has been created');
+      });
+
+      await expect(service.removeMember(SESSION_ID, MEMBER_ID)).resolves.toBeUndefined();
+
+      expect(mockRemove).not.toHaveBeenCalled();
+      expect(crashReporter.captureException).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'not_configured' }),
+        expect.objectContaining({ tags: { feature: 'share' } }),
+      );
+    });
+
+    it('resolves on failure without a crash reporter', async () => {
+      mockRemove.mockRejectedValue(new Error('permission denied'));
+      const bare = new FirebaseSessionShareService();
+
+      await expect(bare.removeMember(SESSION_ID, MEMBER_ID)).resolves.toBeUndefined();
+    });
+  });
+
   // ─── deleteSharedSession ──────────────────────────────────
   describe('deleteSharedSession', () => {
     it('removes the whole session node (RGPD)', async () => {
@@ -406,7 +473,7 @@ describe('FirebaseSessionShareService', () => {
     });
 
     it('preserves an already-typed SessionShareError code', async () => {
-      // invalid_data est levé par parseSession (déjà typé) puis re-mappé sans changer le code.
+      // invalid_data is thrown by parseSession (already typed) then re-mapped without changing the code.
       mockGet.mockResolvedValue({
         val: () => rawNode({ meta: { createdAt: NOW } }),
       });
@@ -426,7 +493,7 @@ describe('FirebaseSessionShareService', () => {
     });
   });
 
-  // ─── db() target RTDB instance (fallback, FIREBASE_DATABASE_URL vide) ──
+  // ─── db() target RTDB instance (fallback, empty FIREBASE_DATABASE_URL) ──
   describe('db() target RTDB instance — empty FIREBASE_DATABASE_URL', () => {
     it('calls getDatabase with getApp() only (no url) on the fallback branch', async () => {
       const appHandle = { name: '[DEFAULT]' };
@@ -442,8 +509,8 @@ describe('FirebaseSessionShareService', () => {
   });
 });
 
-// ─── db() target RTDB instance — EU URL définie ─────────────
-// Branche EU : FIREBASE_DATABASE_URL non vide → getDatabase(getApp(), url).
+// ─── db() target RTDB instance — EU URL defined ─────────────
+// EU branch: non-empty FIREBASE_DATABASE_URL → getDatabase(getApp(), url).
 describe('FirebaseSessionShareService db() — EU FIREBASE_DATABASE_URL defined', () => {
   const EU_DATABASE_URL = 'https://mivro-40125-default-rtdb.europe-west1.firebasedatabase.app/';
 

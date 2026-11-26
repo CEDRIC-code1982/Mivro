@@ -1,21 +1,24 @@
 /**
  * @file JoinSessionUseCase.test.ts
- * @description Tests unitaires du use case JoinSessionUseCase (F5).
- *              Unit tests for the JoinSessionUseCase (F5).
+ * @description Unit tests for the JoinSessionUseCase (F5).
  *
- *              Couvre : succès (ajout membre + recalcul midpoint), expiré, not_found,
- *              closed, plein (code `full`), idempotence (membre déjà présent), pas de
- *              point de départ (propagé via le membre fourni), propagation d'erreur.
+ *              Covers: success (member added + midpoint recomputed), expired,
+ *              not_found, closed, full (`full` code), idempotence (member already
+ *              present), no start point (propagated through the provided member),
+ *              error propagation, and a session deleted while joining (re-read
+ *              returning `null` → best-effort `removeMember` for a new member,
+ *              then `not_found` without `updateMidpoint`).
  *
- *              ⚠️ Le use case appelle `fetchSharedSession` DEUX fois : avant l'ajout
- *              (validation) puis après (relecture du roster réel, anti « lost update »).
- *              Les mocks renvoient donc un roster À JOUR au 2ᵉ appel via
- *              `mockResolvedValueOnce` (1er = état initial, 2ᵉ = roster post-écriture).
+ *              ⚠️ The use case calls `fetchSharedSession` TWICE: before the add
+ *              (validation) then after (re-read of the real roster, anti "lost
+ *              update"). The mocks therefore return an UP-TO-DATE roster on the
+ *              2nd call via `mockResolvedValueOnce` (1st = initial state, 2nd =
+ *              post-write roster).
  *
  * @module services/domain/sharing/JoinSessionUseCase.test
  */
 
-// [ADDED] F5 — Tests unitaires JoinSessionUseCase
+// [ADDED] F5 — JoinSessionUseCase unit tests
 import { mock } from 'jest-mock-extended';
 import {
   SHARE_TTL_GUEST_MS,
@@ -58,9 +61,11 @@ describe('JoinSessionUseCase', () => {
   beforeEach(() => {
     jest.spyOn(console, 'log').mockImplementation();
     jest.spyOn(console, 'info').mockImplementation();
+    jest.spyOn(console, 'warn').mockImplementation();
     service = mock<ISessionShareService>();
     service.joinSharedSession.mockResolvedValue(undefined);
     service.updateMidpoint.mockResolvedValue(undefined);
+    service.removeMember.mockResolvedValue(undefined);
     calculateMidpoint = new CalculateMidpointUseCase();
     useCase = new JoinSessionUseCase(service, calculateMidpoint);
   });
@@ -73,7 +78,7 @@ describe('JoinSessionUseCase', () => {
   describe('success', () => {
     it('adds the new member then recomputes + persists the midpoint', async () => {
       const newMember = makeMember('b', 50.0, 4.0);
-      // 1er fetch (validation) : roster initial ; 2ᵉ fetch (relecture) : roster à jour.
+      // 1st fetch (validation): initial roster; 2nd fetch (re-read): up-to-date roster.
       service.fetchSharedSession
         .mockResolvedValueOnce(makeShared())
         .mockResolvedValueOnce(makeShared({ members: [makeMember('a', 48.0, 2.0), newMember] }));
@@ -90,9 +95,9 @@ describe('JoinSessionUseCase', () => {
     });
 
     it('recomputes the midpoint from the refreshed roster (anti lost-update)', async () => {
-      // Un join concurrent a ajouté 'c' entre notre validation et notre relecture :
-      // le midpoint doit refléter TOUS les membres présents au 2ᵉ fetch (a + b + c),
-      // pas l'instantané périmé (a) lu au 1er fetch.
+      // A concurrent join added 'c' between our validation and our re-read:
+      // the midpoint must reflect ALL the members present at the 2nd fetch
+      // (a + b + c), not the stale snapshot (a) read at the 1st fetch.
       const newMember = makeMember('b', 50.0, 4.0);
       service.fetchSharedSession.mockResolvedValueOnce(makeShared()).mockResolvedValueOnce(
         makeShared({
@@ -123,18 +128,6 @@ describe('JoinSessionUseCase', () => {
         expected.midpoint,
         expected.radius,
       );
-    });
-
-    it('falls back to the local recomposition when the refresh returns no roster', async () => {
-      // Filet : si la relecture renvoie null, le use case retombe sur
-      // existing.members + member sans planter la jointure.
-      const newMember = makeMember('b', 50.0, 4.0);
-      service.fetchSharedSession.mockResolvedValueOnce(makeShared()).mockResolvedValueOnce(null);
-
-      const result = await useCase.execute({ sessionId: SESSION_ID, member: newMember, now: NOW });
-
-      expect(result.members.map((m) => m.memberId)).toEqual(['a', 'b']);
-      expect(service.updateMidpoint).toHaveBeenCalledTimes(1);
     });
 
     it('persists the same midpoint that was recomputed', async () => {
@@ -173,6 +166,116 @@ describe('JoinSessionUseCase', () => {
         expected.radius,
       );
       expect(result.meta.midpoint).toEqual(expected.midpoint);
+    });
+
+    it('returns the refreshed meta and members with the recomputed midpoint', async () => {
+      // The 2nd fetch differs from the 1st on purpose (other ownerType,
+      // createdAt and expiresAt, one more member): the result must be built
+      // from the re-read, not from the validation snapshot.
+      const newMember = makeMember('b', 50.0, 4.0);
+      const refreshed = makeShared({
+        meta: {
+          createdAt: NOW - 5000,
+          expiresAt: NOW + 2 * SHARE_TTL_GUEST_MS,
+          ownerType: 'account',
+          status: 'open',
+        },
+        members: [makeMember('a', 48.0, 2.0), newMember, makeMember('c', 46.0, 6.0)],
+      });
+      service.fetchSharedSession
+        .mockResolvedValueOnce(makeShared())
+        .mockResolvedValueOnce(refreshed);
+
+      const result = await useCase.execute({ sessionId: SESSION_ID, member: newMember, now: NOW });
+
+      const [, midpoint, radius] = service.updateMidpoint.mock.calls[0] ?? [];
+      expect(result).toEqual({
+        ...refreshed,
+        meta: { ...refreshed.meta, midpoint, midpointRadius: radius },
+      });
+    });
+  });
+
+  // ─── Session deleted while joining ────────────────────────
+  describe('session deleted while joining (re-read returns null)', () => {
+    it('removes the new member, throws not_found and does not update the midpoint', async () => {
+      const newMember = makeMember('b', 50.0, 4.0);
+      service.fetchSharedSession.mockResolvedValueOnce(makeShared()).mockResolvedValueOnce(null);
+
+      await expect(
+        useCase.execute({ sessionId: SESSION_ID, member: newMember, now: NOW }),
+      ).rejects.toMatchObject({ code: 'not_found' });
+
+      expect(service.joinSharedSession).toHaveBeenCalledWith(SESSION_ID, newMember);
+      expect(service.removeMember).toHaveBeenCalledTimes(1);
+      expect(service.removeMember).toHaveBeenCalledWith(SESSION_ID, 'b');
+      expect(service.updateMidpoint).not.toHaveBeenCalled();
+    });
+
+    it('throws a SessionShareError instance', async () => {
+      service.fetchSharedSession.mockResolvedValueOnce(makeShared()).mockResolvedValueOnce(null);
+
+      await expect(
+        useCase.execute({ sessionId: SESSION_ID, member: makeMember('b'), now: NOW }),
+      ).rejects.toBeInstanceOf(SessionShareError);
+    });
+
+    it('does not remove an already-present member, but still throws not_found', async () => {
+      // The member was not written by this call: there is nothing of ours to remove.
+      service.fetchSharedSession
+        .mockResolvedValueOnce(
+          makeShared({ members: [makeMember('a', 48.0, 2.0), makeMember('b', 50.0, 4.0)] }),
+        )
+        .mockResolvedValueOnce(null);
+
+      await expect(
+        useCase.execute({ sessionId: SESSION_ID, member: makeMember('b', 50.0, 4.0), now: NOW }),
+      ).rejects.toMatchObject({ code: 'not_found' });
+
+      expect(service.joinSharedSession).not.toHaveBeenCalled();
+      expect(service.removeMember).not.toHaveBeenCalled();
+      expect(service.updateMidpoint).not.toHaveBeenCalled();
+    });
+
+    it('calls removeMember after the member write and the re-read', async () => {
+      service.fetchSharedSession.mockResolvedValueOnce(makeShared()).mockResolvedValueOnce(null);
+
+      await expect(
+        useCase.execute({ sessionId: SESSION_ID, member: makeMember('b'), now: NOW }),
+      ).rejects.toMatchObject({ code: 'not_found' });
+
+      const [joinOrder] = service.joinSharedSession.mock.invocationCallOrder;
+      const [, reReadOrder] = service.fetchSharedSession.mock.invocationCallOrder;
+      const [removeOrder] = service.removeMember.mock.invocationCallOrder;
+      expect(joinOrder).toBeLessThan(reReadOrder ?? 0);
+      expect(reReadOrder).toBeLessThan(removeOrder ?? 0);
+    });
+
+    it('awaits removeMember before rejecting with not_found', async () => {
+      // The removal is held pending: the use case must not settle until it resolves.
+      let releaseRemoval: () => void = () => undefined;
+      service.removeMember.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseRemoval = resolve;
+          }),
+      );
+      service.fetchSharedSession.mockResolvedValueOnce(makeShared()).mockResolvedValueOnce(null);
+      let settled = false;
+
+      const pending = useCase
+        .execute({ sessionId: SESSION_ID, member: makeMember('b'), now: NOW })
+        .finally(() => {
+          settled = true;
+        });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(service.removeMember).toHaveBeenCalledTimes(1);
+      expect(settled).toBe(false);
+
+      releaseRemoval();
+      await expect(pending).rejects.toMatchObject({ code: 'not_found' });
+      expect(settled).toBe(true);
     });
   });
 
@@ -253,7 +356,7 @@ describe('JoinSessionUseCase', () => {
         }),
       );
 
-      // [MINEUR 6] Code typé `full` désormais (était `unknown`) → message i18n dédié.
+      // [MINEUR 6] Typed `full` code now (was `unknown`) → dedicated i18n message.
       await expect(
         useCase.execute({ sessionId: SESSION_ID, member: makeMember('f'), now: NOW }),
       ).rejects.toMatchObject({ code: 'full' });
@@ -266,6 +369,23 @@ describe('JoinSessionUseCase', () => {
       await expect(
         useCase.execute({ sessionId: SESSION_ID, member: makeMember('b'), now: NOW }),
       ).rejects.toMatchObject({ code: 'network' });
+    });
+
+    it('propagates a typed error from the re-read without removing the member', async () => {
+      // A failing re-read (network) is not a deleted session: the session
+      // exists, there is no orphan, so the port error propagates unchanged.
+      const readError = new SessionShareError('net', 'network');
+      service.fetchSharedSession
+        .mockResolvedValueOnce(makeShared())
+        .mockRejectedValueOnce(readError);
+
+      await expect(
+        useCase.execute({ sessionId: SESSION_ID, member: makeMember('b'), now: NOW }),
+      ).rejects.toBe(readError);
+
+      expect(service.joinSharedSession).toHaveBeenCalledTimes(1);
+      expect(service.removeMember).not.toHaveBeenCalled();
+      expect(service.updateMidpoint).not.toHaveBeenCalled();
     });
   });
 

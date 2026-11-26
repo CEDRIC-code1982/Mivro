@@ -1,42 +1,42 @@
 /**
  * @file FirebaseSessionShareService.ts
- * @description Implémentation ISessionShareService basée sur Firebase Realtime
- *              Database (@react-native-firebase/database, API modulaire v25),
- *              comme F4. Gère le ROSTER partagé (meta + membres) d'une session.
- *              ISessionShareService implementation based on Firebase Realtime
- *              Database (modular API v25), like F4. Manages a session's shared
- *              ROSTER (meta + members).
+ * @description ISessionShareService implementation based on Firebase Realtime
+ *              Database (@react-native-firebase/database, modular API v25),
+ *              like F4. Manages a session's shared ROSTER (meta + members).
  *
- *              Structure Firebase (étend F4 / extends F4) :
+ *              Firebase structure (extends F4):
  *              sessions/{sessionId}/
  *                meta/    { createdAt, expiresAt, ownerType, status, midpoint?, midpointRadius? }
  *                members/{memberId}/  { displayName, avatarId?, startLocation }
- *                participants/{participantId}/  ← positions live F4 (NON touchées ici)
+ *                participants/{participantId}/  ← F4 live positions (NOT touched here)
  *
- *              Responsabilités / Responsibilities:
- *              - create : écrit meta + members (merge, ne touche pas participants)
- *              - join : ajoute un membre sous members/{memberId}
- *              - fetch / subscribe : lit meta + members, **valide via Zod** (TS-004)
- *              - updateMidpoint : met à jour meta/midpoint + meta/midpointRadius
- *              - delete : supprime tout le nœud sessions/{sessionId} (RGPD)
- *              - try/catch sur tous les I/O (ERR-001), mapping → SessionShareError
- *                typée, crashReporter, logs LOG-001
+ *              Responsibilities:
+ *              - create: writes meta + members (merge, does not touch participants)
+ *              - join: adds a member under members/{memberId}
+ *              - fetch / subscribe: reads meta + members, **validates via Zod** (TS-004)
+ *              - updateMidpoint: updates meta/midpoint + meta/midpointRadius
+ *              - removeMember: removes members/{memberId} (GDPR, best-effort,
+ *                never rejects)
+ *              - delete: removes the whole sessions/{sessionId} node (GDPR)
+ *              - try/catch on every I/O (ERR-001), mapping → typed
+ *                SessionShareError, crashReporter, LOG-001 logs
  *
- *              ⚠️ RGPD : aucune coordonnée brute dans les logs (scrubbing).
+ *              ⚠️ GDPR: no raw coordinate in the logs (scrubbing).
  *
- *              ⚠️ PRÉREQUIS (à fournir par Cédric — voir guides/realtime-setup) :
- *              projet Firebase + GoogleService-Info.plist (iOS) +
- *              google-services.json (Android). Sans ces fichiers, l'app lève à
- *              l'init Firebase ; le code ci-dessous est prêt dès leur ajout.
+ *              ⚠️ PREREQUISITE (to be provided by Cédric — see guides/realtime-setup):
+ *              Firebase project + GoogleService-Info.plist (iOS) +
+ *              google-services.json (Android). Without these files, the app
+ *              throws at Firebase init; the code below is ready as soon as they
+ *              are added.
  *
- *              firebase = adapter UNIQUEMENT : services/domain, features et
- *              components n'importent JAMAIS `@react-native-firebase`
- *              (règle de dépendance, vérifiée par npm run check:arch).
+ *              firebase = adapter ONLY: services/domain, features and
+ *              components NEVER import `@react-native-firebase`
+ *              (dependency rule, checked by npm run check:arch).
  *
  * @module services/infra/realtime/FirebaseSessionShareService
  */
 
-// [ADDED] F5 — Adapter FirebaseSessionShareService (API modulaire)
+// [ADDED] F5 — FirebaseSessionShareService adapter (modular API)
 import { getApp } from '@react-native-firebase/app';
 import { get, getDatabase, onValue, ref, remove, update } from '@react-native-firebase/database';
 import Config from 'react-native-config';
@@ -58,18 +58,17 @@ import {
   type SharedSessionUpdateHandler,
 } from '@services/domain/sharing/ISessionShareService';
 
-/** Racine du nœud sessions / Sessions node root */
+/** Sessions node root */
 const SESSIONS_NODE = 'sessions';
-/** Sous-nœud meta / Meta sub-node */
+/** Meta sub-node */
 const META_NODE = 'meta';
-/** Sous-nœud members / Members sub-node */
+/** Members sub-node */
 const MEMBERS_NODE = 'members';
 
 /**
- * Implémentation Firebase du port ISessionShareService.
  * Firebase implementation of the ISessionShareService port.
  *
- * @param crashReporter - Crash reporter optionnel (Sentry) / Optional crash reporter
+ * @param crashReporter - Optional crash reporter (Sentry)
  *
  * @example
  *   const service = new FirebaseSessionShareService(crashReporter);
@@ -79,13 +78,12 @@ export class FirebaseSessionShareService implements ISessionShareService {
   constructor(private readonly crashReporter?: ICrashReporter) {}
 
   /**
-   * Publie la session courante (meta + members) sur Firebase.
    * Publishes the current session (meta + members) to Firebase.
    *
-   * @param session - Session partagée à publier / Shared session to publish
-   * @param ownerType - Type de propriétaire / Owner type
-   * @returns Identifiant, lien profond et date d'expiration / Identifier, deep link and expiration
-   * @throws {SessionShareError} Si la publication échoue / If the publish fails
+   * @param session - Shared session to publish
+   * @param ownerType - Owner type
+   * @returns Identifier, deep link and expiration date
+   * @throws {SessionShareError} If the publish fails
    */
   async createSharedSession(
     session: SharedSession,
@@ -94,15 +92,15 @@ export class FirebaseSessionShareService implements ISessionShareService {
     try {
       const sessionId = session.sessionId;
 
-      // members → objet indexé par memberId (clé Firebase).
+      // members → object keyed by memberId (Firebase key).
       const membersObject: Record<string, unknown> = {};
       for (const member of session.members) {
         membersObject[member.memberId] = this.serializeMember(member);
       }
 
-      // Écriture mergée : meta + members. NE touche PAS au sous-nœud
-      // participants (positions live F4) — update() ne remplace que les clés
-      // fournies au niveau du nœud session.
+      // Merged write: meta + members. Does NOT touch the participants
+      // sub-node (F4 live positions) — update() only replaces the keys
+      // provided at the session node level.
       await update(ref(this.db(), this.sessionPath(sessionId)), {
         [META_NODE]: { ...session.meta, ownerType },
         [MEMBERS_NODE]: membersObject,
@@ -126,12 +124,11 @@ export class FirebaseSessionShareService implements ISessionShareService {
   }
 
   /**
-   * Ajoute un membre (point de départ) à la session partagée.
    * Adds a member (start point) to the shared session.
    *
-   * @param sessionId - Identifiant de la session / Session identifier
-   * @param member - Membre à ajouter / Member to add
-   * @throws {SessionShareError} Si l'ajout échoue / If the add fails
+   * @param sessionId - Session identifier
+   * @param member - Member to add
+   * @throws {SessionShareError} If the add fails
    */
   async joinSharedSession(sessionId: string, member: SharedSessionMember): Promise<void> {
     try {
@@ -150,12 +147,11 @@ export class FirebaseSessionShareService implements ISessionShareService {
   }
 
   /**
-   * Lit une fois l'état courant d'une session partagée.
    * Reads the current state of a shared session once.
    *
-   * @param sessionId - Identifiant de la session / Session identifier
-   * @returns Session partagée validée, ou null si absente / Validated shared session, or null
-   * @throws {SessionShareError} Si la lecture échoue / If the read fails
+   * @param sessionId - Session identifier
+   * @returns Validated shared session, or null if absent
+   * @throws {SessionShareError} If the read fails
    */
   async fetchSharedSession(sessionId: string): Promise<SharedSession | null> {
     try {
@@ -176,13 +172,12 @@ export class FirebaseSessionShareService implements ISessionShareService {
   }
 
   /**
-   * S'abonne aux changements (meta + members) d'une session partagée.
    * Subscribes to a shared session's changes (meta + members).
    *
-   * @param sessionId - Identifiant de la session / Session identifier
-   * @param onUpdate - Handler appelé à chaque changement / Handler called on each change
-   * @returns Fonction de désabonnement / Unsubscribe function
-   * @throws {SessionShareError} Si l'abonnement ne peut être établi / If the subscription fails
+   * @param sessionId - Session identifier
+   * @param onUpdate - Handler called on each change
+   * @returns Unsubscribe function
+   * @throws {SessionShareError} If the subscription cannot be established
    */
   subscribeToSharedSession(
     sessionId: string,
@@ -194,7 +189,7 @@ export class FirebaseSessionShareService implements ISessionShareService {
       const unsubscribe = onValue(
         sessionRef,
         (snapshot) => {
-          // Données externes → validation Zod stricte (TS-004)
+          // External data → strict Zod validation (TS-004)
           onUpdate(this.parseSession(sessionId, snapshot.val()));
         },
         (error) => {
@@ -221,13 +216,12 @@ export class FirebaseSessionShareService implements ISessionShareService {
   }
 
   /**
-   * Met à jour le midpoint recalculé dans la meta.
    * Updates the recomputed midpoint in the meta.
    *
-   * @param sessionId - Identifiant de la session / Session identifier
-   * @param midpoint - Coordonnées du midpoint / Midpoint coordinates
-   * @param radius - Rayon de zone en mètres / Zone radius in meters
-   * @throws {SessionShareError} Si la mise à jour échoue / If the update fails
+   * @param sessionId - Session identifier
+   * @param midpoint - Midpoint coordinates
+   * @param radius - Zone radius in meters
+   * @throws {SessionShareError} If the update fails
    */
   async updateMidpoint(sessionId: string, midpoint: Coordinates, radius: number): Promise<void> {
     try {
@@ -237,7 +231,7 @@ export class FirebaseSessionShareService implements ISessionShareService {
         midpointRadius: radius,
       });
 
-      // ⚠️ RGPD : log SANS coordonnées brutes
+      // ⚠️ GDPR: log WITHOUT raw coordinates
       console.log(
         `[INFO][FirebaseSessionShareService][updateMidpoint][?][${this.timestamp()}] ` +
           `Midpoint updated | radius: ${Math.round(radius)}m`,
@@ -250,11 +244,46 @@ export class FirebaseSessionShareService implements ISessionShareService {
   }
 
   /**
-   * Supprime toute la session partagée (RGPD — fin de session).
+   * Removes one member node (members/{memberId}) from the shared session
+   * (GDPR: the member's start point is an exact address).
+   *
+   * Best-effort, **never rejects** (port contract): on failure the error is
+   * mapped, logged and reported to the crash reporter, then swallowed.
+   * Removing an absent node is a no-op on RTDB (idempotent). The
+   * `members/$memberId` rule (`.write: true`) already allows this write.
+   *
+   * @param sessionId - Session identifier
+   * @param memberId - Member identifier
+   * @returns A promise that always resolves
+   */
+  async removeMember(sessionId: string, memberId: string): Promise<void> {
+    try {
+      await remove(ref(this.db(), this.memberPath(sessionId, memberId)));
+      console.log(
+        `[INFO][FirebaseSessionShareService][removeMember][?][${this.timestamp()}] ` +
+          'Member removed from shared session (GDPR)',
+      );
+    } catch (error: unknown) {
+      const mapped = this.mapError(error, 'removeMember');
+      // Cleanup must never break the caller's flow: log + report without throwing.
+      console.warn(
+        `[WARN][FirebaseSessionShareService][removeMember][?][${this.timestamp()}] ` +
+          `Failed to remove member (best-effort) | code: ${mapped.code}`,
+      );
+      try {
+        this.report(mapped);
+      } catch {
+        // Reporting must not make removeMember reject: the port promises that
+        // removeMember never rejects, so a crash reporter failure is swallowed.
+      }
+    }
+  }
+
+  /**
    * Deletes the whole shared session (GDPR — end of session).
    *
-   * @param sessionId - Identifiant de la session / Session identifier
-   * @throws {SessionShareError} Si la suppression échoue durablement / If removal fails
+   * @param sessionId - Session identifier
+   * @throws {SessionShareError} If removal fails persistently
    */
   async deleteSharedSession(sessionId: string): Promise<void> {
     try {
@@ -271,11 +300,10 @@ export class FirebaseSessionShareService implements ISessionShareService {
   }
 
   /**
-   * Sérialise un membre pour Firebase (sans memberId, qui est la clé).
    * Serializes a member for Firebase (without memberId, which is the key).
    *
-   * @param member - Membre à sérialiser / Member to serialize
-   * @returns Objet Firebase / Firebase object
+   * @param member - Member to serialize
+   * @returns Firebase object
    */
   private serializeMember(member: SharedSessionMember): Record<string, unknown> {
     return {
@@ -290,29 +318,26 @@ export class FirebaseSessionShareService implements ISessionShareService {
   }
 
   /**
-   * Valide et mappe le contenu brut d'un nœud session en SharedSession.
    * Validates and maps a raw session node's content into a SharedSession.
    *
-   * Le memberId (clé Firebase) est ré-injecté dans chaque membre avant
-   * validation Zod (TS-004). Retourne null si le nœud est absent.
    * The memberId (Firebase key) is re-injected into each member before Zod
-   * validation. Returns null if the node is absent.
+   * validation (TS-004). Returns null if the node is absent.
    *
-   * @param sessionId - Identifiant de la session / Session identifier
-   * @param raw - Valeur brute du snapshot (inconnue) / Raw snapshot value (unknown)
-   * @returns Session partagée validée, ou null / Validated shared session, or null
-   * @throws {SessionShareError} Code `invalid_data` si la meta est invalide / If meta invalid
+   * @param sessionId - Session identifier
+   * @param raw - Raw snapshot value (unknown)
+   * @returns Validated shared session, or null
+   * @throws {SessionShareError} Code `invalid_data` if the meta is invalid
    */
   private parseSession(sessionId: string, raw: unknown): SharedSession | null {
     if (raw === null || typeof raw !== 'object') {
       return null;
     }
 
-    // Cast justifié : la garde ci-dessus a écarté null et les non-objets. Les
-    // valeurs lues ensuite passent par un schéma Zod avant tout usage (TS-004).
+    // Justified cast: the guard above ruled out null and non-objects. The
+    // values read next go through a Zod schema before any use (TS-004).
     const node = raw as Record<string, unknown>;
-    // Une session sans meta n'est pas une session partagée valide (peut n'avoir
-    // que `participants` F4) → on la considère absente côté partage.
+    // A session without meta is not a valid shared session (it may only have
+    // F4 `participants`) → it is considered absent on the sharing side.
     if (node[META_NODE] === undefined || node[META_NODE] === null) {
       return null;
     }
@@ -320,12 +345,12 @@ export class FirebaseSessionShareService implements ISessionShareService {
     const membersRaw = node[MEMBERS_NODE];
     const members: Array<Record<string, unknown>> = [];
     if (membersRaw !== null && typeof membersRaw === 'object') {
-      // Cast justifié : membersRaw vient d'être gardé comme objet non nul ;
-      // Firebase stocke les membres en dictionnaire indexé par memberId.
+      // Justified cast: membersRaw has just been guarded as a non-null object;
+      // Firebase stores members as a dictionary keyed by memberId.
       for (const [memberId, value] of Object.entries(membersRaw as Record<string, unknown>)) {
         if (value !== null && typeof value === 'object') {
-          // Cast justifié : value gardé comme objet non nul juste au-dessus ; la
-          // forme réelle est validée par le schéma Zod plus bas (TS-004).
+          // Justified cast: value guarded as a non-null object just above; the
+          // actual shape is validated by the Zod schema below (TS-004).
           members.push({ memberId, ...(value as Record<string, unknown>) });
         }
       }
@@ -351,15 +376,13 @@ export class FirebaseSessionShareService implements ISessionShareService {
   }
 
   /**
-   * Récupère l'instance Database (lève si Firebase non configuré).
    * Gets the Database instance (throws if Firebase not configured).
    *
-   * Cible explicitement l'instance RTDB via son URL (`FIREBASE_DATABASE_URL`,
-   * région europe-west1) ; fallback sans URL si absente (tests/CI). Cf. F4.
-   * Explicitly targets the RTDB instance via its URL; falls back without URL
-   * when absent (tests/CI). See F4.
+   * Explicitly targets the RTDB instance via its URL (`FIREBASE_DATABASE_URL`,
+   * europe-west1 region); falls back without URL when absent (tests/CI).
+   * See F4.
    *
-   * @returns Instance Database / Database instance
+   * @returns Database instance
    */
   private db(): ReturnType<typeof getDatabase> {
     const url = Config.FIREBASE_DATABASE_URL;
@@ -370,46 +393,42 @@ export class FirebaseSessionShareService implements ISessionShareService {
   }
 
   /**
-   * Chemin du nœud d'une session.
    * Path of a session node.
    *
-   * @param sessionId - Identifiant de la session / Session identifier
-   * @returns Chemin Firebase / Firebase path
+   * @param sessionId - Session identifier
+   * @returns Firebase path
    */
   private sessionPath(sessionId: string): string {
     return `${SESSIONS_NODE}/${sessionId}`;
   }
 
   /**
-   * Chemin du nœud meta d'une session.
    * Path of a session's meta node.
    *
-   * @param sessionId - Identifiant de la session / Session identifier
-   * @returns Chemin Firebase / Firebase path
+   * @param sessionId - Session identifier
+   * @returns Firebase path
    */
   private metaPath(sessionId: string): string {
     return `${this.sessionPath(sessionId)}/${META_NODE}`;
   }
 
   /**
-   * Chemin du nœud d'un membre.
    * Path of a member node.
    *
-   * @param sessionId - Identifiant de la session / Session identifier
-   * @param memberId - Identifiant du membre / Member identifier
-   * @returns Chemin Firebase / Firebase path
+   * @param sessionId - Session identifier
+   * @param memberId - Member identifier
+   * @returns Firebase path
    */
   private memberPath(sessionId: string, memberId: string): string {
     return `${this.sessionPath(sessionId)}/${MEMBERS_NODE}/${memberId}`;
   }
 
   /**
-   * Mappe une erreur Firebase / inconnue en SessionShareError typé.
    * Maps a Firebase / unknown error to a typed SessionShareError.
    *
-   * @param error - Erreur originale / Original error
-   * @param fn - Nom de la fonction appelante (pour le log) / Calling function name
-   * @returns SessionShareError typé / Typed SessionShareError
+   * @param error - Original error
+   * @param fn - Calling function name (for the log)
+   * @returns Typed SessionShareError
    */
   private mapError(error: unknown, fn: string): SessionShareError {
     if (error instanceof SessionShareError) {
@@ -444,10 +463,9 @@ export class FirebaseSessionShareService implements ISessionShareService {
   }
 
   /**
-   * Reporte une erreur au crash reporter (tag feature: share).
    * Reports an error to the crash reporter (tag feature: share).
    *
-   * @param error - Erreur typée à reporter / Typed error to report
+   * @param error - Typed error to report
    */
   private report(error: SessionShareError): void {
     this.crashReporter?.captureException(error, {
@@ -457,10 +475,9 @@ export class FirebaseSessionShareService implements ISessionShareService {
   }
 
   /**
-   * Génère un timestamp HH:mm:ss pour le logging (LOG-001).
    * Generates an HH:mm:ss timestamp for logging (LOG-001).
    *
-   * @returns Timestamp formaté / Formatted timestamp
+   * @returns Formatted timestamp
    */
   private timestamp(): string {
     return new Date().toISOString().slice(11, 19);

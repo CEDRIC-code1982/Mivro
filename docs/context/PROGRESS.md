@@ -1,7 +1,37 @@
 # PROGRESS.md — Mivro
 
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-11-26 (champs immuables de `meta` : règle `.write` `hasChildren`).
+> Dernière mise à jour : 2026-11-26 (jonction sur une session supprimée : `not_found` et `removeMember` best-effort).
+
+## Jonction sur une session supprimée (2026-11-26, branche `fix/jonction-session-supprimee`)
+
+Item déjà inscrit au TODO (« Jonction sur une session supprimée », relevé par le reviewer sur
+`fix/regle-meta-immuable`). Si la session était supprimée (propriétaire ou purge) pendant qu'un
+invité la rejoignait, `joinSharedSession` écrivait quand même `members/$memberId`, la relecture
+renvoyait `null` et `JoinSessionUseCase` retombait sur le roster local puis appelait
+`updateMidpoint` : il restait un nœud sans `expiresAt`, ignoré par `purgeExpiredSessions`, avec
+l'adresse de départ exacte de l'invité. Lot validé par Cédric le 2026-11-26 (« on suit tes
+recos »).
+
+- **Use case** (`JoinSessionUseCase`, étape 4) : relecture `null` → `SessionShareError`
+  `not_found`, sans `updateMidpoint` ni repli sur le roster local, que l'invité soit nouveau ou
+  déjà membre. Une relecture qui échoue (réseau) propage toujours l'erreur du port.
+- **Port** (`ISessionShareService.removeMember`) : nouvelle méthode, best-effort, documentée
+  « ne rejette jamais ». Le use case l'appelle avant de lever, pour un nouveau membre seulement
+  (un membre déjà présent n'a pas été écrit par cet appel).
+- **Adapter** (`FirebaseSessionShareService.removeMember`) : `remove()` sur `members/$memberId`
+  (accordé par la règle `.write: true` du nœud) ; sur échec, erreur mappée, loguée et remontée
+  au crash reporter, sans rejeter, y compris si le reporter lève.
+- **UI** : message `not_found` existant (`share:errors.not_found`), aucune nouvelle string.
+- **Fenêtre résiduelle**, non fermable sans transaction ni Auth : une suppression entre la
+  relecture et `updateMidpoint` laisse un `meta = { midpoint, midpointRadius }` orphelin (sans
+  adresse, coordonnée dérivée), ignoré par la purge ; un échec de `removeMember` laisse le
+  `members/$memberId`. Détail dans `database.rules.README.md` (« Risque résiduel »).
+- Tests : +6 dans `JoinSessionUseCase.test.ts` (le test de repli sur le roster local est
+  inversé, cas déjà membre ajouté), +5 dans `FirebaseSessionShareService.test.ts` ; Jest :
+  93 suites, 1488 → 1499 tests.
+- Reste à Cédric : vérification sur appareil avec le plan de test temps réel ; tests des règles
+  sur l'émulateur (item TODO « Tests des règles RTDB »).
 
 ## Champs immuables de `meta` (2026-11-26, branche `fix/regle-meta-immuable`)
 
@@ -672,7 +702,7 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
 | Suites de tests                    | 93                                                                |
-| Tests (cas) — `npm run check`      | 1488                                                              |
+| Tests (cas) — `npm run check`      | 1499                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |
