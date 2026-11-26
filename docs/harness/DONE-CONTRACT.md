@@ -11,33 +11,23 @@
 
 ## Tâche
 
-**Titre** : Champs immuables de `meta` protégés contre la suppression (règle RTDB provisoire)
+**Titre** : <titre court>
 
-**Demande d'origine** : décision de Cédric du 2026-11-26, « règle `meta` provisoire », puis « on
-suit tes recos » sur le lot proposé : `".write": "newData.hasChildren(['createdAt', 'expiresAt',
-'ownerType', 'status'])"` sur `meta`, à la place de `newData.exists()`, qui laissait supprimer un
-champ seul puis le réécrire.
+**Demande d'origine** : « <la demande, citée> »
 
-**Branche** : `fix/regle-meta-immuable`, issue de `fix/dette-f7` (d7ce98e).
+**Branche** : `<branche>`, issue de `<base>`.
 
 **Hors périmètre explicite** :
 
-- `.validate` de forme sur `meta` à la création : écarté, non vérifiable sans émulateur.
-- Tests des règles sur l'émulateur Firebase (`@firebase/rules-unit-testing`) : item du TODO
-  existant, non traité.
-- Firebase Anonymous Auth (la vraie réponse) : story à part.
-- Déploiement des règles : Cédric.
+- <ce qui n'est pas fait, et qui le fera>
 
 ---
 
 ## Conditions de fin
 
-| #   | Condition                                                                                                                             | Comment on le vérifie                                                                                          |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| 1   | Le nœud `meta` n'accorde l'écriture que si, après l'écriture, il garde `createdAt`, `expiresAt`, `ownerType` et `status`              | `database.rules.json`, test structurel dans `databaseRules.test.ts`                                            |
-| 2   | Les écritures légitimes restent permises : création au niveau session, `updateMidpoint` sur `meta`, suppression de la session entière | Relecture des règles contre `FirebaseSessionShareService` ; raisonnement écrit dans `database.rules.README.md` |
-| 3   | `database.rules.README.md` décrit la règle, le contournement qu'elle ferme et son caractère provisoire                                | Relecture, capteurs `docrefs` et `docclaims`                                                                   |
-| 4   | L'item « Immuabilité de `meta` contournable » du TODO est coché, noté provisoire ; le RUNBOOK porte le déploiement à faire            | Relecture, capteur `docfacts`                                                                                  |
+| #   | Condition   | Comment on le vérifie |
+| --- | ----------- | --------------------- |
+| 1   | <condition> | <commande ou preuve>  |
 
 ---
 
@@ -55,5 +45,4 @@ champ seul puis le réécrire.
 
 ## Ce qui reste à Cédric
 
-- [ ] `firebase deploy --only database`, puis vérifier le partage sur deux appareils.
-- [ ] Pousser la branche ; pas de PR tant que le verrou de facturation GitHub tient.
+- [ ] <action hors de portée de l'agent>
