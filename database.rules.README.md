@@ -61,14 +61,14 @@ en bloc si aucune règle ne l'accorde **à ce chemin ou au-dessus**, même si ch
 accessible. Jusqu'au 2026-11-16, rien n'était accordé au niveau `sessions/$sessionId`, alors que le
 client y travaille :
 
-| Appel client                                                          | Chemin                             | Règle qui l'autorise                                                  |
-| --------------------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------- |
-| `fetchSharedSession` — `get()`                                        | `sessions/$sessionId`              | `.read: true`                                                         |
-| `subscribeToSharedSession` — `onValue()`                              | `sessions/$sessionId`              | `.read: true`                                                         |
-| `FirebaseRealtimeService` — abonnement aux positions                  | `sessions/$sessionId/participants` | `.read: true` (hérité du niveau session)                              |
-| `createSharedSession` — `update({ meta, members })`                   | `sessions/$sessionId`              | `.write`, branche « pas encore de `meta` »                            |
-| `deleteSharedSession` — `remove()` (RGPD)                             | `sessions/$sessionId`              | `.write`, branche « suppression de la session entière »               |
-| `joinSharedSession`, mise à jour du midpoint, écriture d'une position | nœuds enfants                      | inchangé : `meta`, `members/$memberId`, `participants/$participantId` |
+| Appel client                                                          | Chemin                             | Règle qui l'autorise                                                                                                   |
+| --------------------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `fetchSharedSession` — `get()`                                        | `sessions/$sessionId`              | `.read: true`                                                                                                          |
+| `subscribeToSharedSession` — `onValue()`                              | `sessions/$sessionId`              | `.read: true`                                                                                                          |
+| `FirebaseRealtimeService` — abonnement aux positions                  | `sessions/$sessionId/participants` | `.read: true` (hérité du niveau session)                                                                               |
+| `createSharedSession` — `update({ meta, members })`                   | `sessions/$sessionId`              | `.write`, branche « pas encore de `meta` »                                                                             |
+| `deleteSharedSession` — `remove()` (RGPD)                             | `sessions/$sessionId`              | `.write`, branche « suppression de la session entière »                                                                |
+| `joinSharedSession`, mise à jour du midpoint, écriture d'une position | nœuds enfants                      | règles des enfants : `meta` (`.write` conditionnel, voir plus bas), `members/$memberId`, `participants/$participantId` |
 
 ```text
 ".read":  true
@@ -111,17 +111,19 @@ client y travaille :
   partagée dès sa fin distante, et refuse de le démarrer sur une copie terminée.
 
 Cette condition n'est **pas une frontière de sécurité** face à qui connaît le `$sessionId` : les
-nœuds enfants permettent déjà d'écrire ou de supprimer chaque nœud un par un. Elle protège la
+nœuds enfants permettent déjà d'écrire ou de supprimer chaque nœud un par un (hors les quatre
+champs de cycle de vie de `meta`, voir ci-dessous). Elle protège la
 session contre une écriture en bloc involontaire. La vraie frontière reste Firebase Anonymous Auth
 (voir plus haut).
 
-### Champs `meta` immuables après création (durcissement review F5)
+### Champs `meta` immuables après création (durcissement review F5, puis 2026-11-26)
 
 `createdAt`, `expiresAt`, `ownerType` et `status` sont **immuables après leur
-première écriture** :
+première écriture**, et **ne peuvent pas être supprimés un par un** :
 
 ```text
-".validate": "<typeCheck> && (!data.exists() || data.val() === newData.val())"
+meta/.write:            "newData.hasChildren(['createdAt', 'expiresAt', 'ownerType', 'status'])"
+meta/<champ>/.validate: "<typeCheck> && (!data.exists() || data.val() === newData.val())"
 ```
 
 → une fois posés à la création, ils ne peuvent plus être réécrits. Cela empêche
@@ -131,6 +133,34 @@ qu'un client connaissant le `$sessionId` (capability URL) **rallonge `expiresAt`
 `meta/midpoint` + `meta/midpointRadius` (recalcul collaboratif à chaque join) et
 le sous-nœud `members` (ajout de membres).
 
+**Faille fermée par la règle `.write` (branche `fix/regle-meta-immuable`, 2026-11-26).**
+Jusque-là, `meta` avait `".write": true`, et les `.validate` ne sont **pas évalués
+sur une suppression**. Un client qui connaissait l'UUID pouvait écrire
+`meta/expiresAt = null`, puis réécrire un `expiresAt` plus lointain (la clause
+`!data.exists()` est vraie à la seconde écriture) : TTL rallongé à volonté. Même
+contournement pour `status`. La règle `.write` exige désormais que les quatre
+champs existent encore **après** toute écriture sous `meta`. La piste
+`newData.exists()` ne suffisait pas : supprimer un seul champ laisse `meta` non
+vide. Choix de `hasChildren` validé par Cédric le 2026-11-26.
+
+Écritures légitimes, vérifiées une par une :
+
+| Écriture                                                           | Pourquoi elle reste permise                                                                                                  |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `createSharedSession` — `update({ meta, members })`                | accordée au niveau `sessions/$sessionId` tant que `meta` n'existe pas, et un `.write` accordé vaut pour toute la descendance |
+| `updateMidpoint` — `update(metaRef, { midpoint, midpointRadius })` | les quatre champs restent en place, tant que `meta` existe (sinon, voir « Risque résiduel » ci-dessous)                      |
+| `deleteSharedSession` — `remove()` de la session entière           | accordée au niveau session (`!newData.exists()`)                                                                             |
+| Re-partage d'une session déjà partagée                             | toujours **refusé** par l'immuabilité de `createdAt`, comme avant (le client ne le tente plus)                               |
+| Purge `purgeExpiredSessions` (`functions/index.js`)                | Admin SDK, qui ignore les règles                                                                                             |
+
+Le test structurel `src/services/infra/realtime/databaseRules.test.ts` fige la
+chaîne exacte de la règle, et vérifie que la liste des champs exigés par
+`hasChildren` est égale à celle des champs qui portent la clause d'immuabilité.
+
+**Règle provisoire.** Elle ferme la suppression champ par champ, pas la faille de
+fond (voir le risque résiduel ci-dessous). La vraie réponse reste Firebase
+Anonymous Auth, avec l'écriture de `meta` réservée au créateur.
+
 ### ⚠️ Risque résiduel (MVP sans auth)
 
 Le modèle MVP reste **sans Firebase Auth** : la protection repose sur le
@@ -138,12 +168,36 @@ Le modèle MVP reste **sans Firebase Auth** : la protection repose sur le
 
 - un client connaissant le `$sessionId` peut toujours **ajouter / écraser un
   membre** ou **modifier le midpoint** ;
+- **supprimer puis recréer** : il peut supprimer la session entière (accordé au
+  niveau session), puis la recréer sous le même id avec un `expiresAt` de son
+  choix, puisque `meta` n'existe plus. C'est la même faille que celle fermée
+  ci-dessus, un cran plus haut : sans identité, les règles ne savent pas
+  distinguer le créateur légitime d'un autre client ;
+- rien n'oblige `meta/midpoint` à porter `latitude` **et** `longitude` ensemble
+  (déjà vrai avant le 2026-11-26 ; suivi : item « Forme de `meta/midpoint` » de
+  `docs/context/TODO.md`) ;
+- **nœud orphelin après une course à la jonction** : si la session est
+  supprimée (par le propriétaire ou par la purge) pendant qu'un invité la
+  rejoint, après sa lecture, `joinSharedSession` écrit quand même
+  `members/$memberId` (accordé par `members/$memberId: true`). La relecture
+  renvoie `null`, et `JoinSessionUseCase` retombe volontairement sur le roster
+  local, puis appelle `updateMidpoint` : le niveau `meta` refuse l'écriture mais
+  le niveau session l'accorde, puisque `meta` n'existe plus. Il reste alors un
+  nœud `{ members: { <invité> }, meta: { midpoint, midpointRadius } }` sans
+  `expiresAt`, que `purgeExpiredSessions` laisse en place (malformé) :
+  l'**adresse de départ exacte** de l'invité (latitude, longitude,
+  `formattedAddress`) et une coordonnée dérivée persistent en base. Déjà vrai
+  avant le 2026-11-26, fenêtre étroite. Anonymous Auth ne le fermerait pas (un
+  invité authentifié reste propriétaire de son `members/$memberId`). Suivi :
+  item « Jonction sur une session supprimée » (P2, fermeture côté client) et
+  item « Tests des règles RTDB » de `docs/context/TODO.md` ;
 - l'immuabilité ci-dessus est appliquée **côté règles** (déclaratif) et ne
   remplace pas une véritable autorisation par identité.
 
 Durcissement = **Firebase Anonymous Auth** (même story que F4 ci-dessus) :
 réserver l'écriture du nœud `meta` au créateur (`auth.uid`), et l'écriture d'un
-membre à son propriétaire.
+membre à son propriétaire. Suivi : item « Firebase Anonymous Auth » de
+`docs/context/TODO.md` (P2).
 
 ### ⚠️ Expiration (`expiresAt`) — purge SERVEUR requise (NON implémentée)
 

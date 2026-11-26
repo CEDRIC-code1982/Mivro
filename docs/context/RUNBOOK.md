@@ -225,6 +225,27 @@ bouton repasse à « Partager ma position ».
 | `/sessions/$sessionId`        | lecture ouverte ; écriture = création ou suppression entière |
 | `/sessions/$sessionId/$other` | refusé                                                       |
 
+### ⏳ Redéployer les règles RTDB (branche `fix/regle-meta-immuable`, 2026-11-26)
+
+Le nœud `meta` passe de `".write": true` à
+`".write": "newData.hasChildren(['createdAt', 'expiresAt', 'ownerType', 'status'])"` : un client
+ne peut plus supprimer `meta/expiresAt` ou `meta/status` pour les réécrire ensuite (TTL rallongé,
+session rouverte). Règle provisoire, en attendant Firebase Anonymous Auth ; raisonnement et risque
+résiduel dans `database.rules.README.md`. Si le redéploiement du 2026-11-16 ci-dessus n'est pas
+encore fait, un seul déploiement couvre les deux. Une fois la branche fusionnée :
+
+```bash
+firebase deploy --only database
+```
+
+Puis, sur deux appareils : **créer** un partage côté propriétaire, le **rejoindre** par le lien
+côté invité, et vérifier que le midpoint est recalculé et affiché chez les deux (écriture de
+`meta/midpoint` + `meta/midpointRadius`, qui doit passer sans `permission_denied`).
+
+| Chemin après redéploiement  | Accès                                                                         |
+| --------------------------- | ----------------------------------------------------------------------------- |
+| `/sessions/$sessionId/meta` | écriture seulement si `createdAt`, `expiresAt`, `ownerType`, `status` restent |
+
 ### ⏳ Reste à faire
 
 Rebuild natif — `react-native-config` lit `.env` au moment du build, pas au reload Metro.

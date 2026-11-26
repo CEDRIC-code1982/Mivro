@@ -11,7 +11,7 @@
         },
         "meta": {
           ".read": true,
-          ".write": true,
+          ".write": "newData.hasChildren(['createdAt', 'expiresAt', 'ownerType', 'status'])",
           "createdAt": {
             ".validate": "newData.isNumber() && newData.val() >= 0 && (!data.exists() || data.val() === newData.val())"
           },

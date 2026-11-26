@@ -18,6 +18,24 @@ const session = root.sessions.$sessionId;
 /** Validation that makes a field immutable once written. */
 const IMMUTABLE_CLAUSE = '(!data.exists() || data.val() === newData.val())';
 
+/** Meta fields whose `.validate` carries the immutability clause, derived from the rules. */
+const immutableMetaFields = Object.entries(session.meta)
+  .filter(
+    ([, rule]) =>
+      typeof rule === 'object' &&
+      '.validate' in rule &&
+      typeof rule['.validate'] === 'string' &&
+      rule['.validate'].includes(IMMUTABLE_CLAUSE),
+  )
+  .map(([field]) => field)
+  .sort();
+
+/** Meta fields that the `.write` rule of meta requires to still exist after any write. */
+const requiredMetaFields = Array.from(
+  session.meta['.write'].matchAll(/'([^']+)'/g),
+  ([, field]) => field,
+).sort();
+
 describe('database.rules.json', () => {
   it('keeps the root closed', () => {
     expect(root['.read']).toBe(false);
@@ -45,13 +63,23 @@ describe('database.rules.json', () => {
   });
 
   describe('child nodes stay governed by their own rules', () => {
-    it('keeps meta open, with its four lifecycle fields immutable', () => {
-      expect(session.meta['.write']).toBe(true);
+    // [FIXED] "Immuabilité de `meta` contournable": meta had `.write: true`, and `.validate` rules
+    // are not evaluated on a deletion, so a client could delete `meta/expiresAt` then write it
+    // again with a later value (`!data.exists()` holds on the second write), extending the session
+    // at will. The `.write` rule now denies any write that would leave one lifecycle field missing.
+    it('grants a meta write only if its four lifecycle fields remain, each immutable', () => {
+      expect(session.meta['.write']).toBe(
+        "newData.hasChildren(['createdAt', 'expiresAt', 'ownerType', 'status'])",
+      );
       expect(session.meta.createdAt['.validate']).toContain(IMMUTABLE_CLAUSE);
       expect(session.meta.expiresAt['.validate']).toContain(IMMUTABLE_CLAUSE);
       expect(session.meta.ownerType['.validate']).toContain(IMMUTABLE_CLAUSE);
       expect(session.meta.status['.validate']).toContain(IMMUTABLE_CLAUSE);
       expect(session.meta.$other['.validate']).toBe(false);
+    });
+
+    it('requires on write exactly the meta fields that are immutable', () => {
+      expect(requiredMetaFields).toEqual(immutableMetaFields);
     });
 
     it('keeps each member writable, with unknown fields rejected', () => {

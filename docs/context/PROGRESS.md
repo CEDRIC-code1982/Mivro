@@ -1,7 +1,33 @@
 # PROGRESS.md — Mivro
 
 > Journal de progression. Mis à jour à la fin de CHAQUE feature (cf. CLAUDE.md > AUTO-MAINTENANCE).
-> Dernière mise à jour : 2026-11-26 (dette F7 : `normalizePath`, contrat de `deletePhoto`, fallback d'`AvatarPicker`, `cameraType: 'front'`).
+> Dernière mise à jour : 2026-11-26 (champs immuables de `meta` : règle `.write` `hasChildren`).
+
+## Champs immuables de `meta` (2026-11-26, branche `fix/regle-meta-immuable`)
+
+Item déjà inscrit au TODO (« Immuabilité de `meta` contournable »). Les `.validate`
+d'immuabilité de `createdAt`, `expiresAt`, `ownerType` et `status` ne s'appliquent pas à une
+suppression : avec `".write": true` sur `meta`, un client qui connaissait l'UUID pouvait écrire
+`meta/expiresAt = null`, puis réécrire un `expiresAt` plus lointain (TTL RGPD rallongé), et de
+même pour `status`.
+
+- **Règle** (`database.rules.json`) : `sessions/$sessionId/meta` passe à
+  `".write": "newData.hasChildren(['createdAt', 'expiresAt', 'ownerType', 'status'])"`. Toute
+  écriture qui laisserait manquer un des quatre champs est refusée. La piste du TODO,
+  `newData.exists()`, ne suffisait pas (supprimer un seul champ laisse `meta` non vide) ;
+  `hasChildren` validé par Cédric le 2026-11-26.
+- **Écritures légitimes** vérifiées une par une : création (`update({ meta, members })`, accordée
+  au niveau session), `updateMidpoint` (les quatre champs restent), suppression de la session
+  entière (niveau session), purge Admin SDK (ignore les règles) ; le re-partage reste refusé par
+  l'immuabilité de `createdAt`.
+- **Provisoire** : supprimer la session entière puis la recréer avec un autre `expiresAt` reste
+  possible (même faille, un cran plus haut) ; la vraie réponse reste Firebase Anonymous Auth.
+  Détail et risque résiduel dans `database.rules.README.md`.
+- Tests : `databaseRules.test.ts` passe de 7 à 8 tests structurels (chaîne exacte de la règle,
+  liste des champs exigés égale à celle des champs immuables) ; Jest : 93 suites, 1487 → 1488
+  tests.
+- Reste à Cédric : `firebase deploy --only database`, puis création et jonction d'un partage sur
+  deux appareils (RUNBOOK).
 
 ## Dette F7 : chemins de photo, contrat de suppression, fallback d'avatar (2026-11-26, branche `fix/dette-f7`)
 
@@ -24,7 +50,8 @@ Quatre items de dette relevés par la review F7 (passe 2), déjà inscrits au TO
 - Tests : 14 de plus dans `ImagePickerProfilePhotoService.test.ts`, 1 dans
   `AvatarPicker.test.tsx` ; Jest : 93 suites, 1472 → 1487 tests.
 - TODO : les quatre items de dette F7 cochés. L'immuabilité de `meta` (règle
-  `".write": "newData.exists()"`) reste ouverte, pour un lot à part.
+  `".write": "newData.exists()"`) reste ouverte, pour un lot à part (livrée ensuite avec
+  `hasChildren`, voir « Champs immuables de `meta` »).
 
 ## Cause GPS prioritaire dans l'erreur de suivi, Jest qui rend la main (2026-11-26, branche `fix/cause-gps-et-blocage-jest`)
 
@@ -645,7 +672,7 @@ a18979a  2026-04-30  chore           init RN 0.85.2
 | ---------------------------------- | ----------------------------------------------------------------- |
 | Fichiers code (`src/`, hors tests) | 124                                                               |
 | Suites de tests                    | 93                                                                |
-| Tests (cas) — `npm run check`      | 1487                                                              |
+| Tests (cas) — `npm run check`      | 1488                                                              |
 | Entités core                       | 9                                                                 |
 | Ports                              | 9 (+`IBiometricService`)                                          |
 | Use cases                          | 9                                                                 |
